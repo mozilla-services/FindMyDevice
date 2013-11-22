@@ -1,0 +1,9 @@
+code.google.com/p/goprotobuf -d
+code.google.com/p/go-uuid -d
+code.google.com/p/go.net -d
+code.google.com/p/go-uuid/uuid
+github.com/ianoshen/gomc
+github.com/jessevdk/go-flags
+github.com/tent/hawk-go
+github.com/mozilla-services/heka/client
+github.com/mozilla-services/heka/message
