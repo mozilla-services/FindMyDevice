@@ -1,5 +1,4 @@
 #! /bin/bash
-set -e
 echo "Installing required go libraries..."
 git submodule update --init
 for req in `grep -v "^#" go-prod.deps`; do
@@ -7,6 +6,7 @@ for req in `grep -v "^#" go-prod.deps`; do
     go get -v $req
     echo " done"
 done
+set -e
 echo "Libraries installed"
 if [ ! -e config.ini ]; then
     echo "Copying sample ini file to config.ini"

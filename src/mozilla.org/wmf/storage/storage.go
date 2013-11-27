@@ -133,7 +133,7 @@ func (self *Storage) Init() (err error){
     return nil
 }
 
-func (self *Storage) CreateDevice(dev Device) (devId string, err error) {
+func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, err error) {
     // value check?
 
     sql := "insert into deviceInfo (deviceId, lockable, lastExchange, hawkSecret) select $1, $2, $3, $4 where not exists (select deviceId from deviceInfo where deviceId = $1);"
@@ -149,7 +149,7 @@ func (self *Storage) CreateDevice(dev Device) (devId string, err error) {
         return "", err
     }
 
-    if _, err := db.Exec(sql, dev.ID,
+    if _, err = db.Exec(sql, dev.ID,
         dev.Lockable,
         time.Now().String(),
         dev.Secret,
@@ -157,6 +157,13 @@ func (self *Storage) CreateDevice(dev Device) (devId string, err error) {
             self.logger.Error("storage", "Could not create device",
                 util.Fields{"error":err.Error()})
             return "", err
+    }
+    if _, err = db.Exec("insert into userToDeviceMap (userId, deviceId) values ($1, $2);", userid, dev.ID); err != nil {
+        self.logger.Error("storage", "Could not map device to user", util.Fields{
+            "uid": userid,
+            "deviceId": devId,
+            "error": err.Error()})
+        return "", err
     }
     return dev.ID, nil
 }
