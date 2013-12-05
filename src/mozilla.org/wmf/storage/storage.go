@@ -19,9 +19,9 @@ type Storage struct {
 }
 
 type Position struct {
-    Latitude float32
-    Longitude float32
-    Altitude float32
+    Latitude float64
+    Longitude float64
+    Altitude float64
     Time int64
 }
 
@@ -168,4 +168,27 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
     return dev.ID, nil
 }
 
+func (self *Storage) GetPending(devId string) (cmd map[string]interface{}, err error){
+    return nil, nil
+}
 
+
+func (self *Storage) ValidateDevice(devId string) (valid bool) {
+    // validate that we've seen this ID
+    return true
+}
+
+
+func (self *Storage) SetDeviceLocked(devId string, state bool) (err error) {
+    // update the device record
+    return nil
+}
+
+func (self *Storage) SetDeviceLocation(devId string, position Position) (err error) {
+    // set the current device position
+    return nil
+}
+
+func (self *Storage) LogState(devId string, cmd string) (err error) {
+   return nil
+}
