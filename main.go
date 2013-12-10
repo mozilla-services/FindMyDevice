@@ -75,6 +75,7 @@ func main() {
 		handlers.State)
 	RESTMux.HandleFunc("/status/",
 		handlers.StatusHandler)
+    RESTMux.HandleFunc("/", handlers.Index)
 
         logger.Info("main", "startup...",
             util.Fields{"host": host, "port": port})

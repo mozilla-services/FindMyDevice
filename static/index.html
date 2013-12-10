@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<head>
+    <title>{{.ProductName}}</title>
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+</head>
+<body>
+    <header>
+    <h1>{{.ProductName}}</h1>
+    <div id="login">
+        <div id="persona-login"></div>
+        <div id="persona-logout"></div>
+    </div>
+    </header>
+    {{if len(.UserId) == 0}}
+            <div class="welcome">
+                Please log in so that there is such wow and joy.
+            </div>
+    {{else}}
+    {{if len(.DeviceList) > 0 }}
+        <div class="caption">You have more than one device.
+        Please select which device you'd like to work with.</div>
+        <ul id="devices">
+        {{range $device := .DeviceList}}
+        <li><a href="{{$device.ID}}">{{$device.Name}}</a></li>
+        {{end}}
+        </ul>
+    {{else}}
+    {{with $device := .Device}}
+        <div class="device">
+            <div class="name">{{$device.Name}}</div>
+            <div class="loggedin" data.state="{{$device.LoggedIn}}">Device is {{if !$device.LoggedIn }}<b>not</b>{{end}} accessible</div>
+            <div class="lockable" data.state="{{$device.Lockable}}">Device {{if $device.Lockable }}has{{else}}does not have{{end}} a lock code{{end}}</div>
+            <div class="lastexchange" data.contact="{{$device.LastExchange}}">Last contact: {{$device.LastExchange}}</div>
+            <ol class="positions">
+                {{range $position := $device.PreviousPositions}}
+                <li data.time="{{$position.time}}" data.latitude="{{$position.latitude}}" data.longitude="{{$position.longitude}}" data.altitude="{{$position.altitude}}"><a href="http://maps.google.com/maps?hl=en&ll={{$position.latitude}},{{$position.longitude}}">Position at {{$position.time}}</a></li>
+                {{end}}
+            </ol>
+
+    {{end}}
+    {{end}}
+    {{end}}
+    <footer>
+         <i>Footery stuffs...</i>
+    </footer>
+</body>
+</html>

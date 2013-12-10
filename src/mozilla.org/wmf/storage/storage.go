@@ -33,7 +33,7 @@ type Position struct {
 
 type Device struct {
     ID string                       // device Id
-    LastPosition Position           // last reported position
+    Name string
     PreviousPosition [5]Position
     Lockable bool                   // is device lockable
     Secret string                   // HAWK secret
@@ -41,6 +41,10 @@ type Device struct {
     Pending string                  // pending command
 }
 
+type DeviceList struct {
+    ID string
+    Name string
+}
 
 type Users map[string]string
 
@@ -52,6 +56,7 @@ type Users map[string]string
 
     table deviceInfo:
         deviceId       UUID index
+        name           string
         lockable       boolean
         loggedin       boolean
         lastExchange   time
@@ -107,7 +112,7 @@ func Open(config util.JsMap, logger *util.HekaLogger) (store *Storage, err error
 
 func (self *Storage) Init() (err error){
     cmds := []string{
-    "create table if not exists userToDeviceMap (userId uuid, deviceId uuid);",
+    "create table if not exists userToDeviceMap (userId varchar, deviceId varchar, name varchar);",
     "create index on userToDeviceMap (userId);",
 
     "create table if not exists deviceInfo ( deviceId uuid, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar(100), pendingCommand varchar(100));",
@@ -173,18 +178,18 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo map[str
 
     // collect the data for a given device for display
 
-    var deviceId, pushUrl []uint8
+    var deviceId, pushUrl, name []uint8
     var lockable, loggedIn bool
-    var statement string
+    var  statement string
 
     dbh, db, err := self.openDb()
     defer dbh.Close()
 
     // verify that the device belongs to the user
-    statement = "select d.deviceId, d.lockable, d.loggedin, d.pushUrl from userToDeviceMap as u, deviceInfo as d where u.userId = $1 and u.deviceId=$2 and u.deviceId=d.deviceId;"
+    statement = "select d.deviceId, u.name, d.lockable, d.loggedin, d.pushUrl from userToDeviceMap as u, deviceInfo as d where u.userId = $1 and u.deviceId=$2 and u.deviceId=d.deviceId;"
     fmt.Printf("userId:%s, devId:%s\n", userId, devId)
     row := db.QueryRow(statement, userId, devId)
-    err = row.Scan(&deviceId, &lockable, &loggedIn, &pushUrl)
+    err = row.Scan(&deviceId, &name, &lockable, &loggedIn, &pushUrl)
     switch {
     case err == sql.ErrNoRows:
         return nil, nil
@@ -196,6 +201,7 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo map[str
         return nil, err
     }
     reply := map[string]interface{}{"deviceid":string(deviceId),
+                                   "name": string(name),
                                    "lockable":lockable,
                                    "loggedin":loggedIn,
                                    "pushurl":string(pushUrl)}
@@ -238,6 +244,26 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo map[str
 func (self *Storage) GetPending(devId string) (cmd map[string]interface{}, err error){
     // TODO: Get pending commands
     return nil, nil
+}
+
+func (self *Storage) GetDevicesForUser(userId string) (devices []string, err error) {
+    //TODO: get list of devices
+    var data DeviceList
+
+    statement = "select deviceId, name, from userToDeviceMap where userId = $1;"
+    rows := db.Query(statement, userId)
+    for rows.Next() {
+        var id, name string
+        err = rows.Scan(&id, &name)
+        if err != nil {
+            self.logger.Error(self.logCat, "Could not get list of devices for user",
+                util.Fields{"error", err.Error(),
+                            "user", userId})
+            return nil, err
+        }
+        data = append(data, DeviceList{ID: id, Name: name})
+    }
+    return data, nil
 }
 
 func (self *Storage) openDb() (dbh *sql.DB, db *sql.Tx, err error) {

@@ -15,6 +15,7 @@ import (
     "strconv"
     "strings"
     "fmt"
+    "html/template"
 
 )
 
@@ -26,18 +27,18 @@ type Handler struct {
     logCat string
 }
 
+type reply_t map[string]interface{}
+
+type sessionInfo struct {
+    userId string
+    deviceId string
+}
+
 var InvalidReplyErr = errors.New("Invalid Command Response")
 var AuthorizationErr = errors.New("Needs Authorization")
 
-func NewHandler (config util.JsMap, logger *util.HekaLogger, store *storage.Storage) *Handler {
-    return &Handler{ config: config,
-        logger: logger,
-        logCat: "handler",
-        store: store}
-}
 
-type reply_t map[string]interface{}
-
+// parse a body and return the JSON
 func parseBody (rbody io.ReadCloser) (rep util.JsMap, err error) {
     var body []byte
     rep = util.JsMap{}
@@ -51,6 +52,7 @@ func parseBody (rbody io.ReadCloser) (rep util.JsMap, err error) {
     return rep, nil
  }
 
+// verify a Persona assertion using the config values
 func (self *Handler) verifyAssertion(assertion string) (userid, email string, err error) {
      var ok bool
      ver_url := util.MzGet(self.config, "persona.validater_url", "https://verifier.login.persona.org/verify")
@@ -81,6 +83,143 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
          userid = hex.EncodeToString(hasher.Sum(nil))
      }
      return userid, email, nil
+}
+
+// get the device id from the URL path
+func (self *Handler) getDevFromUrl(req *http.Request) (devId string) {
+    elements :=  strings.Split(req.URL.Path,"/")
+    return elements[3]
+}
+
+// get the user id info from the session. (userid/devid)
+func (self *Handler) setSessionInfo(resp http.ResponseWriter, session *sessionInfo) (err error){
+    return http.SetCookie(resp, &http.Cookie{Name:"user",
+        Value:sessionInfo.userId,
+        Path:"/"})
+}
+
+
+// get the user id from the session, or the assertion.
+func (self *Handler) getUser(req *http.Request) (userid string, err error) {
+// remove this!
+    fmt.Printf("####### USING DUMMY\n");
+    req.AddCookie(&http.Cookie{Name:"user",
+        Value:"user1",
+        Path:"/"})
+    //TODO: Auth before cookie?
+
+    useridc, err := req.Cookie("user")
+    if err == http.ErrNoCookie {
+        var auth string
+        if auth = req.Header.Get("Authorization"); auth != "" {
+            return "", AuthorizationErr
+        }
+        fmt.Printf("Verifying Assertion %s", auth)
+        userid, _, err = self.verifyAssertion(auth)
+        if err != nil {
+            return "", AuthorizationErr
+        }
+    } else {
+        if err != nil {
+            return "", AuthorizationErr
+        }
+        userid = useridc.Value
+    }
+    return userid, nil
+}
+
+// set the user info into the session
+func (self *Handler) getSessionInfo(req *http.Request) (session *sessionInfo, err error){
+    // TODO get real values from the session
+    //temp get the dev from the url
+    dev := self.getDevFromUrl(req)
+    if dev == "" {
+        dev = "test1"
+    }
+    user, err := self.getUser(req)
+    if err != nil {
+        self.logger.Error("handler", "Could not get user",
+            util.Fields{"error": err.Error()})
+        return nil, err
+    }
+    session = &sessionInfo{
+        userId:user,
+        deviceId:dev}
+   return
+}
+
+// Take an interface value and return if it's true or not.
+func isTrue(val interface{}) (bool) {
+    switch val.(type) {
+    case string:
+        flag,_ := strconv.ParseBool(val.(string))
+        return flag
+    case bool:
+        return val.(bool)
+    case int64:
+        return val.(int64) != 0
+    default:
+        return false
+    }
+}
+
+// log the device's position reply
+func (self *Handler) logPosition(devId string, args reply_t) (err error) {
+    var location storage.Position
+    var locked bool
+
+    for key, arg := range args {
+        switch k := strings.ToLower(key[:2]);k {
+        case "la":
+            location.Latitude = arg.(float64)
+        case "lo":
+            location.Longitude = arg.(float64)
+        case "al":
+            location.Altitude = arg.(float64)
+        case "ti":
+            location.Time = arg.(int64)
+        case "ke":
+            locked = isTrue(arg)
+            if err = self.store.SetDeviceLocked(self.devId, locked); err != nil {
+                return err
+            }
+        }
+    }
+    if err = self.store.SetDeviceLocation(self.devId, location); err != nil {
+            return err
+    }
+    return nil
+}
+
+// log the cmd reply from the device.
+func (self *Handler) logReply(devId, cmd string, args reply_t) (err error){
+    // verify state and store it
+    if v,ok := args["ok"]; !ok {
+        return InvalidReplyErr
+    } else {
+        if (!isTrue(v)) {
+            if e,ok := args["error"]; ok {
+                return errors.New(e.(string))
+            } else {
+                return errors.New("Unknown error")
+            }
+        }
+        // log the state? (Device is currently cmd-ing)?
+        err = self.store.LogState(devId, string(cmd[0]))
+    }
+    return err
+}
+
+
+
+
+//Handler Public Functions
+
+func NewHandler (config util.JsMap, logger *util.HekaLogger, store *storage.Storage) *Handler {
+    return &Handler{ config: config,
+        logger: logger,
+        logCat: "handler",
+        store: store}
 }
 
 func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
@@ -163,71 +302,6 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 }
 
-// get the device id from the URL path
-func (self *Handler) getDevFromUrl(req *http.Request) (devId string) {
-    elements :=  strings.Split(req.URL.Path,"/")
-    return elements[3]
-}
-
-type sessionInfo struct {
-    userId string
-    deviceId string
-}
-
-// get the user id info from the session. (userid/devid)
-func (self *Handler) setSessionInfo(req *http.Request, session *sessionInfo) (err error){
-    return nil
-}
-
-
-func (self *Handler) getUser(req *http.Request) (userid string, err error) {
-// remove this!
-    fmt.Printf("####### USING DUMMY\n");
-    req.AddCookie(&http.Cookie{Name:"user",
-        Value:"user1",
-        Path:"/"})
-    //TODO: Auth before cookie?
-
-    useridc, err := req.Cookie("user")
-    if err == http.ErrNoCookie {
-        var auth string
-        if auth = req.Header.Get("Authorization"); auth != "" {
-            return "", AuthorizationErr
-        }
-        fmt.Printf("Verifying Assertion %s", auth)
-        userid, _, err = self.verifyAssertion(auth)
-        if err != nil {
-            return "", AuthorizationErr
-        }
-    } else {
-        if err != nil {
-            return "", AuthorizationErr
-        }
-        userid = useridc.Value
-    }
-    return userid, nil
-}
-
-// set the user info into the session
-func (self *Handler) getSessionInfo(req *http.Request) (session *sessionInfo, err error){
-    // TODO get real values from the session
-    //temp get the dev from the url
-    dev := self.getDevFromUrl(req)
-    if dev == "" {
-        dev = "test1"
-    }
-    user, err := self.getUser(req)
-    if err != nil {
-        self.logger.Error("handler", "Could not get user",
-            util.Fields{"error": err.Error()})
-        return nil, err
-    }
-    session = &sessionInfo{
-        userId:user,
-        deviceId:dev}
-   return
-}
-
 
 func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
     /* Pass the latest command off to the device.
@@ -308,81 +382,42 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 
 }
 
-// Take an interface value and return if it's true or not.
-func isTrue(val interface{}) (bool) {
-    switch val.(type) {
-    case string:
-        flag,_ := strconv.ParseBool(val.(string))
-        return flag
-    case bool:
-        return val.(bool)
-    case int64:
-        return val.(int64) != 0
-    default:
-        return false
-    }
-}
-
-
-// log the cmd reply from the device.
-func (self *Handler) logReply(devId, cmd string, args reply_t) (err error){
-    // verify state and store it
-    if v,ok := args["ok"]; !ok {
-        return InvalidReplyErr
-    } else {
-        if (!isTrue(v)) {
-            if e,ok := args["error"]; ok {
-                return errors.New(e.(string))
-            } else {
-                return errors.New("Unknown error")
-            }
-        }
-        // log the state? (Device is currently cmd-ing)?
-        err = self.store.LogState(devId, string(cmd[0]))
-    }
-    return err
-}
-
-
-// log the device's position reply
-func (self *Handler) logPosition(devId string, args reply_t) (err error) {
-    var location storage.Position
-    var locked bool
-
-    for key, arg := range args {
-        switch k := strings.ToLower(key[:2]);k {
-        case "la":
-            location.Latitude = arg.(float64)
-        case "lo":
-            location.Longitude = arg.(float64)
-        case "al":
-            location.Altitude = arg.(float64)
-        case "ti":
-            location.Time = arg.(int64)
-        case "ke":
-            locked = isTrue(arg)
-            if err = self.store.SetDeviceLocked(self.devId, locked); err != nil {
-                return err
-            }
-        }
-    }
-    if err = self.store.SetDeviceLocation(self.devId, location); err != nil {
-            return err
-    }
-    return nil
-}
 
 // user login functions
-
-func (self *Handler) Login(resp http.ResponseWriter, req *http.Request) {
+func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
     /* Handle a user login to the web UI
     */
-    // validate the assertion
-    // get/create the userid (set info into session)
-    // create the user record (if not already present)
-    // send the device update request.
-    // show the map/command page.
+    //TODO
+    var deviceId string
+    var data struct{ProductName string,
+        UserId string,
+        DeviceList []storage.DeviceList,
+        Device storage.Device}
 
+    data.ProjectName = "Where's My Fox"
+    userId, err := self.getUser(req)
+    tmpl := html.Template("index")
+    t, err := tmpl.ParseFiles("static/index.html")
+    if err != nil {
+        // TODO: display error
+    }
+    sessionInfo, err := self.getSessionInfo(req)
+    if sessionInfo.deviceId == "" || err != nil {
+        data.DeviceList, err := self.store.GetDevicesForUser(userId)
+        if err != nil {
+            self.logger.Error(self.logCat, "Could not get user devices",
+                util.Fields{"error", err.Error(),
+                            "user", userId})
+        }
+    } else {
+        data.Device, err := self.store.GetDeviceInfo(userId,
+            sessionInfo.deviceId)
+        if err != nil {
+            // TODO Show error
+        }
+    // TODO::: rough in templates for this crap.
+    }
+    t.Execute(resp, data)
 }
 
 func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
@@ -394,15 +429,14 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
         http.Error(resp, err.Error(), 500)
         return
     }
-    devInfo, err := self.store.GetDeviceInfo(sessionInfo.userId,sessionInfo.deviceId)
+    devInfo, err := self.store.GetDeviceInfo(sessionInfo.userId,
+        sessionInfo.deviceId)
     if err != nil {
         http.Error(resp, err.Error(), 500)
         return
     }
     // add the user session cookie
-    http.SetCookie(resp, &http.Cookie{Name:"user",
-        Value:sessionInfo.userId,
-        Path:"/"})
+    self.setSessionInfo(resp, sessionInfo)
     // display the device info...
     reply, err := json.Marshal(devInfo)
     if err == nil {
@@ -413,15 +447,19 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 func (self *Handler) SendCmd(resp http.ResponseWriter, req *http.Request) {
     /* queue a command to a device
     */
+
+    //TODO
     // is the user logged in?
         // no, they fail
     // validate the command and args
     // add to device's queue
 
 }
+
 func (self *Handler) StatusHandler(resp http.ResponseWriter, req *http.Request) {
     /* Show program status
     */
     resp.Write([]byte(fmt.Sprintf("%v", req.URL.Path[len("/status/"):])))
     resp.Write([]byte("OK"))
 }
+
