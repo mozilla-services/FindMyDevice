@@ -65,8 +65,6 @@ func main() {
 	var verRoot = strings.SplitN(VERSION, ".", 2)[0]
 
 	// REST calls
-	RESTMux.HandleFunc(fmt.Sprintf("/%s/login/", verRoot),
-		handlers.Login)
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/register/", verRoot),
 		handlers.Register)
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/cmd/", verRoot),
@@ -75,6 +73,7 @@ func main() {
 		handlers.State)
 	RESTMux.HandleFunc("/status/",
 		handlers.StatusHandler)
+    RESTMux.Handle("/static/",http.FileServer(http.Dir("static")))
     RESTMux.HandleFunc("/", handlers.Index)
 
         logger.Info("main", "startup...",

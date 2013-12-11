@@ -25,17 +25,18 @@ type Storage struct {
 }
 
 type Position struct {
-    Latitude float64
-    Longitude float64
-    Altitude float64
-    Time int64
+    Latitude float32
+    Longitude float32
+    Altitude float32
+    Time int32
 }
 
 type Device struct {
     ID string                       // device Id
     Name string
-    PreviousPosition [5]Position
+    PreviousPosition []Position
     Lockable bool                   // is device lockable
+    LoggedIn bool                   // is the device logged in
     Secret string                   // HAWK secret
     PushUrl string                  // SimplePush URL
     Pending string                  // pending command
@@ -115,10 +116,10 @@ func (self *Storage) Init() (err error){
     "create table if not exists userToDeviceMap (userId varchar, deviceId varchar, name varchar);",
     "create index on userToDeviceMap (userId);",
 
-    "create table if not exists deviceInfo ( deviceId uuid, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar(100), pendingCommand varchar(100));",
+    "create table if not exists deviceInfo ( deviceId varchar, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar, pushurl varchar, pendingCommand varchar);",
     "create index on deviceInfo (deviceId);",
 
-    "create table if not exists position ( id bigserial, deviceId uuid, expry interval, time  timestamp, latitude real, longitude real, altitude real);",
+    "create table if not exists position ( id bigserial, deviceId varchar, expry interval, time  timestamp, latitude real, longitude real, altitude real);",
     "create index on position (deviceId);",
     }
 
@@ -129,7 +130,9 @@ func (self *Storage) Init() (err error){
     defer dbh.Close()
 
     for _,s := range cmds {
-        _, err := db.Exec(s)
+        fmt.Printf("%s\n", s)
+        res, err := db.Exec(s)
+        fmt.Printf("%v %v\n\n", res,err)
         if err != nil {
             self.logger.Error(self.logCat, "Could not initialize db",
                 util.Fields{"cmd": s, "error": err.Error()})
@@ -174,13 +177,14 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
     return dev.ID, nil
 }
 
-func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo map[string]interface{}, err error) {
+func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo *Device, err error) {
 
     // collect the data for a given device for display
 
     var deviceId, pushUrl, name []uint8
     var lockable, loggedIn bool
-    var  statement string
+    var statement string
+    var positions []Position
 
     dbh, db, err := self.openDb()
     defer dbh.Close()
@@ -200,20 +204,13 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo map[str
                         "deviceId":  devId})
         return nil, err
     }
-    reply := map[string]interface{}{"deviceid":string(deviceId),
-                                   "name": string(name),
-                                   "lockable":lockable,
-                                   "loggedin":loggedIn,
-                                   "pushurl":string(pushUrl)}
-
-                                   statement = "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time desc limit 10;"
+    statement = "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time desc limit 10;"
     rows, err := db.Query(statement, devId)
     if err == nil {
         var time int32 = 0
         var latitude float32 = 0.0
         var longitude float32 = 0.0
         var altitude float32 = 0.0
-        var positions []map[string]interface{}
 
         for rows.Next() {
             err = rows.Scan(&time, &latitude, &longitude, &altitude)
@@ -223,18 +220,24 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo map[str
                                 "deviceId": devId})
                 break;
             }
-            positions = append(positions, map[string]interface{}{
-                "latitude":latitude,
-                "longitude":longitude,
-                "altitude": altitude,
-                "time":time})
+            positions = append(positions, Position{
+                Latitude:latitude,
+                Longitude:longitude,
+                Altitude: altitude,
+                Time:time})
         }
         // gather the positions
-        reply["positions"] = positions
     } else {
         self.logger.Error(self.logCat, "Could not get positions",
         util.Fields{"error": err.Error()})
     }
+
+    reply := &Device{ID:string(deviceId),
+                    Name: string(name),
+                    Lockable: lockable,
+                    LoggedIn: loggedIn,
+                    PreviousPosition: positions,
+                    PushUrl :string(pushUrl)}
 
     fmt.Printf("%v\n", reply)
     return reply, nil
@@ -246,19 +249,22 @@ func (self *Storage) GetPending(devId string) (cmd map[string]interface{}, err e
     return nil, nil
 }
 
-func (self *Storage) GetDevicesForUser(userId string) (devices []string, err error) {
+func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err error) {
     //TODO: get list of devices
-    var data DeviceList
+    var data []DeviceList
 
-    statement = "select deviceId, name, from userToDeviceMap where userId = $1;"
-    rows := db.Query(statement, userId)
+    dbh, db, err := self.openDb()
+    defer dbh.Close()
+
+    statement := "select deviceId, name, from userToDeviceMap where userId = $1;"
+    rows, err := db.Query(statement, userId)
     for rows.Next() {
         var id, name string
         err = rows.Scan(&id, &name)
         if err != nil {
             self.logger.Error(self.logCat, "Could not get list of devices for user",
-                util.Fields{"error", err.Error(),
-                            "user", userId})
+                util.Fields{"error": err.Error(),
+                            "user": userId})
             return nil, err
         }
         data = append(data, DeviceList{ID: id, Name: name})

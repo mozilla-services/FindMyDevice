@@ -15,7 +15,7 @@ import (
     "strconv"
     "strings"
     "fmt"
-    "html/template"
+    "text/template"
 
 )
 
@@ -30,8 +30,8 @@ type Handler struct {
 type reply_t map[string]interface{}
 
 type sessionInfo struct {
-    userId string
-    deviceId string
+    UserId string
+    DeviceId string
 }
 
 var InvalidReplyErr = errors.New("Invalid Command Response")
@@ -88,14 +88,19 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 // get the device id from the URL path
 func (self *Handler) getDevFromUrl(req *http.Request) (devId string) {
     elements :=  strings.Split(req.URL.Path,"/")
-    return elements[3]
+    if len(elements) > 2 {
+        return elements[3]
+    }
+    return ""
 }
 
 // get the user id info from the session. (userid/devid)
 func (self *Handler) setSessionInfo(resp http.ResponseWriter, session *sessionInfo) (err error){
-    return http.SetCookie(resp, &http.Cookie{Name:"user",
-        Value:sessionInfo.userId,
-        Path:"/"})
+    cookie := http.Cookie{Name:"user",
+        Value:session.UserId,
+        Path:"/"}
+    http.SetCookie(resp, &cookie)
+    return err
 }
 
 
@@ -106,7 +111,7 @@ func (self *Handler) getUser(req *http.Request) (userid string, err error) {
     req.AddCookie(&http.Cookie{Name:"user",
         Value:"user1",
         Path:"/"})
-    //TODO: Auth before cookie?
+    //TODO: accept Auth before cookie?
 
     useridc, err := req.Cookie("user")
     if err == http.ErrNoCookie {
@@ -130,8 +135,7 @@ func (self *Handler) getUser(req *http.Request) (userid string, err error) {
 
 // set the user info into the session
 func (self *Handler) getSessionInfo(req *http.Request) (session *sessionInfo, err error){
-    // TODO get real values from the session
-    //temp get the dev from the url
+    // Get this from the session?
     dev := self.getDevFromUrl(req)
     if dev == "" {
         dev = "test1"
@@ -143,8 +147,8 @@ func (self *Handler) getSessionInfo(req *http.Request) (session *sessionInfo, er
         return nil, err
     }
     session = &sessionInfo{
-        userId:user,
-        deviceId:dev}
+        UserId:user,
+        DeviceId:dev}
    return
 }
 
@@ -171,13 +175,13 @@ func (self *Handler) logPosition(devId string, args reply_t) (err error) {
     for key, arg := range args {
         switch k := strings.ToLower(key[:2]);k {
         case "la":
-            location.Latitude = arg.(float64)
+            location.Latitude = arg.(float32)
         case "lo":
-            location.Longitude = arg.(float64)
+            location.Longitude = arg.(float32)
         case "al":
-            location.Altitude = arg.(float64)
+            location.Altitude = arg.(float32)
         case "ti":
-            location.Time = arg.(int64)
+            location.Time = arg.(int32)
         case "ke":
             locked = isTrue(arg)
             if err = self.store.SetDeviceLocked(self.devId, locked); err != nil {
@@ -372,6 +376,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
                             "device": deviceId})
             http.Error(resp, "Server Error", http.StatusServiceUnavailable)
             return
+          
         }
         resp.Write(jcmd)
     } else {
@@ -388,36 +393,47 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
     /* Handle a user login to the web UI
     */
     //TODO
-    var deviceId string
-    var data struct{ProductName string,
-        UserId string,
-        DeviceList []storage.DeviceList,
-        Device storage.Device}
+    var data struct{ProductName string
+        UserId string
+        DeviceList []storage.DeviceList
+        Device *storage.Device}
 
-    data.ProjectName = "Where's My Fox"
+    data.ProductName = "Where's My Fox"
     userId, err := self.getUser(req)
-    tmpl := html.Template("index")
-    t, err := tmpl.ParseFiles("static/index.html")
+    tmpl, err := template.New("index").ParseFiles("static/index.html")
     if err != nil {
         // TODO: display error
+        self.logger.Error(self.logCat, "Could not display index page", 
+            util.Fields{"error": err.Error(),
+                        "user": userId})
+        if file, err := ioutil.ReadFile("static/error.html"); err == nil {
+            resp.Write(file)
+        }
+        return
     }
     sessionInfo, err := self.getSessionInfo(req)
-    if sessionInfo.deviceId == "" || err != nil {
-        data.DeviceList, err := self.store.GetDevicesForUser(userId)
+    if sessionInfo.DeviceId == "" || err != nil {
+        data.DeviceList, err = self.store.GetDevicesForUser(userId)
         if err != nil {
             self.logger.Error(self.logCat, "Could not get user devices",
-                util.Fields{"error", err.Error(),
-                            "user", userId})
+                util.Fields{"error": err.Error(),
+                            "user": userId})
         }
     } else {
-        data.Device, err := self.store.GetDeviceInfo(userId,
-            sessionInfo.deviceId)
+        data.Device, err = self.store.GetDeviceInfo(userId,
+            sessionInfo.DeviceId)
         if err != nil {
-            // TODO Show error
+            self.logger.Error(self.logCat, "Could not get device info", 
+                util.Fields{"error": err.Error(),
+                            "user": userId})
+            if file, err := ioutil.ReadFile("static/error.html"); err == nil {                 
+                resp.Write(file)
+            }
+            return
         }
-    // TODO::: rough in templates for this crap.
     }
-    t.Execute(resp, data)
+    tmpl.Execute(resp, data)
+    return
 }
 
 func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
@@ -429,8 +445,8 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
         http.Error(resp, err.Error(), 500)
         return
     }
-    devInfo, err := self.store.GetDeviceInfo(sessionInfo.userId,
-        sessionInfo.deviceId)
+    devInfo, err := self.store.GetDeviceInfo(sessionInfo.UserId,
+        sessionInfo.DeviceId)
     if err != nil {
         http.Error(resp, err.Error(), 500)
         return

@@ -11,25 +11,25 @@
         <div id="persona-logout"></div>
     </div>
     </header>
-    {{if len(.UserId) == 0}}
+    {{if .UserId eq ""}}
             <div class="welcome">
                 Please log in so that there is such wow and joy.
             </div>
     {{else}}
-    {{if len(.DeviceList) > 0 }}
+    {{if len (.DeviceList) gt 0 }}
         <div class="caption">You have more than one device.
         Please select which device you'd like to work with.</div>
         <ul id="devices">
         {{range $device := .DeviceList}}
-        <li><a href="{{$device.ID}}">{{$device.Name}}</a></li>
+        <li><a href="{{urlquery ($device.ID)}}">{{html ($device.Name)}}</a></li>
         {{end}}
         </ul>
     {{else}}
     {{with $device := .Device}}
         <div class="device">
-            <div class="name">{{$device.Name}}</div>
-            <div class="loggedin" data.state="{{$device.LoggedIn}}">Device is {{if !$device.LoggedIn }}<b>not</b>{{end}} accessible</div>
-            <div class="lockable" data.state="{{$device.Lockable}}">Device {{if $device.Lockable }}has{{else}}does not have{{end}} a lock code{{end}}</div>
+            <div class="name">{{html ($device.Name)}}</div>
+            <div class="loggedin" data.state="{{$device.LoggedIn}}">Device is {{if not $device.LoggedIn }}<b>not</b>{{end}} accessible</div>
+            <div class="lockable" data.state="{{$device.Lockable}}">Device {{if $device.Lockable }}has{{else}}does not have{{end}} a lock code</div>
             <div class="lastexchange" data.contact="{{$device.LastExchange}}">Last contact: {{$device.LastExchange}}</div>
             <ol class="positions">
                 {{range $position := $device.PreviousPositions}}
