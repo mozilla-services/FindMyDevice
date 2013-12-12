@@ -11,12 +11,13 @@
         <div id="persona-logout"></div>
     </div>
     </header>
-    {{if .UserId eq ""}}
+    {{if not .UserId}}
             <div class="welcome">
                 Please log in so that there is such wow and joy.
             </div>
     {{else}}
-    {{if len (.DeviceList) gt 0 }}
+    <p>Welcome {{.UserId}}</p>
+    {{if len .DeviceList }}
         <div class="caption">You have more than one device.
         Please select which device you'd like to work with.</div>
         <ul id="devices">
@@ -33,7 +34,7 @@
             <div class="lastexchange" data.contact="{{$device.LastExchange}}">Last contact: {{$device.LastExchange}}</div>
             <ol class="positions">
                 {{range $position := $device.PreviousPositions}}
-                <li data.time="{{$position.time}}" data.latitude="{{$position.latitude}}" data.longitude="{{$position.longitude}}" data.altitude="{{$position.altitude}}"><a href="http://maps.google.com/maps?hl=en&ll={{$position.latitude}},{{$position.longitude}}">Position at {{$position.time}}</a></li>
+                <li data.time="{{$position.Time}}" data.latitude="{{$position.Latitude}}" data.longitude="{{$position.Longitude}}" data.altitude="{{$position.Altitude}}"><a href="http://maps.google.com/maps?hl=en&ll={{$position.Latitude}},{{$position.Longitude}}">Position at {{$position.Time}}</a></li>
                 {{end}}
             </ol>
 

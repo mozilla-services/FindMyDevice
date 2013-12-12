@@ -8,7 +8,7 @@ import (
 
 	"fmt"
 	"net/http"
-    "os"
+	"os"
 	"os/signal"
 	"runtime"
 	"strings"
@@ -36,20 +36,20 @@ func main() {
 	flags.ParseArgs(&opts, os.Args)
 
 	// Configuration
-    fmt.Printf("Opts: %v", opts)
-    // defaults don't appear to work.
-    if opts.ConfigFile == "" {
-        opts.ConfigFile = "config.ini"
-    }
+	fmt.Printf("Opts: %v", opts)
+	// defaults don't appear to work.
+	if opts.ConfigFile == "" {
+		opts.ConfigFile = "config.ini"
+	}
 	config := util.MzGetConfig(opts.ConfigFile)
 	config["VERSION"] = VERSION
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	logger := util.NewHekaLogger(config)
 	store, err := storage.Open(config, logger)
-    if err != nil {
-        logger.Error("main", "FAIL", nil);
-        return
-    }
+	if err != nil {
+		logger.Error("main", "FAIL", nil)
+		return
+	}
 	handlers := wmf.NewHandler(config, logger, store)
 
 	// Signal handler
@@ -73,11 +73,11 @@ func main() {
 		handlers.State)
 	RESTMux.HandleFunc("/status/",
 		handlers.StatusHandler)
-    RESTMux.Handle("/static/",http.FileServer(http.Dir("static")))
-    RESTMux.HandleFunc("/", handlers.Index)
+	RESTMux.Handle("/static/", http.FileServer(http.Dir("static")))
+	RESTMux.HandleFunc("/", handlers.Index)
 
-        logger.Info("main", "startup...",
-            util.Fields{"host": host, "port": port})
+	logger.Info("main", "startup...",
+		util.Fields{"host": host, "port": port})
 
 	go func() {
 		errChan <- http.ListenAndServe(host+":"+port, nil)
