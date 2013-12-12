@@ -71,10 +71,12 @@ func main() {
 		handlers.Cmd)
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/state/", verRoot),
 		handlers.State)
+	RESTMux.HandleFunc("/static/",
+        handlers.Static)
 	RESTMux.HandleFunc("/status/",
-		handlers.StatusHandler)
-	RESTMux.Handle("/static/", http.FileServer(http.Dir("static")))
-	RESTMux.HandleFunc("/", handlers.Index)
+		handlers.Status)
+    RESTMux.HandleFunc("/",
+        handlers.Index);
 
 	logger.Info("main", "startup...",
 		util.Fields{"host": host, "port": port})

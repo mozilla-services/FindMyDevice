@@ -86,7 +86,8 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 // get the device id from the URL path
 func (self *Handler) getDevFromUrl(req *http.Request) (devId string) {
 	elements := strings.Split(req.URL.Path, "/")
-	if len(elements) > 2 {
+    fmt.Printf("%d %v", len(elements), elements)
+	if len(elements) > 3 {
 		return elements[3]
 	}
 	return ""
@@ -104,7 +105,7 @@ func (self *Handler) setSessionInfo(resp http.ResponseWriter, session *sessionIn
 // get the user id from the session, or the assertion.
 func (self *Handler) getUser(req *http.Request) (userid string, err error) {
 	// remove this!
-	fmt.Printf("####### USING DUMMY")
+	self.logger.Info(self.logCat, "####### USING DUMMY", nil)
 	req.AddCookie(&http.Cookie{Name: "user",
 		Value: "user1",
 		Path:  "/"})
@@ -127,7 +128,6 @@ func (self *Handler) getUser(req *http.Request) (userid string, err error) {
 		}
 		userid = useridc.Value
 	}
-	fmt.Printf(" %s\n", userid)
 	return userid, nil
 }
 
@@ -384,7 +384,19 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	/* Handle a user login to the web UI
 	 */
-	//TODO
+
+    // This should be handled by an nginx rule.
+    if strings.Contains(req.URL.Path,"/static/"){
+        if strings.Contains(req.URL.Path,"..") {
+            return
+        }
+        body, err :=ioutil.ReadFile("."+req.URL.Path)
+        if err == nil {
+            resp.Write(body)
+        }
+        return
+    }
+    self.logCat = "handler:Index"
 	var data struct {
 		ProductName string
 		UserId      string
@@ -393,28 +405,33 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	data.ProductName = "Where's My Fox"
-	userId, err := self.getUser(req)
-	if err == nil {
-		data.UserId = userId
-	}
+	sessionInfo, err := self.getSessionInfo(req)
+    if err != nil {
+        self.logger.Error(self.logCat, "Could not get session info",
+            util.Fields{"error": err.Error()})
+		if file, err := ioutil.ReadFile("static/error.html"); err == nil {
+			resp.Write(file)
+		}
+        return
+    }
+    data.UserId = sessionInfo.UserId
 	tmpl, err := template.New("index.html").ParseFiles("static/index.html")
 	if err != nil {
 		// TODO: display error
 		self.logger.Error(self.logCat, "Could not display index page",
 			util.Fields{"error": err.Error(),
-				"user": userId})
+				"user": data.UserId})
 		if file, err := ioutil.ReadFile("static/error.html"); err == nil {
 			resp.Write(file)
 		}
 		return
 	}
-	sessionInfo, err := self.getSessionInfo(req)
-	if sessionInfo.DeviceId == "" || err != nil {
+	if sessionInfo.DeviceId == "" {
 		data.DeviceList, err = self.store.GetDevicesForUser(data.UserId)
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not get user devices",
 				util.Fields{"error": err.Error(),
-					"user": userId})
+					"user": data.UserId})
 		}
 	} else {
 		data.Device, err = self.store.GetDeviceInfo(data.UserId,
@@ -429,10 +446,10 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
-	fmt.Printf("%v", data)
 	err = tmpl.Execute(resp, data)
 	if err != nil {
-		fmt.Printf("%s", err.Error())
+		self.logger.Error(self.logCat, "Could not execute query",
+            util.Fields{"error":err.Error()})
 	}
 	return
 }
@@ -441,6 +458,7 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	/* Show the state of the user's devices.
 	 */
 	// get session info
+    self.logCat = self.logCat + ":State"
 	sessionInfo, err := self.getSessionInfo(req)
 	if err != nil {
 		http.Error(resp, err.Error(), 500)
@@ -473,9 +491,21 @@ func (self *Handler) SendCmd(resp http.ResponseWriter, req *http.Request) {
 
 }
 
-func (self *Handler) StatusHandler(resp http.ResponseWriter, req *http.Request) {
+func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
 	/* Show program status
 	 */
+    self.logCat = "handler:Status"
 	resp.Write([]byte(fmt.Sprintf("%v", req.URL.Path[len("/status/"):])))
 	resp.Write([]byte("OK"))
 }
+
+func (self *Handler) Static(resp http.ResponseWriter, req *http.Request){
+    /* This should be handled by something like an nginx rule
+    */
+    sl := len("/static/")
+    if len(req.URL.Path) > sl {
+        fmt.Printf("static " + req.URL.Path[sl:])
+        http.ServeFile(resp, req, "./static/"+req.URL.Path[sl:])
+    }
+}
+
