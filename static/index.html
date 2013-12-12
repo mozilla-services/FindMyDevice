@@ -7,7 +7,7 @@
     <header>
     <h1>{{.ProductName}}</h1>
     <div id="login">
-        <div id="persona-login"></div>
+        <div id="persona-login"><div id="browserid"><img src="https://login.persona.org/i/sign_in_blue.png" id="signin"></div></div>
         <div id="persona-logout"></div>
     </div>
     </header>
@@ -43,6 +43,43 @@
     {{end}}
     <footer>
          <i>Footery stuffs...</i>
-    </footer>
+         </footer>
+         <script id='bidjs' src="https://login.persona.org/include.js" type="text/javascript"></script>
+         <script type="text/javascript">
+window.addEventListener("load",
+        function() {
+        body = document.getElementsByTagName("body")[0];
+        email="";
+        if (body.dataset.user) {
+            email = body.dataset.user;
+        }
+        navigator.id.watch({
+                loggedInUser:email,
+                onlogout: function(){},
+                onlogin: function(assertion) {
+                    body.style.cursor = "auto";
+                    /* TODO: Send the assertion.
+                       Refresh the page wth the current ID?
+                    */
+             /*
+                    form = "<form method='POST' action='/' id='fs'>" +
+                    "<input type='hidden' name='assertion' value='" +
+                    assertion +
+                    "'/><input type='hidden' name='audience' "+
+                    "value='localhost'>" +
+                    "</form>").appendTo('#browserid');
+                    document.getElementById('browserid).innerHTML = form;
+                    document.getElementById('fs').submit();
+              */
+                }
+        })
+
+        document.getElementById("signin").addEventListener("click",
+            function(){
+            document.getElementsByTagName("body")[0].style.cursor="wait";
+            navigator.id.request();
+            });
+    });
+</script>
 </body>
 </html>
