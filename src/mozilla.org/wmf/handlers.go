@@ -72,7 +72,7 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 	}
 	if email, ok = buffer["email"].(string); !ok {
 		self.logger.Error(self.logCat, "No email found in assertion",
-			util.Fields{"assertion": fmt.Sprintf("%v", buffer)})
+			util.Fields{"assertion": fmt.Sprintf("%+v", buffer)})
 		return "", "", AuthorizationErr
 	}
 	if userid, ok = buffer["userid"].(string); !ok {
@@ -233,6 +233,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var lockable bool
 	var ok bool
 
+    // TODO: Handle map of "allowed commands" from client?
 	self.logCat = "handler:Register"
 
 	buffer, err := parseBody(req.Body)
@@ -479,11 +480,96 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	}
 }
 
+type ui_cmd struct {
+    c string
+    args map[string]interface{}
+}
+
+//filters
+func digitsOnly(r rune) (rune) {
+    switch{
+        case r >='0' && r <='9':
+            return r
+        default:
+            return -1
+    }
+}
+
+func asciiOnly(r rune) (rune) {
+    switch{
+    case r>=32 && r <=255:
+        return r
+    default:
+        return -1
+    }
+}
+
+func (self *Handler)getCommand(req) (cmd ui_cmd, err error){
+    err = req.ParseForm()
+    if err != nil {
+        self.log.Error(self.logCat, "Could not parse UI request",
+            util.Fields{"error":err.Error()})
+        return cmd, err
+    }
+    // filter "c" value against clients allowed commands
+    cmdKey := req.FormValue("cmd")
+    if cmdKey == "" {
+        self.log.Error(self.logCat, "Missing c arg",
+                util.Fields{"post": fmt.Sprintf("%+v",req.Form)})
+        return cmd, InvalidReplyErr
+    }
+    ui_cmd.c = strings.ToLower(cmdKey[0])
+    switch ui_cmd.c
+        // validate the args based on command.
+        args map[string]interface
+        case "l": // Lock
+            //get "c"ode, "m"essage and optional "n"umber
+            args["c"] = strings.Map(digitsOnly, req.FormValue("c")[:4])
+            args["m"] = strings.Map(asciiOnly, req.FormValue("m")[:100])
+        case "r":
+            //get "d"uration and "p"eriod
+            args["d"],err1 := strconv.ParseInt(req.FormValue("d"),10,32)
+            args["p"],err2 := strconv.ParseInt(req.FormValue("p"),10,32)
+            if err1 != nil || err2 != nil {
+                // badness
+                return cmd, InvalidReplyErr
+            }
+        case "t":
+            //get "d"uration and "p"eriod
+        case "e":
+            // confirm ?
+        default:
+            self.log.Error(self.logCat, "Invalid command specified",
+                util.Fields{"post": fmt.Sprintf("%+v",req.Form)})
+            return cmd, err
+    }
+    // record the command for pickup.
+    // if there's a Push URL, hit it.
+    // set the state?
+}
+
+
+
 func (self *Handler) SendCmd(resp http.ResponseWriter, req *http.Request) {
 	/* queue a command to a device
 	 */
 
 	//TODO
+    self.logCat = "handler:SendCmd"
+    sessionInfo,err := self.getSessionInfo(req)
+    if sessionInfo.UserId == "" {
+        self.logger.Error(self.logCat, "Unauthorized", nil)
+        http.Error(resp, "Unauthorized", 401)
+        return
+    }
+    if sessionInfo.DeviceId == "" {
+        self.logger.Error(self.logCat, "No device selected", nil)
+        http.Error(resp, "No device selected", 400)
+        return
+    }
+    // get the command object
+    command := self.getCommand(req)
+
 	// is the user logged in?
 	// no, they fail
 	// validate the command and args
@@ -504,7 +590,6 @@ func (self *Handler) Static(resp http.ResponseWriter, req *http.Request){
     */
     sl := len("/static/")
     if len(req.URL.Path) > sl {
-        fmt.Printf("static " + req.URL.Path[sl:])
         http.ServeFile(resp, req, "./static/"+req.URL.Path[sl:])
     }
 }

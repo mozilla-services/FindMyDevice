@@ -8,7 +8,7 @@
     <h1>{{.ProductName}}</h1>
     <div id="login">
         <div id="persona-login"><div id="browserid"><img src="https://login.persona.org/i/sign_in_blue.png" id="signin"></div></div>
-        <div id="persona-logout"></div>
+        <div id="persona-logout"><a href="/" id="signout">Logout</a></div>
     </div>
     </header>
     {{if not .UserId}}
@@ -37,7 +37,15 @@
                 <li data.time="{{$position.Time}}" data.latitude="{{$position.Latitude}}" data.longitude="{{$position.Longitude}}" data.altitude="{{$position.Altitude}}"><a href="http://maps.google.com/maps?hl=en&ll={{$position.Latitude}},{{$position.Longitude}}">Position at {{$position.Time}}</a></li>
                 {{end}}
             </ol>
-
+            <!-- only display commands that the client specified it accepts
+            -->
+            <div class="commands">
+                <div class="cmd"><button id="locate">Locate</button></div>
+                <div class="cmd"><button id="message">Send message</button><input name="message"></div>
+                <div class="cmd"><button id="ring">Ring</button><input name="ring_time"></div>
+                <div class="cmd"><button id="lock">Lock</button><input name="code" /></div>
+                <div class="cmd"><button id="erase confirm">Erase</button></div>
+            </div>
     {{end}}
     {{end}}
     {{end}}
@@ -75,10 +83,14 @@ window.addEventListener("load",
         })
 
         document.getElementById("signin").addEventListener("click",
-            function(){
-            document.getElementsByTagName("body")[0].style.cursor="wait";
-            navigator.id.request();
-            });
+                function(){
+                document.getElementsByTagName("body")[0].style.cursor="wait";
+                navigator.id.request();
+                });
+        document.getElementById("signout").addEventListener("click",
+                function(){
+                navigator.id.logout();
+                });
     });
 </script>
 </body>
