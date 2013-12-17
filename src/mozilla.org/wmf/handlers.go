@@ -24,6 +24,7 @@ type Handler struct {
 	store  *storage.Storage
 	devId  string
 	logCat string
+    hawk   *Hawk
 }
 
 type reply_t map[string]interface{}
@@ -218,6 +219,7 @@ func NewHandler(config util.JsMap, logger *util.HekaLogger, store *storage.Stora
 	return &Handler{config: config,
 		logger: logger,
 		logCat: "handler",
+        hawk: &Hawk{logger:logger},
 		store:  store}
 }
 
@@ -328,7 +330,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	l, err = req.Body.Read(body)
 	if l > 0 {
 		reply := make(reply_t)
-		merr := json.Unmarshal(body, reply)
+        merr := self.hawk.Decode(body, &reply)
+	    //	merr := json.Unmarshal(body, &reply)
 		if merr != nil {
 			self.logger.Error(self.logCat, "Could not unmarshal data", util.Fields{
 				"error": merr.Error(),
@@ -363,8 +366,13 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	// reply with pending commands
 	//
 	cmd, err := self.store.GetPending(deviceId)
+    if cmd == nil {
+        cmd = storage.Unstructured{}
+    }
+    var output []byte
 	if err == nil {
-		jcmd, err := json.Marshal(cmd)
+		//jcmd, err := json.Marshal(cmd)
+		output, err = self.hawk.Encode(cmd)
 		if err != nil {
 			self.logger.Error(self.logCat, "Error marshalling pending cmd",
 				util.Fields{"error": err.Error(),
@@ -372,12 +380,14 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			http.Error(resp, "Server Error", http.StatusServiceUnavailable)
 			return
 		}
-		resp.Write(jcmd)
 	} else {
-		self.logger.Error(self.logCat, "Could not send commands", util.Fields{"error": err.Error()})
+		self.logger.Error(self.logCat, "Could not send commands",
+            util.Fields{"error": err.Error()})
 		http.Error(resp, "Server Error", http.StatusServiceUnavailable)
-	}
-	resp.Write([]byte("{}"))
+    }
+    output, _ = self.hawk.Encode(&storage.Unstructured{})
+	resp.Write(output)
+
 
 }
 
@@ -504,57 +514,57 @@ func asciiOnly(r rune) (rune) {
     }
 }
 
-func (self *Handler)getCommand(req) (cmd ui_cmd, err error){
+func (self *Handler)getCommand(req *http.Request) (cmd ui_cmd, err error){
+    var args storage.Unstructured
+    //get the command from the UI
     err = req.ParseForm()
     if err != nil {
-        self.log.Error(self.logCat, "Could not parse UI request",
+        self.logger.Error(self.logCat, "Could not parse UI request",
             util.Fields{"error":err.Error()})
         return cmd, err
     }
     // filter "c" value against clients allowed commands
     cmdKey := req.FormValue("cmd")
     if cmdKey == "" {
-        self.log.Error(self.logCat, "Missing c arg",
+        self.logger.Error(self.logCat, "Missing c arg",
                 util.Fields{"post": fmt.Sprintf("%+v",req.Form)})
         return cmd, InvalidReplyErr
     }
-    ui_cmd.c = strings.ToLower(cmdKey[0])
-    switch ui_cmd.c
+    cmd.c = strings.ToLower(string(cmdKey[0]))
+    switch cmd.c {
         // validate the args based on command.
-        args map[string]interface
         case "l": // Lock
             //get "c"ode, "m"essage and optional "n"umber
             args["c"] = strings.Map(digitsOnly, req.FormValue("c")[:4])
             args["m"] = strings.Map(asciiOnly, req.FormValue("m")[:100])
-        case "r":
+        case "r", "t":
             //get "d"uration and "p"eriod
-            args["d"],err1 := strconv.ParseInt(req.FormValue("d"),10,32)
-            args["p"],err2 := strconv.ParseInt(req.FormValue("p"),10,32)
-            if err1 != nil || err2 != nil {
-                // badness
-                return cmd, InvalidReplyErr
+            if (req.FormValue("d") != "") {
+                args["d"],err = strconv.ParseInt(req.FormValue("d"),10,32)
+                if err != nil {
+                    // badness
+                    self.logger.Error(self.logCat, "Could not parse duration",
+                        util.Fields{"error": err.Error()})
+                    return cmd, InvalidReplyErr
+                }
             }
-        case "t":
-            //get "d"uration and "p"eriod
         case "e":
             // confirm ?
         default:
-            self.log.Error(self.logCat, "Invalid command specified",
+            self.logger.Error(self.logCat, "Invalid command specified",
                 util.Fields{"post": fmt.Sprintf("%+v",req.Form)})
             return cmd, err
     }
-    // record the command for pickup.
-    // if there's a Push URL, hit it.
-    // set the state?
+    return cmd, err
 }
-
-
 
 func (self *Handler) SendCmd(resp http.ResponseWriter, req *http.Request) {
 	/* queue a command to a device
 	 */
+    var jcmd []byte
 
 	//TODO
+	// is the user logged in?
     self.logCat = "handler:SendCmd"
     sessionInfo,err := self.getSessionInfo(req)
     if sessionInfo.UserId == "" {
@@ -568,13 +578,17 @@ func (self *Handler) SendCmd(resp http.ResponseWriter, req *http.Request) {
         return
     }
     // get the command object
-    command := self.getCommand(req)
-
-	// is the user logged in?
-	// no, they fail
 	// validate the command and args
-	// add to device's queue
+    command, err := self.getCommand(req)
+    if err != nil {
+        self.logger.Error(self.logCat, "Failed to get command", nil)
+        return
+    }
 
+    jcmd, err = json.Marshal(command)
+	// add to device's queue
+    self.store.StoreCommand(sessionInfo.DeviceId, string(jcmd))
+    return
 }
 
 func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {

@@ -46,6 +46,8 @@ type DeviceList struct {
 	Name string
 }
 
+type Unstructured map[string]interface{}
+
 type Users map[string]string
 
 /* Relative:
@@ -132,9 +134,9 @@ func (self *Storage) Init() (err error) {
 	defer dbh.Close()
 
 	for _, s := range cmds {
-		fmt.Printf("%s\n", s)
 		res, err := dbh.Exec(s)
-		fmt.Printf("%v %v\n\n", res, err)
+        self.logger.Debug(self.logCat, "db init",
+            util.Fields{"cmd":s, "res": fmt.Sprintf("%+v", res)})
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not initialize db",
 				util.Fields{"cmd": s, "error": err.Error()})
@@ -267,7 +269,7 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo *Device
 	return reply, nil
 }
 
-func (self *Storage) GetPending(devId string) (cmd map[string]interface{}, err error) {
+func (self *Storage) GetPending(devId string) (cmd Unstructured, err error) {
 	// TODO: Get pending commands
 	return nil, nil
 }
@@ -305,6 +307,25 @@ func (self *Storage) openDb() (dbh *sql.DB, err error) {
 		return nil, err
 	}
 	return dbh, nil
+}
+
+func (self *Storage) StoreCommand(devId, command string) (err error) {
+    //update device table to store command where devId = $1
+    sql := "update deviceInfo set pendingCommand = $2 where devId=$1;"
+    dbh, err := self.openDb()
+    defer dbh.Close()
+    if err != nil {
+        self.logger.Error(self.logCat, "Could not open db",
+            util.Fields{"error": err.Error()})
+        return err
+    }
+
+    if _, err = dbh.Exec(sql, devId, command); err != nil {
+        self.logger.Error(self.logCat, "Could not store pending command",
+            util.Fields{"error": err.Error()})
+        return err
+    }
+    return nil
 }
 
 func (self *Storage) ValidateDevice(devId string) (valid bool) {
