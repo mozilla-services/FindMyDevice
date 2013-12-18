@@ -261,9 +261,8 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			pushUrl = buffer["pushurl"].(string)
 		}
 		if _, ok = buffer["secret"]; !ok {
-			self.logger.Error(self.logCat, "Missing HAWK secret", nil)
-			http.Error(resp, "Bad Data", 400)
-			return
+            // Return this nonce as part of the reg reply
+            secret = GenNonce(16)
 		} else {
 			secret = buffer["secret"].(string)
 		}
@@ -300,6 +299,10 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			self.devId = deviceid
 		}
 	}
+
+    resp.Write([]byte(fmt.Sprintf("{\"id\":\"%s\", \"secret\":\"%s\"}",
+        self.devId,
+        secret))
 	return
 
 }
@@ -318,19 +321,48 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
-	// get the record for the deviceID
-	if self.store.ValidateDevice(deviceId) == false {
-		self.logger.Error(self.logCat, "Cmd:Unknown device requesting cmd",
-			util.Fields{
-				"deviceId": deviceId})
-		http.Error(resp, "Unauthorized", 401)
+
+    userId, err := self.getUser(req)
+    if err != nil {
+        self.logger.Error(self.logCat, "No userid", nil)
+        http.Error(resp, "Unauthorized", 401)
+        return
+    }
+
+    devRec,err := self.store.GetDeviceInfo(userId, deviceId)
+    if err != nil {
+        switch err {
+            case storage.ErrUnknownDevice:
+            self.logger.Error(self.logCat, "Cmd:Unknown device requesting cmd",
+                util.Fields{
+                    "deviceId": deviceId})
+            http.Error(resp, "Unauthorized", 401)
+            default:
+            self.logger.Error(self.logCat, "Cmd:Unhandled Error",
+                util.Fields{
+                    "error": err.Error()
+                    "deviceId": deviceId})
+            http.Error(resp, "Unauthorized", 401)
+        }
 		return
 	}
+    //validate the Hawk header
+    hawk, signature, err := ParseHawkAuthHeader(req, self.logger)
+    vsig = hawk.GenerateSignature(req, "", devRec.Secret)
+    if signature != vsig {
+        self.logger.Error(self.logCat, "Cmd:Invalid Hawk Signature",
+            util.Fields {
+                "expecting": vsig,
+                "got": signature
+            }
+        http.Error(resp, "Unauthorized", 401)
+        return
+    }
 	//decode the body
 	l, err = req.Body.Read(body)
 	if l > 0 {
 		reply := make(reply_t)
-        merr := self.hawk.Decode(body, &reply)
+        merr := json.Unmarshal(body, &reply)
 	    //	merr := json.Unmarshal(body, &reply)
 		if merr != nil {
 			self.logger.Error(self.logCat, "Could not unmarshal data", util.Fields{

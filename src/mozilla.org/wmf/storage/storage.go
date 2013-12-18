@@ -328,39 +328,6 @@ func (self *Storage) StoreCommand(devId, command string) (err error) {
     return nil
 }
 
-func (self *Storage) ValidateDevice(devId string) (valid bool) {
-	var err error
-	if devId == "" {
-		return false
-	}
-	// TODO: validate that we've seen this ID
-	statement := "select deviceId from deviceInfo where deviceId = $1;"
-
-	dbh, err := self.openDb()
-	defer dbh.Close()
-	if err == nil {
-		return false
-	}
-
-	row := dbh.QueryRow(statement, devId)
-	var slice []string
-	err = row.Scan(&slice)
-	if err != nil {
-		self.logger.Error(self.logCat, "Error finding device",
-			util.Fields{"error": err.Error(),
-				"device": devId})
-		return false
-	}
-	self.logger.Info(self.logCat, "verify device",
-		util.Fields{"device": devId,
-			"result": fmt.Sprintf("%v", slice)})
-	if len(slice) == 0 {
-		return false
-	}
-
-	return true
-}
-
 func (self *Storage) SetDeviceLocked(devId string, state bool) (err error) {
 	// TODO: update the device record
 	dbh, err := self.openDb()
