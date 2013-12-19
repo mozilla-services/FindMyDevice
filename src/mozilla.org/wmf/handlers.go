@@ -24,7 +24,7 @@ type Handler struct {
 	store  *storage.Storage
 	devId  string
 	logCat string
-    hawk   *Hawk
+	hawk   *Hawk
 }
 
 type reply_t map[string]interface{}
@@ -34,8 +34,32 @@ type sessionInfo struct {
 	DeviceId string
 }
 
+type ui_cmd struct {
+	c    string
+	args map[string]interface{}
+}
+
 var InvalidReplyErr = errors.New("Invalid Command Response")
 var AuthorizationErr = errors.New("Needs Authorization")
+
+//filters
+func digitsOnly(r rune) rune {
+	switch {
+	case r >= '0' && r <= '9':
+		return r
+	default:
+		return -1
+	}
+}
+
+func asciiOnly(r rune) rune {
+	switch {
+	case r >= 32 && r <= 255:
+		return r
+	default:
+		return -1
+	}
+}
 
 // parse a body and return the JSON
 func parseBody(rbody io.ReadCloser) (rep util.JsMap, err error) {
@@ -50,6 +74,30 @@ func parseBody(rbody io.ReadCloser) (rep util.JsMap, err error) {
 	}
 	return rep, nil
 }
+
+// Take an interface value and return if it's true or not.
+func isTrue(val interface{}) bool {
+	switch val.(type) {
+	case string:
+		flag, _ := strconv.ParseBool(val.(string))
+		return flag
+	case bool:
+		return val.(bool)
+	case int64:
+		return val.(int64) != 0
+	default:
+		return false
+	}
+}
+
+func minInt(x,y int) int {
+    if x < y {
+        return x
+    }
+    return y
+}
+
+//Handler private functions
 
 // verify a Persona assertion using the config values
 func (self *Handler) verifyAssertion(assertion string) (userid, email string, err error) {
@@ -87,7 +135,7 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 // get the device id from the URL path
 func (self *Handler) getDevFromUrl(req *http.Request) (devId string) {
 	elements := strings.Split(req.URL.Path, "/")
-    fmt.Printf("%d %v", len(elements), elements)
+	fmt.Printf("%d %v", len(elements), elements)
 	if len(elements) > 3 {
 		return elements[3]
 	}
@@ -151,21 +199,6 @@ func (self *Handler) getSessionInfo(req *http.Request) (session *sessionInfo, er
 	return
 }
 
-// Take an interface value and return if it's true or not.
-func isTrue(val interface{}) bool {
-	switch val.(type) {
-	case string:
-		flag, _ := strconv.ParseBool(val.(string))
-		return flag
-	case bool:
-		return val.(bool)
-	case int64:
-		return val.(int64) != 0
-	default:
-		return false
-	}
-}
-
 // log the device's position reply
 func (self *Handler) logPosition(devId string, args reply_t) (err error) {
 	var location storage.Position
@@ -213,13 +246,57 @@ func (self *Handler) logReply(devId, cmd string, args reply_t) (err error) {
 	return err
 }
 
+func (self *Handler) getCommand(req *http.Request) (cmd ui_cmd, err error) {
+	var args storage.Unstructured
+	//get the command from the UI
+	err = req.ParseForm()
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not parse UI request",
+			util.Fields{"error": err.Error()})
+		return cmd, err
+	}
+	// filter "c" value against clients allowed commands
+	cmdKey := req.FormValue("cmd")
+	if cmdKey == "" {
+		self.logger.Error(self.logCat, "Missing c arg",
+			util.Fields{"post": fmt.Sprintf("%+v", req.Form)})
+		return cmd, InvalidReplyErr
+	}
+	cmd.c = strings.ToLower(string(cmdKey[0]))
+	switch cmd.c {
+	// validate the args based on command.
+	case "l": // Lock
+		//get "c"ode, "m"essage and optional "n"umber
+		args["c"] = strings.Map(digitsOnly, req.FormValue("c")[:4])
+		args["m"] = strings.Map(asciiOnly, req.FormValue("m")[:100])
+	case "r", "t":
+		//get "d"uration and "p"eriod
+		if req.FormValue("d") != "" {
+			args["d"], err = strconv.ParseInt(req.FormValue("d"), 10, 32)
+			if err != nil {
+				// badness
+				self.logger.Error(self.logCat, "Could not parse duration",
+					util.Fields{"error": err.Error()})
+				return cmd, InvalidReplyErr
+			}
+		}
+	case "e":
+		// confirm ?
+	default:
+		self.logger.Error(self.logCat, "Invalid command specified",
+			util.Fields{"post": fmt.Sprintf("%+v", req.Form)})
+		return cmd, err
+	}
+	return cmd, err
+}
+
 //Handler Public Functions
 
 func NewHandler(config util.JsMap, logger *util.HekaLogger, store *storage.Storage) *Handler {
 	return &Handler{config: config,
 		logger: logger,
 		logCat: "handler",
-        hawk: &Hawk{logger:logger},
+		hawk:   &Hawk{logger: logger},
 		store:  store}
 }
 
@@ -235,7 +312,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var lockable bool
 	var ok bool
 
-    // TODO: Handle map of "allowed commands" from client?
+	// TODO: Handle map of "allowed commands" from client?
 	self.logCat = "handler:Register"
 
 	buffer, err := parseBody(req.Body)
@@ -261,8 +338,8 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			pushUrl = buffer["pushurl"].(string)
 		}
 		if _, ok = buffer["secret"]; !ok {
-            // Return this nonce as part of the reg reply
-            secret = GenNonce(16)
+			// Return this nonce as part of the reg reply
+			secret = GenNonce(16)
 		} else {
 			secret = buffer["secret"].(string)
 		}
@@ -300,9 +377,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-    resp.Write([]byte(fmt.Sprintf("{\"id\":\"%s\", \"secret\":\"%s\"}",
-        self.devId,
-        secret))
+	resp.Write([]byte(fmt.Sprintf("{\"id\":\"%s\", \"secret\":\"%s\"}",
+		self.devId,
+		secret)))
 	return
 
 }
@@ -310,7 +387,6 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	/* Pass the latest command off to the device.
 	 */
-	var body []byte
 	var err error
 	var l int
 
@@ -322,48 +398,74 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-    userId, err := self.getUser(req)
-    if err != nil {
-        self.logger.Error(self.logCat, "No userid", nil)
-        http.Error(resp, "Unauthorized", 401)
-        return
-    }
-
-    devRec,err := self.store.GetDeviceInfo(userId, deviceId)
-    if err != nil {
-        switch err {
-            case storage.ErrUnknownDevice:
-            self.logger.Error(self.logCat, "Cmd:Unknown device requesting cmd",
-                util.Fields{
-                    "deviceId": deviceId})
-            http.Error(resp, "Unauthorized", 401)
-            default:
-            self.logger.Error(self.logCat, "Cmd:Unhandled Error",
-                util.Fields{
-                    "error": err.Error()
-                    "deviceId": deviceId})
-            http.Error(resp, "Unauthorized", 401)
-        }
+	userId, err := self.getUser(req)
+	if err != nil {
+		self.logger.Error(self.logCat, "No userid", nil)
+		http.Error(resp, "Unauthorized", 401)
 		return
 	}
-    //validate the Hawk header
-    hawk, signature, err := ParseHawkAuthHeader(req, self.logger)
-    vsig = hawk.GenerateSignature(req, "", devRec.Secret)
-    if signature != vsig {
-        self.logger.Error(self.logCat, "Cmd:Invalid Hawk Signature",
-            util.Fields {
-                "expecting": vsig,
-                "got": signature
-            }
-        http.Error(resp, "Unauthorized", 401)
-        return
-    }
+
+	devRec, err := self.store.GetDeviceInfo(userId, deviceId)
+	if err != nil {
+		switch err {
+		case storage.ErrUnknownDevice:
+			self.logger.Error(self.logCat, "Cmd:Unknown device requesting cmd",
+				util.Fields{
+					"deviceId": deviceId})
+			http.Error(resp, "Unauthorized", 401)
+		default:
+			self.logger.Error(self.logCat, "Cmd:Unhandled Error",
+				util.Fields{
+					"error":    err.Error(),
+					"deviceId": deviceId})
+			http.Error(resp, "Unauthorized", 401)
+		}
+		return
+	}
+	//validate the Hawk header
+	if util.MzGetFlag(self.config, "hawk.disabled") == false {
+		hawk, signature, err := ParseHawkAuthHeader(req, self.logger)
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not parse Hawk header",
+				util.Fields{"error": err.Error()})
+			http.Error(resp, "Unauthorized", 401)
+			return
+		}
+		vsig, err := hawk.GenerateSignature(req, "", devRec.Secret)
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not verify sig",
+				util.Fields{"error": err.Error()})
+			http.Error(resp, "Unauthorized", 401)
+			return
+		}
+		if signature != vsig {
+			self.logger.Error(self.logCat, "Cmd:Invalid Hawk Signature",
+				util.Fields{
+					"expecting": vsig,
+					"got":       signature,
+				})
+			http.Error(resp, "Unauthorized", 401)
+			return
+		}
+	}
 	//decode the body
+	var body = make([]byte, req.ContentLength)
 	l, err = req.Body.Read(body)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not read body",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Invalid", 400)
+		return
+	}
+	self.logger.Info(self.logCat, "Handling cmd",
+		util.Fields{
+			"cmd": string(body),
+			"l":   fmt.Sprintf("%d", l),
+		})
 	if l > 0 {
 		reply := make(reply_t)
-        merr := json.Unmarshal(body, &reply)
-	    //	merr := json.Unmarshal(body, &reply)
+		merr := json.Unmarshal(body, &reply)
+		//	merr := json.Unmarshal(body, &reply)
 		if merr != nil {
 			self.logger.Error(self.logCat, "Could not unmarshal data", util.Fields{
 				"error": merr.Error(),
@@ -372,12 +474,11 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		// handle command acks
 		for cmd, args := range reply {
 			c := strings.ToLower(string(cmd[0]))
 			switch c {
 			case "l", "r", "m", "e":
-				err = self.logReply(deviceId, c, args.(reply_t))
+				err = self.store.StoreCommand(deviceId, string(body))
 			case "t":
 				// track
 				err = self.logPosition(deviceId, args.(reply_t))
@@ -398,29 +499,139 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	// reply with pending commands
 	//
 	cmd, err := self.store.GetPending(deviceId)
-    if cmd == nil {
-        cmd = storage.Unstructured{}
+	var output []byte = []byte(cmd)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not send commands",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server Error", http.StatusServiceUnavailable)
+	}
+	hasher := sha256.New()
+	hasher.Write(output)
+	extra := hex.EncodeToString(hasher.Sum(nil))
+	authHeader := self.hawk.AsHeader(req, userId, extra, devRec.Secret, "")
+	resp.Header().Add("Authorization", authHeader)
+	resp.Write(output)
+}
+
+func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
+	/* Queue commands for the device.
+	 */
+	var err error
+	var l int
+
+	self.logCat = "handler:Queue"
+	deviceId := self.getDevFromUrl(req)
+	if deviceId == "" {
+		self.logger.Error(self.logCat, "Invalid call (No device id)", nil)
+		http.Error(resp, "Unauthorized", 401)
+		return
+	}
+
+	userId, err := self.getUser(req)
+	if err != nil {
+		self.logger.Error(self.logCat, "No userid", nil)
+		http.Error(resp, "Unauthorized", 401)
+		return
+	}
+    if userId == "" {
+        http.Error(resp, "Unauthorized", 401)
+        return
     }
-    var output []byte
-	if err == nil {
-		//jcmd, err := json.Marshal(cmd)
-		output, err = self.hawk.Encode(cmd)
-		if err != nil {
-			self.logger.Error(self.logCat, "Error marshalling pending cmd",
-				util.Fields{"error": err.Error(),
-					"device": deviceId})
-			http.Error(resp, "Server Error", http.StatusServiceUnavailable)
+
+	devRec, err := self.store.GetDeviceInfo(userId, deviceId)
+	if devRec == nil{
+			self.logger.Error(self.logCat, "Cmd:Unknown device requesting cmd",
+				util.Fields{
+					"deviceId": deviceId})
+			http.Error(resp, "Unauthorized", 401)
+            return
+        }
+    if err != nil {
+		switch err {
+		default:
+			self.logger.Error(self.logCat, "Cmd:Unhandled Error",
+				util.Fields{
+					"error":    err.Error(),
+					"deviceId": deviceId})
+			http.Error(resp, "Unauthorized", 401)
+		}
+		return
+	}
+
+	//decode the body
+	var body = make([]byte, req.ContentLength)
+	l, err = req.Body.Read(body)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not read body",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Invalid", 400)
+		return
+	}
+	self.logger.Info(self.logCat, "Handling cmd",
+		util.Fields{
+			"cmd": string(body),
+			"l":   fmt.Sprintf("%d", l),
+		})
+	if l > 0 {
+		reply := make(reply_t)
+		merr := json.Unmarshal(body, &reply)
+		//	merr := json.Unmarshal(body, &reply)
+		if merr != nil {
+			self.logger.Error(self.logCat, "Could not unmarshal data", util.Fields{
+				"error": merr.Error(),
+				"body":  string(body)})
+			http.Error(resp, "Server Error", 500)
 			return
 		}
-	} else {
-		self.logger.Error(self.logCat, "Could not send commands",
-            util.Fields{"error": err.Error()})
-		http.Error(resp, "Server Error", http.StatusServiceUnavailable)
-    }
-    output, _ = self.hawk.Encode(&storage.Unstructured{})
-	resp.Write(output)
 
-
+		for cmd, args := range reply {
+            var v interface{}
+            var ok bool
+			c := strings.ToLower(string(cmd[0]))
+            rargs := args.(map[string]interface{})
+			switch c {
+			case "l":
+                if v,ok = rargs["c"]; ok {
+                    vs := v.(string)
+                    rargs["c"] = strings.Map(digitsOnly, vs[:minInt(4,len(vs))])
+                }
+                if v,ok = rargs["m"]; ok {
+                    vs := v.(string)
+                    rargs["m"] = strings.Map(asciiOnly, vs[:minInt(100,len(vs))])
+                }
+            case "r", "t":
+                if v,ok = rargs["d"]; ok {
+                    rargs["d"] = strings.Map(digitsOnly, v.(string))
+                }
+            case "e":
+                rargs = storage.Unstructured{}
+			default:
+				http.Error(resp, "Invalid Command", 400)
+				return
+			}
+            fixed, err := json.Marshal(storage.Unstructured{c:rargs})
+			if err != nil {
+				// Log the error
+				self.logger.Error(self.logCat, "Error handling command",
+					util.Fields{"error": err.Error(),
+						"command": string(cmd),
+						"device":  deviceId,
+						"args":    fmt.Sprintf("%v", rargs)})
+				http.Error(resp, "Server Error", http.StatusServiceUnavailable)
+			}
+			err = self.store.StoreCommand(deviceId, string(fixed))
+			if err != nil {
+				// Log the error
+				self.logger.Error(self.logCat, "Error storing command",
+					util.Fields{"error": err.Error(),
+						"command": string(cmd),
+						"device":  deviceId,
+						"args":    fmt.Sprintf("%v", args)})
+				http.Error(resp, "Server Error", http.StatusServiceUnavailable)
+            }
+		}
+	}
+	resp.Write([]byte("{}"))
 }
 
 // user login functions
@@ -428,18 +639,18 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	/* Handle a user login to the web UI
 	 */
 
-    // This should be handled by an nginx rule.
-    if strings.Contains(req.URL.Path,"/static/"){
-        if strings.Contains(req.URL.Path,"..") {
-            return
-        }
-        body, err :=ioutil.ReadFile("."+req.URL.Path)
-        if err == nil {
-            resp.Write(body)
-        }
-        return
-    }
-    self.logCat = "handler:Index"
+	// This should be handled by an nginx rule.
+	if strings.Contains(req.URL.Path, "/static/") {
+		if strings.Contains(req.URL.Path, "..") {
+			return
+		}
+		body, err := ioutil.ReadFile("." + req.URL.Path)
+		if err == nil {
+			resp.Write(body)
+		}
+		return
+	}
+	self.logCat = "handler:Index"
 	var data struct {
 		ProductName string
 		UserId      string
@@ -449,15 +660,15 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 
 	data.ProductName = "Where's My Fox"
 	sessionInfo, err := self.getSessionInfo(req)
-    if err != nil {
-        self.logger.Error(self.logCat, "Could not get session info",
-            util.Fields{"error": err.Error()})
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not get session info",
+			util.Fields{"error": err.Error()})
 		if file, err := ioutil.ReadFile("static/error.html"); err == nil {
 			resp.Write(file)
 		}
-        return
-    }
-    data.UserId = sessionInfo.UserId
+		return
+	}
+	data.UserId = sessionInfo.UserId
 	tmpl, err := template.New("index.html").ParseFiles("static/index.html")
 	if err != nil {
 		// TODO: display error
@@ -492,7 +703,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	err = tmpl.Execute(resp, data)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not execute query",
-            util.Fields{"error":err.Error()})
+			util.Fields{"error": err.Error()})
 	}
 	return
 }
@@ -501,7 +712,7 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	/* Show the state of the user's devices.
 	 */
 	// get session info
-    self.logCat = self.logCat + ":State"
+	self.logCat = self.logCat + ":State"
 	sessionInfo, err := self.getSessionInfo(req)
 	if err != nil {
 		http.Error(resp, err.Error(), 500)
@@ -522,121 +733,19 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	}
 }
 
-type ui_cmd struct {
-    c string
-    args map[string]interface{}
-}
-
-//filters
-func digitsOnly(r rune) (rune) {
-    switch{
-        case r >='0' && r <='9':
-            return r
-        default:
-            return -1
-    }
-}
-
-func asciiOnly(r rune) (rune) {
-    switch{
-    case r>=32 && r <=255:
-        return r
-    default:
-        return -1
-    }
-}
-
-func (self *Handler)getCommand(req *http.Request) (cmd ui_cmd, err error){
-    var args storage.Unstructured
-    //get the command from the UI
-    err = req.ParseForm()
-    if err != nil {
-        self.logger.Error(self.logCat, "Could not parse UI request",
-            util.Fields{"error":err.Error()})
-        return cmd, err
-    }
-    // filter "c" value against clients allowed commands
-    cmdKey := req.FormValue("cmd")
-    if cmdKey == "" {
-        self.logger.Error(self.logCat, "Missing c arg",
-                util.Fields{"post": fmt.Sprintf("%+v",req.Form)})
-        return cmd, InvalidReplyErr
-    }
-    cmd.c = strings.ToLower(string(cmdKey[0]))
-    switch cmd.c {
-        // validate the args based on command.
-        case "l": // Lock
-            //get "c"ode, "m"essage and optional "n"umber
-            args["c"] = strings.Map(digitsOnly, req.FormValue("c")[:4])
-            args["m"] = strings.Map(asciiOnly, req.FormValue("m")[:100])
-        case "r", "t":
-            //get "d"uration and "p"eriod
-            if (req.FormValue("d") != "") {
-                args["d"],err = strconv.ParseInt(req.FormValue("d"),10,32)
-                if err != nil {
-                    // badness
-                    self.logger.Error(self.logCat, "Could not parse duration",
-                        util.Fields{"error": err.Error()})
-                    return cmd, InvalidReplyErr
-                }
-            }
-        case "e":
-            // confirm ?
-        default:
-            self.logger.Error(self.logCat, "Invalid command specified",
-                util.Fields{"post": fmt.Sprintf("%+v",req.Form)})
-            return cmd, err
-    }
-    return cmd, err
-}
-
-func (self *Handler) SendCmd(resp http.ResponseWriter, req *http.Request) {
-	/* queue a command to a device
-	 */
-    var jcmd []byte
-
-	//TODO
-	// is the user logged in?
-    self.logCat = "handler:SendCmd"
-    sessionInfo,err := self.getSessionInfo(req)
-    if sessionInfo.UserId == "" {
-        self.logger.Error(self.logCat, "Unauthorized", nil)
-        http.Error(resp, "Unauthorized", 401)
-        return
-    }
-    if sessionInfo.DeviceId == "" {
-        self.logger.Error(self.logCat, "No device selected", nil)
-        http.Error(resp, "No device selected", 400)
-        return
-    }
-    // get the command object
-	// validate the command and args
-    command, err := self.getCommand(req)
-    if err != nil {
-        self.logger.Error(self.logCat, "Failed to get command", nil)
-        return
-    }
-
-    jcmd, err = json.Marshal(command)
-	// add to device's queue
-    self.store.StoreCommand(sessionInfo.DeviceId, string(jcmd))
-    return
-}
-
 func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
 	/* Show program status
 	 */
-    self.logCat = "handler:Status"
+	self.logCat = "handler:Status"
 	resp.Write([]byte(fmt.Sprintf("%v", req.URL.Path[len("/status/"):])))
 	resp.Write([]byte("OK"))
 }
 
-func (self *Handler) Static(resp http.ResponseWriter, req *http.Request){
-    /* This should be handled by something like an nginx rule
-    */
-    sl := len("/static/")
-    if len(req.URL.Path) > sl {
-        http.ServeFile(resp, req, "./static/"+req.URL.Path[sl:])
-    }
+func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
+	/* This should be handled by something like an nginx rule
+	 */
+	sl := len("/static/")
+	if len(req.URL.Path) > sl {
+		http.ServeFile(resp, req, "./static/"+req.URL.Path[sl:])
+	}
 }
-

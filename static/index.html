@@ -53,15 +53,38 @@
          </footer>
          <script id='bidjs' src="https://login.persona.org/include.js" type="text/javascript"></script>
          <script type="text/javascript">
+// javascript
+//TODO: add Persona Login
+//      add /login call to server
+//      add device Picker
+//      add /logout call to server
 
-             function sendCommand(cmd) {
-                 console.debug("Sending", cmd)
-             }
+function getDeviceId() {
+    return "test1";
+}
+
+function getUserId() {
+    return "user1";
+}
+
+function cmdResponse() {
+    console.debug(this);
+    //TODO: Update page to show cmd in effect
+}
+
+function sendCommand(cmd) {
+    // generate HAWK header
+    var xhr = new XMLHttpRequest();
+    xhr.onload = cmdResponse;
+    console.debug("Sending", cmd);
+    xhr.open("PUT", "/0/queue/" + getDeviceId());
+    xhr.send(JSON.stringify(cmd));
+}
 
 window.addEventListener("load",
         function() {
-        body = document.getElementsByTagName("body")[0];
-        email="";
+        var body = document.getElementsByTagName("body")[0];
+        var email="";
         if (body.dataset.user) {
             email = body.dataset.user;
         }
@@ -86,24 +109,25 @@ window.addEventListener("load",
                 }
         })
 
-        cmds = document.getElementsByClassName("cmd");
-        cmdi = cmds.length;
-        for (i=0;i<cmdi;i++) {
-            b = cmds[i].getElementsByTagName("button");
-            bi = b.length;
-            for (j=0;j<bi;j++) {
+        var cmds = document.getElementsByClassName("cmd");
+        var cmdi = cmds.length;
+        for (var i=0;i<cmdi;i++) {
+            var b = cmds[i].getElementsByTagName("button");
+            var bi = b.length;
+            for (var j=0;j<bi;j++) {
                 b[j].addEventListener("click",
                     function(t){
-                    c = t.originalTarget.dataset.cmd;
-                    console.debug(t,c);
-                    args = t.originalTarget.parentElement.getElementsByTagName("input");
-                    largs = args.length;
-                    sargs = {};
+                    var send = {}
+                    var cmd = t.originalTarget.dataset.cmd;
+                    var args = t.originalTarget.parentElement.getElementsByTagName("input");
+                    var largs = args.length;
+                    var sargs = {};
                     for (i=0; i< largs; i++) {
                         arg=args[i];
                         sargs[arg.name] = arg.value;
                         }
-                    sendCommand({c:sargs});
+                    send[cmd] = sargs;
+                    sendCommand(send);
                })
            }
        }

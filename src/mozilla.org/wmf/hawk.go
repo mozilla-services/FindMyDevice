@@ -8,9 +8,15 @@ import (
     "crypto/hmac"
     "errors"
     "net/http"
+    "fmt"
+    "strings"
+    "strconv"
+    "time"
+
 )
 
 // Stubbed for now.
+// minimal HAWK for now (e.g. no bewit because IAGNI)
 
 var ErrNoAuth = errors.New("No Authorization Header")
 var ErrNotHawkAuth = errors.New("Not a Hawk Authorization Header")
@@ -22,6 +28,7 @@ var marshal = "%s\n%s\n%s\n%s\n%s\n%s\n%d\n\n"
 type Hawk struct {
     logger *util.HekaLogger
     header string
+    Id string
     Time string
     Nonce string
     Method string
@@ -42,9 +49,9 @@ func GenNonce(l int) (string) {
     return base64.StdEncoding.EncodeToString(ret)
 }
 
-func (self *Hawk) AsHeader(req *http.Request, id, extra, signature string ) (string){
+func (self *Hawk) AsHeader(req *http.Request, id, extra, secret, signature string ) (string){
     if signature == "" {
-        signature = self.GenerateSignature(req, extra)
+        signature, _ = self.GenerateSignature(req, extra, secret)
     }
     return fmt.Sprintf("Hawk id=\"%s\", ts=\"%s\", nonce=\"%s\" ext=\"%s\", mac=\"%s\"",
         id,
@@ -54,33 +61,32 @@ func (self *Hawk) AsHeader(req *http.Request, id, extra, signature string ) (str
         signature)
 }
 
-func getFullPath(req http.Request) (path string) {
-    path = req.Url.Path
-    if len(req.Url.RawQuery) > 0 {
-        path = path + "?" + req.Url.RawQuery
+func getFullPath(req *http.Request) (path string) {
+    path = req.URL.Path
+    if len(req.URL.RawQuery) > 0 {
+        path = path + "?" + req.URL.RawQuery
     }
-    if len(req.Url.Fragment) > 0 {
-        path = path + "#" + req.Url.Fragment
+    if len(req.URL.Fragment) > 0 {
+        path = path + "#" + req.URL.Fragment
     }
     return path
 }
 
-func getHostPort(req http.Request) (host,port string) {
-    elements = strings.Split(req.Host, ":")
+func getHostPort(req *http.Request) (host,port string) {
+    elements := strings.Split(req.Host, ":")
     host = elements[0]
     switch {
         case len(elements) > 1:
             port = elements[1]
-        case req.Scheme == "https":
+        case req.URL.Scheme == "https":
             port = "443"
         default:
-            port = 80
+            port = "80"
     }
     return host, port
 }
 
-func (self *Hawk) GenerateSignature(req http.Request, extra, key string) (sig string,err error) {
-    var port string
+func (self *Hawk) GenerateSignature(req *http.Request, extra, secret string) (sig string,err error) {
     // create path
     if self.Path == "" {
         self.Path = getFullPath(req)
@@ -90,10 +96,10 @@ func (self *Hawk) GenerateSignature(req http.Request, extra, key string) (sig st
         self.Host, self.Port = getHostPort(req)
     }
     if self.Nonce == "" {
-        self.Nonce = getNonce(6)
+        self.Nonce = GenNonce(6)
     }
     if self.Time == "" {
-        self.Time = strconv.FormatInt(time.Now().UTC().Unix, 10)
+        self.Time = strconv.FormatInt(time.Now().UTC().Unix(), 10)
     }
     marshalStr := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n%s",
         self.header,
@@ -105,12 +111,12 @@ func (self *Hawk) GenerateSignature(req http.Request, extra, key string) (sig st
         self.Port,
         extra)
 
-    mac := hmac.New(sha256.New, key)
-    mac.Write(marshalStr)
+    mac := hmac.New(sha256.New, []byte(secret))
+    mac.Write([]byte(marshalStr))
     return base64.StdEncoding.EncodeToString(mac.Sum(nil)), err
 }
 
-func ParseHawkAuthHeader(req http.Request, logger *util.HekaLogger) (*Hawk, signature string, err error) {
+func ParseHawkAuthHeader(req *http.Request, logger *util.HekaLogger) (ret *Hawk, signature string, err error) {
 
     auth := req.Header.Get("Authorization")
     if auth == "" {
@@ -121,12 +127,12 @@ func ParseHawkAuthHeader(req http.Request, logger *util.HekaLogger) (*Hawk, sign
     }
     elements := strings.Split(auth[5:],", ")
     ret = &Hawk{}
-    for element := range elements {
+    for _,element := range elements {
         kv := strings.Split(element, "=")
         if len(kv) < 2 {
             continue
         }
-        val = strings.Trim(kv[1], "\"")
+        val := strings.Trim(kv[1], "\"")
         switch strings.ToLower(kv[0]) {
         case "id":
             ret.Id = val

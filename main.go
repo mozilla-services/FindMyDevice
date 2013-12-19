@@ -69,6 +69,8 @@ func main() {
 		handlers.Register)
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/cmd/", verRoot),
 		handlers.Cmd)
+    RESTMux.HandleFunc(fmt.Sprintf("/%s/queue/", verRoot),
+        handlers.Queue)
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/state/", verRoot),
 		handlers.State)
 	RESTMux.HandleFunc("/static/",

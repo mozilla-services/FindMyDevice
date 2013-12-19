@@ -56,6 +56,11 @@ type Users map[string]string
        userId   UUID index
        deviceId UUID
 
+   table pendingCommands:
+       deviceId UUID index
+       time     timeStamp
+       cmd      string
+
    table deviceInfo:
        deviceId       UUID index
        name           string
@@ -88,6 +93,8 @@ type Users map[string]string
 */
 // Using Relative for now, because backups.
 
+var ErrUnknownDevice = errors.New("Unknown device")
+
 func Open(config util.JsMap, logger *util.HekaLogger) (store *Storage, err error) {
 	dsn := fmt.Sprintf("user=%s password=%s host=%s dbname=%s sslmode=%s",
 		util.MzGet(config, "db.user", "user"),
@@ -117,8 +124,11 @@ func (self *Storage) Init() (err error) {
 		"create table if not exists userToDeviceMap (userId varchar, deviceId varchar, name varchar);",
 		"create index on userToDeviceMap (userId);",
 
-		"create table if not exists deviceInfo ( deviceId varchar, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar, pushurl varchar, pendingCommand varchar);",
+		"create table if not exists deviceInfo ( deviceId varchar, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar, pushurl varchar);",
 		"create index on deviceInfo (deviceId);",
+
+        "create table if not exists pendingCommands ( id bigserial, deviceId varchar, time timestamp, cmd varchar);",
+        "create index on pendingCommands (deviceId);",
 
 		"create table if not exists position ( id bigserial, deviceId varchar, expry interval, time  timestamp, latitude real, longitude real, altitude real);",
 		"create index on position (deviceId);",
@@ -216,7 +226,7 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo *Device
 	err = row.Scan(&deviceId, &name, &lockable, &loggedIn, &pushUrl)
 	switch {
 	case err == sql.ErrNoRows:
-		return nil, nil
+		return nil, ErrUnknownDevice
 	case err != nil:
 		self.logger.Error(self.logCat, "Could not fetch device info",
 			util.Fields{"error": err.Error(),
@@ -269,9 +279,31 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo *Device
 	return reply, nil
 }
 
-func (self *Storage) GetPending(devId string) (cmd Unstructured, err error) {
-	// TODO: Get pending commands
-	return nil, nil
+func (self *Storage) GetPending(devId string) (cmd string, err error) {
+	// TODO: Get oldest pending command
+    dbh, err := self.openDb()
+    if err != nil {
+        self.logger.Error(self.logCat, "Could not open DB",
+            util.Fields{"error": err.Error()})
+        return "", err
+    }
+    statement := "select id, cmd from pendingCommands where deviceId = $1 order by time limit 1;"
+    now := time.Now().UTC().Unix()
+    rows, err := dbh.Query(statement, devId)
+    if rows.Next() {
+        var id string
+        err = rows.Scan(&id, &cmd)
+        if err != nil {
+            self.logger.Error(self.logCat, "Could not read pending command",
+                util.Fields{"error":err.Error(),
+                            "deviceId": devId})
+            return "", err
+        }
+        statement = "delete from pendingCommands where id = $1"
+        dbh.Exec(statement, devId, now)
+    }
+    // Remove pending commands for the device.
+    return cmd, nil
 }
 
 func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err error) {
@@ -309,9 +341,9 @@ func (self *Storage) openDb() (dbh *sql.DB, err error) {
 	return dbh, nil
 }
 
-func (self *Storage) StoreCommand(devId, command string) (err error) {
+func (self *Storage) StoreCommand(devId, command string ) (err error) {
     //update device table to store command where devId = $1
-    sql := "update deviceInfo set pendingCommand = $2 where devId=$1;"
+    statement := "insert into pendingCommands (deviceId, time, cmd) values ($1, $2,  $3);"
     dbh, err := self.openDb()
     defer dbh.Close()
     if err != nil {
@@ -319,8 +351,10 @@ func (self *Storage) StoreCommand(devId, command string) (err error) {
             util.Fields{"error": err.Error()})
         return err
     }
+    self.logger.Info(self.logCat, "Storing Command",
+        util.Fields{"deviceId": devId, "command": command})
 
-    if _, err = dbh.Exec(sql, devId, command); err != nil {
+    if _, err = dbh.Exec(statement, devId, time.Now().UTC(), command); err != nil {
         self.logger.Error(self.logCat, "Could not store pending command",
             util.Fields{"error": err.Error()})
         return err
@@ -337,7 +371,6 @@ func (self *Storage) SetDeviceLocked(devId string, state bool) (err error) {
 	}
 
 	statement := "update deviceInfo set lockable = $1 where deviceId =$2"
-
 	_, err = dbh.Exec(statement)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not set device lock state",
