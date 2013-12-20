@@ -34,7 +34,7 @@
             <div class="lastexchange" data-contact="{{$device.LastExchange}}">Last contact: {{$device.LastExchange}}</div>
             <ol class="positions">
                 {{range $position := $device.PreviousPositions}}
-                <li data-time="{{$position.Time}}" data-latitude="{{$position.Latitude}}" data-longitude="{{$position.Longitude}}" data-altitude="{{$position.Altitude}}"><a href="http://maps.google.com/maps?hl=en&ll={{$position.Latitude}},{{$position.Longitude}}">Position at {{$position.Time}}</a></li>
+                <li> <a data-time={{$position.Time}} data-latitude={{$position.Latitude}} data-longitude={{$position.Longitude}} data-altitude={{$position.Altitude}} href="http://maps.google.com/maps?hl=en&ll={{$position.Latitude}},{{$position.Longitude}}" class="position">Position at {{$position.Time}}</a></li>
                 {{end}}
             </ol>
             <!-- only display commands that the client specified it accepts
@@ -130,7 +130,18 @@ window.addEventListener("load",
                     sendCommand(send);
                })
            }
-       }
+        }
+
+        //fix up dates...
+        var plis = document.getElementsByClassName("position");
+        var plisn = plis.length;
+        for (var i=0; i<plisn; i++) {
+            var p = plis[i];
+            day = new Date(0);
+            console.debug(p.dataset.time);
+            day.setUTCSeconds(parseInt(p.dataset.time));
+            p.innerHTML = day.toString();
+        }
 
         document.getElementById("signin").addEventListener("click",
                 function(){

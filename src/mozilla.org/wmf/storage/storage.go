@@ -263,13 +263,14 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo *Device
 						"deviceId": devId})
 				break
 			}
-			positions = append(positions, Position{
+            position := Position{
 				Latitude:  float64(latitude),
 				Longitude: float64(longitude),
 				Altitude:  float64(altitude),
-				Time:      int64(time)})
+				Time:      int64(time)}
+            fmt.Printf("Position: %+v\n", position)
+            positions = append(positions, position)
 		}
-		// gather the positions
 	} else {
 		self.logger.Error(self.logCat, "Could not get positions",
 			util.Fields{"error": err.Error()})
@@ -430,6 +431,8 @@ func (self *Storage) GcPosition(devId string) (err error) {
     // because prepare doesn't like single quoted vars
     // because calling dbh.Exec() causes a lock race condition.
     // because I didn't have enough reasons to drink.
+    // Delete old records (except the latest one) so we always have
+    // at least one position record.
     statement := fmt.Sprintf("delete from position where id in (select id from (select id, row_number() over (order by time desc) RowNumber from position where time < (now() - interval '%d seconds') ) tt where RowNumber > 1);",
     self.defExpry)
     st,err := dbh.Prepare(statement)
