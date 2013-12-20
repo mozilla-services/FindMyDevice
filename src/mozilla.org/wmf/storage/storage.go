@@ -23,10 +23,10 @@ type Storage struct {
 }
 
 type Position struct {
-	Latitude  float32
-	Longitude float32
-	Altitude  float32
-	Time      int32
+	Latitude  float64
+	Longitude float64
+	Altitude  float64
+	Time      int64
 }
 
 type Device struct {
@@ -39,6 +39,7 @@ type Device struct {
 	PushUrl           string // SimplePush URL
 	Pending           string // pending command
 	LastExchange      int32  // last time we did anything
+	Accepts           string // commands the device accepts
 }
 
 type DeviceList struct {
@@ -70,6 +71,7 @@ type Users map[string]string
        hawkSecret     string
        pushUrl        string
        pendingCommand string
+       accepts        string
 
    table position:
        positionId UUID index
@@ -94,6 +96,11 @@ type Users map[string]string
 // Using Relative for now, because backups.
 
 var ErrUnknownDevice = errors.New("Unknown device")
+
+func dbNow() (ret string) {
+	r, _ := time.Now().UTC().MarshalText()
+	return string(r)
+}
 
 func Open(config util.JsMap, logger *util.HekaLogger) (store *Storage, err error) {
 	dsn := fmt.Sprintf("user=%s password=%s host=%s dbname=%s sslmode=%s",
@@ -120,17 +127,19 @@ func Open(config util.JsMap, logger *util.HekaLogger) (store *Storage, err error
 }
 
 func (self *Storage) Init() (err error) {
+    // TODO: create a versioned db update system that contains commands
+    // to execute.
 	cmds := []string{
 		"create table if not exists userToDeviceMap (userId varchar, deviceId varchar, name varchar);",
 		"create index on userToDeviceMap (userId);",
 
-		"create table if not exists deviceInfo ( deviceId varchar, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar, pushurl varchar);",
+		"create table if not exists deviceInfo (deviceId varchar unique, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar, pushurl varchar, accepts varchar);",
 		"create index on deviceInfo (deviceId);",
 
-        "create table if not exists pendingCommands ( id bigserial, deviceId varchar, time timestamp, cmd varchar);",
-        "create index on pendingCommands (deviceId);",
+		"create table if not exists pendingCommands (id bigserial, deviceId varchar, time timestamp, cmd varchar);",
+		"create index on pendingCommands (deviceId);",
 
-		"create table if not exists position ( id bigserial, deviceId varchar, expry interval, time  timestamp, latitude real, longitude real, altitude real);",
+		"create table if not exists position (id bigserial, deviceId varchar, expry interval, time  timestamp, latitude real, longitude real, altitude real);",
 		"create index on position (deviceId);",
 		"create or replace function update_time() returns trigger as $$ begin new.lastexchange = now(); return new; end; $$ language 'plpgsql';",
 		"drop trigger if exists update_le on deviceinfo;",
@@ -145,8 +154,8 @@ func (self *Storage) Init() (err error) {
 
 	for _, s := range cmds {
 		res, err := dbh.Exec(s)
-        self.logger.Debug(self.logCat, "db init",
-            util.Fields{"cmd":s, "res": fmt.Sprintf("%+v", res)})
+		self.logger.Debug(self.logCat, "db init",
+			util.Fields{"cmd": s, "res": fmt.Sprintf("%+v", res)})
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not initialize db",
 				util.Fields{"cmd": s, "error": err.Error()})
@@ -160,7 +169,7 @@ func (self *Storage) Init() (err error) {
 func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, err error) {
 	// value check?
 
-	statement := "insert into deviceInfo (deviceId, lockable, loggedin, lastExchange, hawkSecret) select $1, $2, $3, $4, $5 where not exists (select deviceId from deviceInfo where deviceId = $1);"
+	statement := "insert into deviceInfo (deviceId, lockable, loggedin, lastExchange, hawkSecret, accepts, pushUrl) values ($1, $2, $3, $4, $5, $6, $7);"
 	if dev.ID == "" {
 		dev.ID, _ = util.GenUUID4()
 	}
@@ -171,14 +180,17 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 			util.Fields{"error": err.Error()})
 		return "", err
 	}
-
-	if _, err = dbh.Exec(statement, dev.ID,
+	if _, err = dbh.Exec(statement,
+		string(dev.ID),
 		dev.Lockable,
-		time.Now().String(),
+		dev.LoggedIn,
+		dbNow(),
 		dev.Secret,
+		dev.Accepts,
 		dev.PushUrl); err != nil {
 		self.logger.Error(self.logCat, "Could not create device",
-			util.Fields{"error": err.Error()})
+			util.Fields{"error": err.Error(),
+				"device": fmt.Sprintf("%+v", dev)})
 		return "", err
 	}
 	if _, err = dbh.Exec("insert into userToDeviceMap (userId, deviceId) values ($1, $2);", userid, dev.ID); err != nil {
@@ -197,7 +209,7 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo *Device
 
 	var deviceId, pushUrl, name []uint8
 	var lockable, loggedIn bool
-	var statement string
+	var statement, accepts string
 	var positions []Position
 
 	dbh, err := self.openDb()
@@ -209,7 +221,7 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo *Device
 	defer dbh.Close()
 
 	// verify that the device belongs to the user
-	statement = "select d.deviceId, u.name, d.lockable, d.loggedin, d.pushUrl from userToDeviceMap as u, deviceInfo as d where u.userId = $1 and u.deviceId=$2 and u.deviceId=d.deviceId;"
+	statement = "select d.deviceId, u.name, d.lockable, d.loggedin, d.pushUrl, d.accepts from userToDeviceMap as u, deviceInfo as d where u.userId = $1 and u.deviceId=$2 and u.deviceId=d.deviceId;"
 	stmt, err := dbh.Prepare(statement)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not query device info",
@@ -223,7 +235,7 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo *Device
 		return nil, err
 	}
 	row.Next()
-	err = row.Scan(&deviceId, &name, &lockable, &loggedIn, &pushUrl)
+	err = row.Scan(&deviceId, &name, &lockable, &loggedIn, &pushUrl, &accepts)
 	switch {
 	case err == sql.ErrNoRows:
 		return nil, ErrUnknownDevice
@@ -252,10 +264,10 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo *Device
 				break
 			}
 			positions = append(positions, Position{
-				Latitude:  latitude,
-				Longitude: longitude,
-				Altitude:  altitude,
-				Time:      time})
+				Latitude:  float64(latitude),
+				Longitude: float64(longitude),
+				Altitude:  float64(altitude),
+				Time:      int64(time)})
 		}
 		// gather the positions
 	} else {
@@ -263,47 +275,49 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo *Device
 			util.Fields{"error": err.Error()})
 	}
 
-	reply := &Device{ID: string(deviceId),
+	reply := &Device{
+		ID:                string(deviceId),
 		Name:              string(name),
 		Lockable:          lockable,
 		LoggedIn:          loggedIn,
 		PreviousPositions: positions,
-		PushUrl:           string(pushUrl)}
+		PushUrl:           string(pushUrl),
+		Accepts:           accepts,
+	}
 
 	/*
-		self.logger.Debug(self.logCat, "Device info",
-	    util.Fields{"userId":userId,
-	        "device": deviceId,
-	        "data": fmt.Sprintf("%v\n", reply)})
+			self.logger.Debug(self.logCat, "Device info",
+		    util.Fields{"userId":userId,
+		        "device": deviceId,
+		        "data": fmt.Sprintf("%v\n", reply)})
 	*/
 	return reply, nil
 }
 
 func (self *Storage) GetPending(devId string) (cmd string, err error) {
 	// TODO: Get oldest pending command
-    dbh, err := self.openDb()
-    if err != nil {
-        self.logger.Error(self.logCat, "Could not open DB",
-            util.Fields{"error": err.Error()})
-        return "", err
-    }
-    statement := "select id, cmd from pendingCommands where deviceId = $1 order by time limit 1;"
-    now := time.Now().UTC().Unix()
-    rows, err := dbh.Query(statement, devId)
-    if rows.Next() {
-        var id string
-        err = rows.Scan(&id, &cmd)
-        if err != nil {
-            self.logger.Error(self.logCat, "Could not read pending command",
-                util.Fields{"error":err.Error(),
-                            "deviceId": devId})
-            return "", err
-        }
-        statement = "delete from pendingCommands where id = $1"
-        dbh.Exec(statement, devId, now)
-    }
-    // Remove pending commands for the device.
-    return cmd, nil
+	dbh, err := self.openDb()
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open DB",
+			util.Fields{"error": err.Error()})
+		return "", err
+	}
+	statement := "select id, cmd from pendingCommands where deviceId = $1 order by time limit 1;"
+	rows, err := dbh.Query(statement, devId)
+	if rows.Next() {
+		var id string
+		err = rows.Scan(&id, &cmd)
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not read pending command",
+				util.Fields{"error": err.Error(),
+					"deviceId": devId})
+			return "", err
+		}
+		statement = "delete from pendingCommands where id = $1"
+		dbh.Exec(statement, id)
+	}
+	// Remove pending commands for the device.
+	return cmd, nil
 }
 
 func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err error) {
@@ -341,25 +355,25 @@ func (self *Storage) openDb() (dbh *sql.DB, err error) {
 	return dbh, nil
 }
 
-func (self *Storage) StoreCommand(devId, command string ) (err error) {
-    //update device table to store command where devId = $1
-    statement := "insert into pendingCommands (deviceId, time, cmd) values ($1, $2,  $3);"
-    dbh, err := self.openDb()
-    defer dbh.Close()
-    if err != nil {
-        self.logger.Error(self.logCat, "Could not open db",
-            util.Fields{"error": err.Error()})
-        return err
-    }
-    self.logger.Info(self.logCat, "Storing Command",
-        util.Fields{"deviceId": devId, "command": command})
+func (self *Storage) StoreCommand(devId, command string) (err error) {
+	//update device table to store command where devId = $1
+	statement := "insert into pendingCommands (deviceId, time, cmd) values ($1, $2,  $3);"
+	dbh, err := self.openDb()
+	defer dbh.Close()
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open db",
+			util.Fields{"error": err.Error()})
+		return err
+	}
+	self.logger.Info(self.logCat, "Storing Command",
+		util.Fields{"deviceId": devId, "command": command})
 
-    if _, err = dbh.Exec(statement, devId, time.Now().UTC(), command); err != nil {
-        self.logger.Error(self.logCat, "Could not store pending command",
-            util.Fields{"error": err.Error()})
-        return err
-    }
-    return nil
+	if _, err = dbh.Exec(statement, devId, dbNow(), command); err != nil {
+		self.logger.Error(self.logCat, "Could not store pending command",
+			util.Fields{"error": err.Error()})
+		return err
+	}
+	return nil
 }
 
 func (self *Storage) SetDeviceLocked(devId string, state bool) (err error) {
@@ -371,7 +385,7 @@ func (self *Storage) SetDeviceLocked(devId string, state bool) (err error) {
 	}
 
 	statement := "update deviceInfo set lockable = $1 where deviceId =$2"
-	_, err = dbh.Exec(statement)
+	_, err = dbh.Exec(statement,state, devId)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not set device lock state",
 			util.Fields{"error": err.Error(),
@@ -385,25 +399,43 @@ func (self *Storage) SetDeviceLocked(devId string, state bool) (err error) {
 func (self *Storage) SetDeviceLocation(devId string, position Position) (err error) {
 	// TODO: set the current device position
 	dbh, err := self.openDb()
-	defer dbh.Close()
 	if err != nil {
 		return err
 	}
-	posId, _ := util.GenUUID4()
-	now := time.Now().UTC()
-
-	statement := "insert into position (positionId, deviceId, time, latitude, longitude, altitude) values ($1, $2, $3, $4, $5, $6);"
-	_, err = dbh.Exec(statement, posId, devId, now,
-		position.Latitude,
-		position.Longitude,
-		position.Altitude)
+	defer dbh.Close()
+	statement := "insert into position (deviceId, time, latitude, longitude, altitude) values ($1, $2, $3, $4, $5);"
+    st,err := dbh.Prepare(statement)
+    _, err = st.Exec(
+        devId,
+        dbNow(),
+		float32(position.Latitude),
+		float32(position.Longitude),
+		float32(position.Altitude))
+    st.Close()
 	if err != nil {
 		self.logger.Error(self.logCat, "Error inserting postion",
 			util.Fields{"error": err.Error()})
 		return err
 	}
-	statement = "delete position where positionId in ( select positionId from ( select positionId, row_number() over (order by time desc) RowNumber from position where time > $1 ) tt where RowNumber > 1"
-	_, err = dbh.Exec(statement, time.Now().Unix()+self.defExpry)
+    return nil
+}
+
+func (self *Storage) GcPosition(devId string) (err error) {
+	dbh, err := self.openDb()
+	if err != nil {
+		return err
+	}
+	defer dbh.Close()
+
+    // because prepare doesn't like single quoted vars
+    // because calling dbh.Exec() causes a lock race condition.
+    // because I didn't have enough reasons to drink.
+    statement := fmt.Sprintf("delete from position where id in (select id from (select id, row_number() over (order by time desc) RowNumber from position where time < (now() - interval '%d seconds') ) tt where RowNumber > 1);",
+    self.defExpry)
+    st,err := dbh.Prepare(statement)
+	_, err = st.Exec()
+    st.Close()
+    fmt.Printf("Back\n")
 	if err != nil {
 		self.logger.Error(self.logCat, "Error gc'ing positions",
 			util.Fields{"error": err.Error()})

@@ -90,11 +90,13 @@ func isTrue(val interface{}) bool {
 	}
 }
 
-func minInt(x,y int) int {
-    if x < y {
-        return x
-    }
-    return y
+func minInt(x, y int) int {
+	// There's no built in min function.
+	// awesome.
+	if x < y {
+		return x
+	}
+	return y
 }
 
 //Handler private functions
@@ -102,6 +104,9 @@ func minInt(x,y int) int {
 // verify a Persona assertion using the config values
 func (self *Handler) verifyAssertion(assertion string) (userid, email string, err error) {
 	var ok bool
+    if util.MzGetFlag(self.config, "auth.disabled") {
+        return "user1", "user@example.com", nil
+    }
 	ver_url := util.MzGet(self.config, "persona.validater_url", "https://verifier.login.persona.org/verify")
 	audience := util.MzGet(self.config, "persona.audience",
 		"http://localhost:8080")
@@ -154,7 +159,7 @@ func (self *Handler) setSessionInfo(resp http.ResponseWriter, session *sessionIn
 // get the user id from the session, or the assertion.
 func (self *Handler) getUser(req *http.Request) (userid string, err error) {
 	// remove this!
-	self.logger.Info(self.logCat, "####### USING DUMMY", nil)
+	self.logger.Info(self.logCat, "### USING DUMMY", nil)
 	req.AddCookie(&http.Cookie{Name: "user",
 		Value: "user1",
 		Path:  "/"})
@@ -200,30 +205,32 @@ func (self *Handler) getSessionInfo(req *http.Request) (session *sessionInfo, er
 }
 
 // log the device's position reply
-func (self *Handler) logPosition(devId string, args reply_t) (err error) {
+func (self *Handler) logPosition(devId string, args map[string]interface{}) (err error) {
 	var location storage.Position
 	var locked bool
 
 	for key, arg := range args {
 		switch k := strings.ToLower(key[:2]); k {
 		case "la":
-			location.Latitude = arg.(float32)
+			location.Latitude = arg.(float64)
 		case "lo":
-			location.Longitude = arg.(float32)
+			location.Longitude = arg.(float64)
 		case "al":
-			location.Altitude = arg.(float32)
+			location.Altitude = arg.(float64)
 		case "ti":
-			location.Time = arg.(int32)
+			location.Time = int64(arg.(float64))
 		case "ke":
 			locked = isTrue(arg)
-			if err = self.store.SetDeviceLocked(self.devId, locked); err != nil {
+			if err = self.store.SetDeviceLocked(devId, locked); err != nil {
 				return err
 			}
 		}
 	}
-	if err = self.store.SetDeviceLocation(self.devId, location); err != nil {
+	if err = self.store.SetDeviceLocation(devId, location); err != nil {
 		return err
 	}
+    // because go sql locking.
+    self.store.GcPosition(devId)
 	return nil
 }
 
@@ -309,6 +316,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var pushUrl string
 	var deviceid string
 	var secret string
+    var accepts string
 	var lockable bool
 	var ok bool
 
@@ -319,7 +327,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		http.Error(resp, "No body", http.StatusBadRequest)
 	} else {
-		if assertion, ok := buffer["assertion"].(string); !ok {
+		if assertion, ok := buffer["assert"].(string); !ok {
 			self.logger.Error(self.logCat, "Missing assertion", nil)
 			http.Error(resp, "Unauthorized", 401)
 			return
@@ -356,15 +364,32 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 				lockable = false
 			}
 		}
+        if k, ok := buffer["accepts"]; ok {
+            // collapse the array to a string
+            if l:= len(k.([]interface{})); l>0 {
+                acc :=make([]byte, l)
+                for n, ke := range k.([]interface{}) {
+                    acc[n]=ke.(string)[0]
+                }
+                accepts = strings.ToLower(string(acc))
+            }
+        }
+        if len(accepts) == 0 {
+            accepts = "elrt"
+        }
+
 		// create the new device record
-		if devId, err := self.store.RegisterDevice(userid, storage.Device{
+		if devId, err := self.store.RegisterDevice(
+            userid,
+            storage.Device{
 			ID:       deviceid,
 			Secret:   secret,
 			PushUrl:  pushUrl,
 			Lockable: lockable,
+            Accepts:  accepts,
 		}); err != nil {
-			self.logger.Error(self.logCat, "Error storing data", nil)
-			http.Error(resp, "Server error", 500)
+			self.logger.Error(self.logCat, "Error Registering device", nil)
+			http.Error(resp, "Bad Request", 400)
 			return
 		} else {
 			if devId != deviceid {
@@ -381,7 +406,6 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		self.devId,
 		secret)))
 	return
-
 }
 
 func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
@@ -481,7 +505,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				err = self.store.StoreCommand(deviceId, string(body))
 			case "t":
 				// track
-				err = self.logPosition(deviceId, args.(reply_t))
+				err = self.logPosition(deviceId, args.(map[string]interface{}))
 				// store tracking info.
 			}
 			if err != nil {
@@ -492,6 +516,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 						"device":  deviceId,
 						"args":    fmt.Sprintf("%v", args)})
 				http.Error(resp, "Server Error", http.StatusServiceUnavailable)
+                return
 			}
 		}
 	}
@@ -533,20 +558,20 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
-    if userId == "" {
-        http.Error(resp, "Unauthorized", 401)
-        return
-    }
+	if userId == "" {
+		http.Error(resp, "Unauthorized", 401)
+		return
+	}
 
 	devRec, err := self.store.GetDeviceInfo(userId, deviceId)
-	if devRec == nil{
-			self.logger.Error(self.logCat, "Cmd:Unknown device requesting cmd",
-				util.Fields{
-					"deviceId": deviceId})
-			http.Error(resp, "Unauthorized", 401)
-            return
-        }
-    if err != nil {
+	if devRec == nil {
+		self.logger.Error(self.logCat, "Cmd:Unknown device requesting cmd",
+			util.Fields{
+				"deviceId": deviceId})
+		http.Error(resp, "Unauthorized", 401)
+		return
+	}
+	if err != nil {
 		switch err {
 		default:
 			self.logger.Error(self.logCat, "Cmd:Unhandled Error",
@@ -585,31 +610,33 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 		}
 
 		for cmd, args := range reply {
-            var v interface{}
-            var ok bool
+			// sanitize values.
+			var v interface{}
+			var ok bool
 			c := strings.ToLower(string(cmd[0]))
-            rargs := args.(map[string]interface{})
+			rargs := args.(map[string]interface{})
 			switch c {
 			case "l":
-                if v,ok = rargs["c"]; ok {
-                    vs := v.(string)
-                    rargs["c"] = strings.Map(digitsOnly, vs[:minInt(4,len(vs))])
-                }
-                if v,ok = rargs["m"]; ok {
-                    vs := v.(string)
-                    rargs["m"] = strings.Map(asciiOnly, vs[:minInt(100,len(vs))])
-                }
-            case "r", "t":
-                if v,ok = rargs["d"]; ok {
-                    rargs["d"] = strings.Map(digitsOnly, v.(string))
-                }
-            case "e":
-                rargs = storage.Unstructured{}
+				if v, ok = rargs["c"]; ok {
+					vs := v.(string)
+					rargs["c"] = strings.Map(digitsOnly, vs[:minInt(4, len(vs))])
+				}
+				if v, ok = rargs["m"]; ok {
+					vs := v.(string)
+					rargs["m"] = strings.Map(asciiOnly, vs[:minInt(100, len(vs))])
+				}
+			case "r", "t":
+				if v, ok = rargs["d"]; ok {
+					vs := v.(string)
+					rargs["d"] = strings.Map(digitsOnly, vs)
+				}
+			case "e":
+				rargs = storage.Unstructured{}
 			default:
 				http.Error(resp, "Invalid Command", 400)
 				return
 			}
-            fixed, err := json.Marshal(storage.Unstructured{c:rargs})
+			fixed, err := json.Marshal(storage.Unstructured{c: rargs})
 			if err != nil {
 				// Log the error
 				self.logger.Error(self.logCat, "Error handling command",
@@ -628,7 +655,7 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 						"device":  deviceId,
 						"args":    fmt.Sprintf("%v", args)})
 				http.Error(resp, "Server Error", http.StatusServiceUnavailable)
-            }
+			}
 		}
 	}
 	resp.Write([]byte("{}"))
