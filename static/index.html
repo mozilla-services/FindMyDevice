@@ -40,10 +40,10 @@
             <!-- only display commands that the client specified it accepts
             -->
             <div class="commands">
-                <div class="cmd"><button data-cmd="t" class="cmdb">Track Location</button><label>Duration (in seconds):<input name="d" placeholder="600"></label></div>
-                <div class="cmd"><button data-cmd="r" class="cmdb">Ring</button><label>Duration (in seconds):<input name="d" placeholder="60"></label></div>
-                <div class="cmd"><button data-cmd="l" class="cmdb">Lock</button><label>Lock Code:<input name="c" placeholder="0123"/></label><label>Lock Screen Message<input name="m" placeholder="Help! I'm lost!"/></label></div>
-                <div class="cmd"><button data-cmd="e" class="cmdb">Erase</button></div>
+                <div class="cmd t"><button data-cmd="t" class="cmdb">Track Location</button><label>Duration (in seconds):<input name="d" placeholder="600"></label></div>
+                <div class="cmd r"><button data-cmd="r" class="cmdb">Ring</button><label>Duration (in seconds):<input name="d" placeholder="60"></label></div>
+                <div class="cmd l"><button data-cmd="l" class="cmdb">Lock</button><label>Lock Code:<input name="c" placeholder="0123"/></label><label>Lock Screen Message<input name="m" placeholder="Help! I'm lost!"/></label></div>
+                <div class="cmd e"><button data-cmd="e" class="cmdb">Erase</button></div>
             </div>
     {{end}}
     {{end}}
@@ -142,6 +142,8 @@ window.addEventListener("load",
             day.setUTCSeconds(parseInt(p.dataset.time));
             p.innerHTML = day.toString();
         }
+
+        //TODO: scan commands, only activate ones that are allowed by device
 
         document.getElementById("signin").addEventListener("click",
                 function(){

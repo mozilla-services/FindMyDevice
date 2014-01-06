@@ -31,6 +31,7 @@ type Position struct {
 
 type Device struct {
 	ID                string // device Id
+	User              string // userID
 	Name              string
 	PreviousPositions []Position
 	Lockable          bool   // is device lockable
@@ -127,11 +128,12 @@ func Open(config util.JsMap, logger *util.HekaLogger) (store *Storage, err error
 }
 
 func (self *Storage) Init() (err error) {
-    // TODO: create a versioned db update system that contains commands
-    // to execute.
+	// TODO: create a versioned db update system that contains commands
+	// to execute.
 	cmds := []string{
 		"create table if not exists userToDeviceMap (userId varchar, deviceId varchar, name varchar);",
 		"create index on userToDeviceMap (userId);",
+		"create unique index on userToDeviceMap (userId, deviceId);",
 
 		"create table if not exists deviceInfo (deviceId varchar unique, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar, pushurl varchar, accepts varchar);",
 		"create index on deviceInfo (deviceId);",
@@ -194,20 +196,25 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 		return "", err
 	}
 	if _, err = dbh.Exec("insert into userToDeviceMap (userId, deviceId) values ($1, $2);", userid, dev.ID); err != nil {
-		self.logger.Error(self.logCat, "Could not map device to user", util.Fields{
-			"uid":      userid,
-			"deviceId": devId,
-			"error":    err.Error()})
-		return "", err
+		switch {
+		default:
+			self.logger.Error(self.logCat,
+				"Could not map device to user",
+				util.Fields{
+					"uid":      userid,
+					"deviceId": devId,
+					"error":    err.Error()})
+			return "", err
+		}
 	}
 	return dev.ID, nil
 }
 
-func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo *Device, err error) {
+func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 
 	// collect the data for a given device for display
 
-	var deviceId, pushUrl, name []uint8
+	var deviceId, userId, pushUrl, name []uint8
 	var lockable, loggedIn bool
 	var statement, accepts string
 	var positions []Position
@@ -221,28 +228,27 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo *Device
 	defer dbh.Close()
 
 	// verify that the device belongs to the user
-	statement = "select d.deviceId, u.name, d.lockable, d.loggedin, d.pushUrl, d.accepts from userToDeviceMap as u, deviceInfo as d where u.userId = $1 and u.deviceId=$2 and u.deviceId=d.deviceId;"
+	statement = "select d.deviceId, u.userId, coalesce(u.name,d.deviceId), d.lockable, d.loggedin, d.pushUrl, d.accepts from userToDeviceMap as u, deviceInfo as d where u.deviceId=$1 and u.deviceId=d.deviceId;"
 	stmt, err := dbh.Prepare(statement)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not query device info",
 			util.Fields{"error": err.Error()})
 		return nil, err
 	}
-	row, err := stmt.Query(userId, devId)
+	row, err := stmt.Query(devId)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not query device info",
 			util.Fields{"error": err.Error()})
 		return nil, err
 	}
 	row.Next()
-	err = row.Scan(&deviceId, &name, &lockable, &loggedIn, &pushUrl, &accepts)
+	err = row.Scan(&deviceId, &userId, &name, &lockable, &loggedIn, &pushUrl, &accepts)
 	switch {
 	case err == sql.ErrNoRows:
 		return nil, ErrUnknownDevice
 	case err != nil:
 		self.logger.Error(self.logCat, "Could not fetch device info",
 			util.Fields{"error": err.Error(),
-				"userId":   userId,
 				"deviceId": devId})
 		return nil, err
 	default:
@@ -263,14 +269,13 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo *Device
 						"deviceId": devId})
 				break
 			}
-            position := Position{
+			positions = append(positions, Position{
 				Latitude:  float64(latitude),
 				Longitude: float64(longitude),
 				Altitude:  float64(altitude),
-				Time:      int64(time)}
-            fmt.Printf("Position: %+v\n", position)
-            positions = append(positions, position)
+				Time:      int64(time)})
 		}
+		// gather the positions
 	} else {
 		self.logger.Error(self.logCat, "Could not get positions",
 			util.Fields{"error": err.Error()})
@@ -278,6 +283,7 @@ func (self *Storage) GetDeviceInfo(userId string, devId string) (devInfo *Device
 
 	reply := &Device{
 		ID:                string(deviceId),
+		User:              string(userId),
 		Name:              string(name),
 		Lockable:          lockable,
 		LoggedIn:          loggedIn,
@@ -328,20 +334,23 @@ func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err
 	dbh, err := self.openDb()
 	defer dbh.Close()
 
-	statement := "select deviceId, name, from userToDeviceMap where userId = $1;"
+	statement := "select deviceId, coalesce(name,deviceId) from userToDeviceMap where userId = $1;"
 	rows, err := dbh.Query(statement, userId)
-	for rows.Next() {
-		var id, name string
-		err = rows.Scan(&id, &name)
-		if err != nil {
-			self.logger.Error(self.logCat, "Could not get list of devices for user",
-				util.Fields{"error": err.Error(),
-					"user": userId})
-			return nil, err
+	if err == nil {
+		for rows.Next() {
+			var id, name string
+			err = rows.Scan(&id, &name)
+			if err != nil {
+				self.logger.Error(self.logCat,
+					"Could not get list of devices for user",
+					util.Fields{"error": err.Error(),
+						"user": userId})
+				return nil, err
+			}
+			data = append(data, DeviceList{ID: id, Name: name})
 		}
-		data = append(data, DeviceList{ID: id, Name: name})
 	}
-	return data, nil
+	return data, err
 }
 
 func (self *Storage) openDb() (dbh *sql.DB, err error) {
@@ -386,7 +395,7 @@ func (self *Storage) SetDeviceLocked(devId string, state bool) (err error) {
 	}
 
 	statement := "update deviceInfo set lockable = $1 where deviceId =$2"
-	_, err = dbh.Exec(statement,state, devId)
+	_, err = dbh.Exec(statement, state, devId)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not set device lock state",
 			util.Fields{"error": err.Error(),
@@ -405,20 +414,20 @@ func (self *Storage) SetDeviceLocation(devId string, position Position) (err err
 	}
 	defer dbh.Close()
 	statement := "insert into position (deviceId, time, latitude, longitude, altitude) values ($1, $2, $3, $4, $5);"
-    st,err := dbh.Prepare(statement)
-    _, err = st.Exec(
-        devId,
-        dbNow(),
+	st, err := dbh.Prepare(statement)
+	_, err = st.Exec(
+		devId,
+		dbNow(),
 		float32(position.Latitude),
 		float32(position.Longitude),
 		float32(position.Altitude))
-    st.Close()
+	st.Close()
 	if err != nil {
 		self.logger.Error(self.logCat, "Error inserting postion",
 			util.Fields{"error": err.Error()})
 		return err
 	}
-    return nil
+	return nil
 }
 
 func (self *Storage) GcPosition(devId string) (err error) {
@@ -428,17 +437,17 @@ func (self *Storage) GcPosition(devId string) (err error) {
 	}
 	defer dbh.Close()
 
-    // because prepare doesn't like single quoted vars
-    // because calling dbh.Exec() causes a lock race condition.
-    // because I didn't have enough reasons to drink.
-    // Delete old records (except the latest one) so we always have
-    // at least one position record.
-    statement := fmt.Sprintf("delete from position where id in (select id from (select id, row_number() over (order by time desc) RowNumber from position where time < (now() - interval '%d seconds') ) tt where RowNumber > 1);",
-    self.defExpry)
-    st,err := dbh.Prepare(statement)
+	// because prepare doesn't like single quoted vars
+	// because calling dbh.Exec() causes a lock race condition.
+	// because I didn't have enough reasons to drink.
+	// Delete old records (except the latest one) so we always have
+	// at least one position record.
+	statement := fmt.Sprintf("delete from position where id in (select id from (select id, row_number() over (order by time desc) RowNumber from position where time < (now() - interval '%d seconds') ) tt where RowNumber > 1);",
+		self.defExpry)
+	st, err := dbh.Prepare(statement)
 	_, err = st.Exec()
-    st.Close()
-    fmt.Printf("Back\n")
+	st.Close()
+	fmt.Printf("Back\n")
 	if err != nil {
 		self.logger.Error(self.logCat, "Error gc'ing positions",
 			util.Fields{"error": err.Error()})

@@ -19,12 +19,13 @@ import (
 )
 
 type Handler struct {
-	config util.JsMap
-	logger *util.HekaLogger
-	store  *storage.Storage
-	devId  string
-	logCat string
-	hawk   *Hawk
+	config  util.JsMap
+	logger  *util.HekaLogger
+	store   *storage.Storage
+	devId   string
+	logCat  string
+	accepts []string
+	hawk    *Hawk
 }
 
 type reply_t map[string]interface{}
@@ -104,9 +105,9 @@ func minInt(x, y int) int {
 // verify a Persona assertion using the config values
 func (self *Handler) verifyAssertion(assertion string) (userid, email string, err error) {
 	var ok bool
-    if util.MzGetFlag(self.config, "auth.disabled") {
-        return "user1", "user@example.com", nil
-    }
+	if util.MzGetFlag(self.config, "auth.disabled") {
+		return "user1", "user@example.com", nil
+	}
 	ver_url := util.MzGet(self.config, "persona.validater_url", "https://verifier.login.persona.org/verify")
 	audience := util.MzGet(self.config, "persona.audience",
 		"http://localhost:8080")
@@ -140,11 +141,7 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 // get the device id from the URL path
 func (self *Handler) getDevFromUrl(req *http.Request) (devId string) {
 	elements := strings.Split(req.URL.Path, "/")
-	fmt.Printf("%d %v", len(elements), elements)
-	if len(elements) > 3 {
-		return elements[3]
-	}
-	return ""
+	return elements[len(elements)-1]
 }
 
 // get the user id info from the session. (userid/devid)
@@ -189,9 +186,6 @@ func (self *Handler) getUser(req *http.Request) (userid string, err error) {
 func (self *Handler) getSessionInfo(req *http.Request) (session *sessionInfo, err error) {
 	// Get this from the session?
 	dev := self.getDevFromUrl(req)
-	if dev == "" {
-		dev = "test1"
-	}
 	user, err := self.getUser(req)
 	if err != nil {
 		self.logger.Error("handler", "Could not get user",
@@ -229,8 +223,8 @@ func (self *Handler) logPosition(devId string, args map[string]interface{}) (err
 	if err = self.store.SetDeviceLocation(devId, location); err != nil {
 		return err
 	}
-    // because go sql locking.
-    self.store.GcPosition(devId)
+	// because go sql locking.
+	self.store.GcPosition(devId)
 	return nil
 }
 
@@ -253,50 +247,6 @@ func (self *Handler) logReply(devId, cmd string, args reply_t) (err error) {
 	return err
 }
 
-func (self *Handler) getCommand(req *http.Request) (cmd ui_cmd, err error) {
-	var args storage.Unstructured
-	//get the command from the UI
-	err = req.ParseForm()
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not parse UI request",
-			util.Fields{"error": err.Error()})
-		return cmd, err
-	}
-	// filter "c" value against clients allowed commands
-	cmdKey := req.FormValue("cmd")
-	if cmdKey == "" {
-		self.logger.Error(self.logCat, "Missing c arg",
-			util.Fields{"post": fmt.Sprintf("%+v", req.Form)})
-		return cmd, InvalidReplyErr
-	}
-	cmd.c = strings.ToLower(string(cmdKey[0]))
-	switch cmd.c {
-	// validate the args based on command.
-	case "l": // Lock
-		//get "c"ode, "m"essage and optional "n"umber
-		args["c"] = strings.Map(digitsOnly, req.FormValue("c")[:4])
-		args["m"] = strings.Map(asciiOnly, req.FormValue("m")[:100])
-	case "r", "t":
-		//get "d"uration and "p"eriod
-		if req.FormValue("d") != "" {
-			args["d"], err = strconv.ParseInt(req.FormValue("d"), 10, 32)
-			if err != nil {
-				// badness
-				self.logger.Error(self.logCat, "Could not parse duration",
-					util.Fields{"error": err.Error()})
-				return cmd, InvalidReplyErr
-			}
-		}
-	case "e":
-		// confirm ?
-	default:
-		self.logger.Error(self.logCat, "Invalid command specified",
-			util.Fields{"post": fmt.Sprintf("%+v", req.Form)})
-		return cmd, err
-	}
-	return cmd, err
-}
-
 //Handler Public Functions
 
 func NewHandler(config util.JsMap, logger *util.HekaLogger, store *storage.Storage) *Handler {
@@ -316,11 +266,10 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var pushUrl string
 	var deviceid string
 	var secret string
-    var accepts string
+	var accepts string
 	var lockable bool
 	var ok bool
 
-	// TODO: Handle map of "allowed commands" from client?
 	self.logCat = "handler:Register"
 
 	buffer, err := parseBody(req.Body)
@@ -364,30 +313,30 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 				lockable = false
 			}
 		}
-        if k, ok := buffer["accepts"]; ok {
-            // collapse the array to a string
-            if l:= len(k.([]interface{})); l>0 {
-                acc :=make([]byte, l)
-                for n, ke := range k.([]interface{}) {
-                    acc[n]=ke.(string)[0]
-                }
-                accepts = strings.ToLower(string(acc))
-            }
-        }
-        if len(accepts) == 0 {
-            accepts = "elrt"
-        }
+		if k, ok := buffer["accepts"]; ok {
+			// collapse the array to a string
+			if l := len(k.([]interface{})); l > 0 {
+				acc := make([]byte, l)
+				for n, ke := range k.([]interface{}) {
+					acc[n] = ke.(string)[0]
+				}
+				accepts = strings.ToLower(string(acc))
+			}
+		}
+		if len(accepts) == 0 {
+			accepts = "elrt"
+		}
 
 		// create the new device record
 		if devId, err := self.store.RegisterDevice(
-            userid,
-            storage.Device{
-			ID:       deviceid,
-			Secret:   secret,
-			PushUrl:  pushUrl,
-			Lockable: lockable,
-            Accepts:  accepts,
-		}); err != nil {
+			userid,
+			storage.Device{
+				ID:       deviceid,
+				Secret:   secret,
+				PushUrl:  pushUrl,
+				Lockable: lockable,
+				Accepts:  accepts,
+			}); err != nil {
 			self.logger.Error(self.logCat, "Error Registering device", nil)
 			http.Error(resp, "Bad Request", 400)
 			return
@@ -409,7 +358,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 }
 
 func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
-	/* Pass the latest command off to the device.
+	/* Log response and Pass the latest command off to the device.
 	 */
 	var err error
 	var l int
@@ -422,23 +371,18 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	userId, err := self.getUser(req)
-	if err != nil {
-		self.logger.Error(self.logCat, "No userid", nil)
-		http.Error(resp, "Unauthorized", 401)
-		return
-	}
-
-	devRec, err := self.store.GetDeviceInfo(userId, deviceId)
+	devRec, err := self.store.GetDeviceInfo(deviceId)
 	if err != nil {
 		switch err {
 		case storage.ErrUnknownDevice:
-			self.logger.Error(self.logCat, "Cmd:Unknown device requesting cmd",
+			self.logger.Error(self.logCat,
+				"Cmd:Unknown device requesting cmd",
 				util.Fields{
 					"deviceId": deviceId})
 			http.Error(resp, "Unauthorized", 401)
 		default:
-			self.logger.Error(self.logCat, "Cmd:Unhandled Error",
+			self.logger.Error(self.logCat,
+				"Cmd:Unhandled Error",
 				util.Fields{
 					"error":    err.Error(),
 					"deviceId": deviceId})
@@ -491,15 +435,23 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		merr := json.Unmarshal(body, &reply)
 		//	merr := json.Unmarshal(body, &reply)
 		if merr != nil {
-			self.logger.Error(self.logCat, "Could not unmarshal data", util.Fields{
-				"error": merr.Error(),
-				"body":  string(body)})
+			self.logger.Error(self.logCat,
+				"Could not unmarshal data",
+				util.Fields{
+					"error": merr.Error(),
+					"body":  string(body)})
 			http.Error(resp, "Server Error", 500)
 			return
 		}
 
 		for cmd, args := range reply {
 			c := strings.ToLower(string(cmd[0]))
+			if !strings.Contains(devRec.Accepts, c) {
+				self.logger.Warn(self.logCat, "Unacceptable Command",
+					util.Fields{"unacceptable": c,
+						"acceptable": devRec.Accepts})
+				continue
+			}
 			switch c {
 			case "l", "r", "m", "e":
 				err = self.store.StoreCommand(deviceId, string(body))
@@ -515,8 +467,10 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 						"command": string(cmd),
 						"device":  deviceId,
 						"args":    fmt.Sprintf("%v", args)})
-				http.Error(resp, "Server Error", http.StatusServiceUnavailable)
-                return
+				http.Error(resp,
+					"Server Error",
+					http.StatusServiceUnavailable)
+				return
 			}
 		}
 	}
@@ -533,7 +487,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	hasher := sha256.New()
 	hasher.Write(output)
 	extra := hex.EncodeToString(hasher.Sum(nil))
-	authHeader := self.hawk.AsHeader(req, userId, extra, devRec.Secret, "")
+	authHeader := self.hawk.AsHeader(req, devRec.User, extra, devRec.Secret, "")
 	resp.Header().Add("Authorization", authHeader)
 	resp.Write(output)
 }
@@ -551,7 +505,6 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
-
 	userId, err := self.getUser(req)
 	if err != nil {
 		self.logger.Error(self.logCat, "No userid", nil)
@@ -563,18 +516,25 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	devRec, err := self.store.GetDeviceInfo(userId, deviceId)
+	devRec, err := self.store.GetDeviceInfo(deviceId)
+    if devRec.User != userId {
+        http.Error(resp, "Unauthorized", 401)
+        return
+    }
 	if devRec == nil {
-		self.logger.Error(self.logCat, "Cmd:Unknown device requesting cmd",
+		self.logger.Error(self.logCat,
+			"Queue:User requested unknown device",
 			util.Fields{
-				"deviceId": deviceId})
+				"deviceId": deviceId,
+                "userId": userId})
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
 	if err != nil {
 		switch err {
 		default:
-			self.logger.Error(self.logCat, "Cmd:Unhandled Error",
+			self.logger.Error(self.logCat,
+				"Cmd:Unhandled Error",
 				util.Fields{
 					"error":    err.Error(),
 					"deviceId": deviceId})
@@ -602,9 +562,10 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 		merr := json.Unmarshal(body, &reply)
 		//	merr := json.Unmarshal(body, &reply)
 		if merr != nil {
-			self.logger.Error(self.logCat, "Could not unmarshal data", util.Fields{
-				"error": merr.Error(),
-				"body":  string(body)})
+			self.logger.Error(self.logCat, "Could not unmarshal data",
+				util.Fields{
+					"error": merr.Error(),
+					"body":  string(body)})
 			http.Error(resp, "Server Error", 500)
 			return
 		}
@@ -614,6 +575,13 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 			var v interface{}
 			var ok bool
 			c := strings.ToLower(string(cmd[0]))
+			if !strings.Contains(devRec.Accepts, c) {
+				// skip unacceptable command
+				self.logger.Warn(self.logCat, "Agent does not accept command",
+					util.Fields{"unacceptable": c,
+						"acceptable": devRec.Accepts})
+				continue
+			}
 			rargs := args.(map[string]interface{})
 			switch c {
 			case "l":
@@ -714,9 +682,13 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 				util.Fields{"error": err.Error(),
 					"user": data.UserId})
 		}
-	} else {
-		data.Device, err = self.store.GetDeviceInfo(data.UserId,
-			sessionInfo.DeviceId)
+		if len(data.DeviceList) == 1 {
+			sessionInfo.DeviceId = (data.DeviceList[0]).ID
+			data.DeviceList = nil
+		}
+	}
+	if sessionInfo.DeviceId != "" {
+		data.Device, err = self.store.GetDeviceInfo(sessionInfo.DeviceId)
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not get device info",
 				util.Fields{"error": err.Error(),
@@ -745,8 +717,7 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, err.Error(), 500)
 		return
 	}
-	devInfo, err := self.store.GetDeviceInfo(sessionInfo.UserId,
-		sessionInfo.DeviceId)
+	devInfo, err := self.store.GetDeviceInfo(sessionInfo.DeviceId)
 	if err != nil {
 		http.Error(resp, err.Error(), 500)
 		return
