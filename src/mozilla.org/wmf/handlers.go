@@ -106,6 +106,7 @@ func minInt(x, y int) int {
 func (self *Handler) verifyAssertion(assertion string) (userid, email string, err error) {
 	var ok bool
 	if util.MzGetFlag(self.config, "auth.disabled") {
+        fmt.Printf("### Skipping validation...\n")
 		return "user1", "user@example.com", nil
 	}
 	ver_url := util.MzGet(self.config, "persona.validater_url", "https://verifier.login.persona.org/verify")
@@ -121,8 +122,15 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 	}
 	buffer, err := parseBody(res.Body)
 	if isOk, ok := buffer["status"]; !ok || isOk != "okay" {
+        var errStr string
+        if err != nil {
+            errStr = err.Error()
+        }else if _,ok = buffer["reason"]; ok {
+            errStr = buffer["reason"].(string)
+        }
 		self.logger.Error(self.logCat, "Persona Auth Failed",
-			util.Fields{"error": err.Error()})
+			util.Fields{"error": errStr,
+                        "buffer": fmt.Sprintf("%+v",buffer)})
 		return "", "", AuthorizationErr
 	}
 	if email, ok = buffer["email"].(string); !ok {
@@ -155,25 +163,20 @@ func (self *Handler) setSessionInfo(resp http.ResponseWriter, session *sessionIn
 
 // get the user id from the session, or the assertion.
 func (self *Handler) getUser(req *http.Request) (userid string, err error) {
-	// remove this!
-	self.logger.Info(self.logCat, "### USING DUMMY", nil)
-	req.AddCookie(&http.Cookie{Name: "user",
-		Value: "user1",
-		Path:  "/"})
 	//TODO: accept Auth before cookie?
 
 	useridc, err := req.Cookie("user")
 	if err == http.ErrNoCookie {
 		var auth string
-		if auth = req.Header.Get("Authorization"); auth != "" {
+		if auth = req.FormValue("assertion"); auth == "" {
 			return "", AuthorizationErr
 		}
-		fmt.Printf("Verifying Assertion %s", auth)
 		userid, _, err = self.verifyAssertion(auth)
 		if err != nil {
 			return "", AuthorizationErr
 		}
 	} else {
+
 		if err != nil {
 			return "", AuthorizationErr
 		}
@@ -285,6 +288,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			if err != nil {
 				http.Error(resp, "Unauthorized", 401)
 			}
+            fmt.Printf("### GOt user " + userid + "\n")
 		}
 
 		if _, ok = buffer["pushurl"]; !ok {
@@ -517,16 +521,16 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	devRec, err := self.store.GetDeviceInfo(deviceId)
-    if devRec.User != userId {
-        http.Error(resp, "Unauthorized", 401)
-        return
-    }
+	if devRec.User != userId {
+		http.Error(resp, "Unauthorized", 401)
+		return
+	}
 	if devRec == nil {
 		self.logger.Error(self.logCat,
 			"Queue:User requested unknown device",
 			util.Fields{
 				"deviceId": deviceId,
-                "userId": userId})
+				"userId":   userId})
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
@@ -655,15 +659,42 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 
 	data.ProductName = "Where's My Fox"
 	sessionInfo, err := self.getSessionInfo(req)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not get session info",
-			util.Fields{"error": err.Error()})
-		if file, err := ioutil.ReadFile("static/error.html"); err == nil {
-			resp.Write(file)
+	/*	if err != nil {
+			self.logger.Error(self.logCat, "Could not get session info",
+				util.Fields{"error": err.Error()})
+			if file, err := ioutil.ReadFile("static/error.html"); err == nil {
+				resp.Write(file)
+			}
+			return
 		}
-		return
+	*/
+	if err == nil {
+		data.UserId = sessionInfo.UserId
+		if sessionInfo.DeviceId == "" {
+			data.DeviceList, err = self.store.GetDevicesForUser(data.UserId)
+			if err != nil {
+				self.logger.Error(self.logCat, "Could not get user devices",
+					util.Fields{"error": err.Error(),
+						"user": data.UserId})
+			}
+			if len(data.DeviceList) == 1 {
+				sessionInfo.DeviceId = (data.DeviceList[0]).ID
+				data.DeviceList = nil
+			}
+		}
+		if sessionInfo.DeviceId != "" {
+			data.Device, err = self.store.GetDeviceInfo(sessionInfo.DeviceId)
+			if err != nil {
+				self.logger.Error(self.logCat, "Could not get device info",
+					util.Fields{"error": err.Error(),
+						"user": data.UserId})
+				if file, err := ioutil.ReadFile("static/error.html"); err == nil {
+					resp.Write(file)
+				}
+				return
+			}
+		}
 	}
-	data.UserId = sessionInfo.UserId
 	tmpl, err := template.New("index.html").ParseFiles("static/index.html")
 	if err != nil {
 		// TODO: display error
@@ -675,33 +706,10 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		}
 		return
 	}
-	if sessionInfo.DeviceId == "" {
-		data.DeviceList, err = self.store.GetDevicesForUser(data.UserId)
-		if err != nil {
-			self.logger.Error(self.logCat, "Could not get user devices",
-				util.Fields{"error": err.Error(),
-					"user": data.UserId})
-		}
-		if len(data.DeviceList) == 1 {
-			sessionInfo.DeviceId = (data.DeviceList[0]).ID
-			data.DeviceList = nil
-		}
-	}
-	if sessionInfo.DeviceId != "" {
-		data.Device, err = self.store.GetDeviceInfo(sessionInfo.DeviceId)
-		if err != nil {
-			self.logger.Error(self.logCat, "Could not get device info",
-				util.Fields{"error": err.Error(),
-					"user": data.UserId})
-			if file, err := ioutil.ReadFile("static/error.html"); err == nil {
-				resp.Write(file)
-			}
-			return
-		}
-	}
+    self.setSessionInfo(resp, sessionInfo)
 	err = tmpl.Execute(resp, data)
 	if err != nil {
-		self.logger.Error(self.logCat, "Could not execute query",
+		self.logger.Error(self.logCat, "Could not execute template",
 			util.Fields{"error": err.Error()})
 	}
 	return

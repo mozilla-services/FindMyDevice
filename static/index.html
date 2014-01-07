@@ -7,8 +7,11 @@
     <header>
     <h1>{{.ProductName}}</h1>
     <div id="login">
+        {{if not .UserId}}
         <div id="persona-login"><div id="browserid"><img src="https://login.persona.org/i/sign_in_blue.png" id="signin"></div></div>
+        {{else}}
         <div id="persona-logout"><a href="/" id="signout">Logout</a></div>
+        {{end}}
     </div>
     </header>
     {{if not .UserId}}
@@ -16,7 +19,7 @@
                 Please log in so that there is such wow and joy.
             </div>
     {{else}}
-    <p>Welcome {{.UserId}}</p>
+    <p>Welcome!</p>
     {{if len .DeviceList }}
         <div class="caption">You have more than one device.
         Please select which device you'd like to work with.</div>
@@ -24,8 +27,11 @@
         {{range $device := .DeviceList}}
         <li><a href="{{urlquery ($device.ID)}}">{{html ($device.Name)}}</a></li>
         {{end}}
-        </ul>
-    {{else}}
+    {{end}}
+</ul>
+    {{if not .Device}}
+    <div class="device">You have no device registered yet.</div>
+    {{end}}
     {{with $device := .Device}}
         <div class="device">
             <div class="name">{{html ($device.Name)}}</div>
@@ -45,7 +51,6 @@
                 <div class="cmd l"><button data-cmd="l" class="cmdb">Lock</button><label>Lock Code:<input name="c" placeholder="0123"/></label><label>Lock Screen Message<input name="m" placeholder="Help! I'm lost!"/></label></div>
                 <div class="cmd e"><button data-cmd="e" class="cmdb">Erase</button></div>
             </div>
-    {{end}}
     {{end}}
     {{end}}
     <footer>
@@ -95,17 +100,17 @@ window.addEventListener("load",
                     body.style.cursor = "auto";
                     /* TODO: Send the assertion.
                        Refresh the page wth the current ID?
-                    */
-             /*
-                    form = "<form method='POST' action='/' id='fs'>" +
+                     */
+                    {{if not .UserId}}
+                    form = ("<form method='POST' action='/' id='fs'>" +
                     "<input type='hidden' name='assertion' value='" +
                     assertion +
                     "'/><input type='hidden' name='audience' "+
                     "value='localhost'>" +
-                    "</form>").appendTo('#browserid');
-                    document.getElementById('browserid).innerHTML = form;
+                    "</form>");
+                    document.getElementById('browserid').innerHTML = form;
                     document.getElementById('fs').submit();
-              */
+                    {{end}}
                 }
         })
 
