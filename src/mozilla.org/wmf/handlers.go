@@ -108,10 +108,12 @@ func getDevFromUrl(req *http.Request) (devId string) {
 
 // get the user id info from the session. (userid/devid)
 func setSessionInfo(resp http.ResponseWriter, session *sessionInfo) (err error) {
-	cookie := http.Cookie{Name: "user",
-		Value: session.UserId,
-		Path:  "/"}
-	http.SetCookie(resp, &cookie)
+	if session != nil {
+		cookie := http.Cookie{Name: "user",
+			Value: session.UserId,
+			Path:  "/"}
+		http.SetCookie(resp, &cookie)
+	}
 	return err
 }
 
