@@ -91,27 +91,27 @@ def registerNew(config):
               "pushurl": "http://example.com",
               "deviceid": "test1",
               "accepts": ["t", "r", "e"]}
-    reply = send(trg, regObj)
+    reply = send(trg, regObj, {})
     pprint(reply)
-    glob = reply
-    return sendTrack(config), glob
+    cred = reply
+    return sendTrack(config, cred), cred
 
 
-def send(urlStr, data, glob, method="POST"):
+def send(urlStr, data, cred, method="POST"):
     url = urlparse.urlparse(urlStr)
     http = httplib.HTTPConnection(url.netloc)
     headers = {}
     datas = json.dumps(data)
-    if glob.get("secret") is not None:
+    if cred.get("secret") is not None:
         # generate HAWK auth header
         h = hashlib.sha256()
         h.update(datas)
         extra = h.hexdigest()
         ts, nonce, mac = genHawkSignature(method, url, extra,
-                                          glob.get("secret"))
+                                          cred.get("secret"))
         header = Template('Hawk id="$id", ts="$ts", ' +
                           'nonce="$nonce", ext="$extra", mac="$mac"'
-                          ).safe_substitute(id=glob.get("id"),
+                          ).safe_substitute(id=cred.get("id"),
                                             extra=extra,
                                             ts=ts, nonce=nonce, mac=mac)
         headers["Authorization"] = header
@@ -128,39 +128,43 @@ def send(urlStr, data, glob, method="POST"):
     return None
 
 
-def processCmd(config, cmd, glob):
+def processCmd(config, cmd, cred):
     print "Command..."
     pprint(cmd)
     print "\n============\n\n"
 
 
-def sendTrack(config, glob):
+def sendTrack(config, cred):
     # get fake track info
     print "Sending track info\n"
     tmpl = config.get("urls", "cmd")
     trg = Template(tmpl).safe_substitute(
         scheme=config.get("main", "scheme"),
         host=config.get("main", "host"),
-        id=glob.get("id"))
-    return send(trg, newLocation(), glob)
+        id=cred.get("id"))
+    return send(trg, newLocation(), cred)
     print "\n============\n\n"
 
 
-def main(argv, glob={}):
+def main(argv):
     config = getConfig(argv)
     cmd = {}
+    creds = config.get("main", "cred")
+    if creds is None:
+        cred = {}
+    else:
+        cred = json.loads(creds)
     # register a new device
-    if 'id' not in glob:
+    if 'id' not in cred:
         print "Registering as new client... \n"
-        cmd, glob = registerNew(config)
+        cmd, cred = registerNew(config)
     else:
         print "Already registered...\n"
-        cmd = sendTrack(config, glob)
+        cmd = sendTrack(config, cred)
     while cmd is not None:
         print "Processing commands...\n"
-        cmd = processCmd(config, cmd, glob)
+        cmd = processCmd(config, cmd, cred)
 
 
 if __name__ == "__main__":
-    glob = {u'secret': u'QAXUbiz2aRYTHrL951OwrA==', u'id': u'test1'}
-    main(sys.argv[1:], glob)
+    main(sys.argv[1:])
