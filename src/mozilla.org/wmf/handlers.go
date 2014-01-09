@@ -124,7 +124,7 @@ func setSessionInfo(resp http.ResponseWriter, session *sessionInfo) (err error) 
 func (self *Handler) verifyAssertion(assertion string) (userid, email string, err error) {
 	var ok bool
 	if util.MzGetFlag(self.config, "auth.disabled") {
-		fmt.Printf("### Skipping validation...\n")
+		self.logger.Info(self.logCat, "### Skipping validation...", nil)
 		return "user1", "user@example.com", nil
 	}
 	ver_url := util.MzGet(self.config, "persona.validater_url", "https://verifier.login.persona.org/verify")
@@ -291,7 +291,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			if err != nil {
 				http.Error(resp, "Unauthorized", 401)
 			}
-			fmt.Printf("### GOt user " + userid + "\n")
+			self.logger.Info(self.logCat, "### Got user "+userid, nil)
 		}
 
 		if _, ok = buffer["pushurl"]; !ok {
@@ -399,25 +399,35 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	}
 	//validate the Hawk header
 	if util.MzGetFlag(self.config, "hawk.disabled") == false {
-		hawk, signature, err := ParseHawkAuthHeader(req, self.logger)
+		// Remote Hawk
+		rhawk := Hawk{logger: self.logger}
+		// Local Hawk
+		lhawk := Hawk{logger: self.logger}
+		// Get the remote signature from the header
+		err = rhawk.ParseAuthHeader(req, self.logger)
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not parse Hawk header",
 				util.Fields{"error": err.Error()})
 			http.Error(resp, "Unauthorized", 401)
 			return
 		}
-		vsig, err := hawk.GenerateSignature(req, "", devRec.Secret)
+
+		// Generate the comparator signature from what we know.
+		lhawk.Nonce = rhawk.Nonce
+		lhawk.Time = rhawk.Time
+		err = lhawk.GenerateSignature(req, rhawk.Extra, devRec.Secret)
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not verify sig",
 				util.Fields{"error": err.Error()})
 			http.Error(resp, "Unauthorized", 401)
 			return
 		}
-		if signature != vsig {
+		// Do they match?
+		if !lhawk.Compare(rhawk.Signature) {
 			self.logger.Error(self.logCat, "Cmd:Invalid Hawk Signature",
 				util.Fields{
-					"expecting": vsig,
-					"got":       signature,
+					"expecting": lhawk.Signature,
+					"got":       rhawk.Signature,
 				})
 			http.Error(resp, "Unauthorized", 401)
 			return
@@ -494,7 +504,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	hasher := sha256.New()
 	hasher.Write(output)
 	extra := hex.EncodeToString(hasher.Sum(nil))
-	authHeader := self.hawk.AsHeader(req, devRec.User, extra, devRec.Secret, "")
+	authHeader := self.hawk.AsHeader(req, devRec.User, extra, devRec.Secret)
 	resp.Header().Add("Authorization", authHeader)
 	resp.Write(output)
 }

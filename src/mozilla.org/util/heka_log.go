@@ -129,8 +129,8 @@ func (self HekaLogger) Log(level int32, mtype, payload string, fields Fields) (e
 		if pc, file, line, ok := runtime.Caller(2); ok {
 			funk := runtime.FuncForPC(pc)
 			caller = Fields{
-                "file": file,
-                // defaults don't appear to work.: file,
+				"file": file,
+				// defaults don't appear to work.: file,
 				"line": strconv.FormatInt(int64(line), 0),
 				"name": funk.Name()}
 		}

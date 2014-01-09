@@ -98,11 +98,13 @@ type Users map[string]string
 
 var ErrUnknownDevice = errors.New("Unknown device")
 
+// Get a time string that makes psql happy.
 func dbNow() (ret string) {
 	r, _ := time.Now().UTC().MarshalText()
 	return string(r)
 }
 
+// Open the database.
 func Open(config util.JsMap, logger *util.HekaLogger) (store *Storage, err error) {
 	dsn := fmt.Sprintf("user=%s password=%s host=%s dbname=%s sslmode=%s",
 		util.MzGet(config, "db.user", "user"),
@@ -127,6 +129,7 @@ func Open(config util.JsMap, logger *util.HekaLogger) (store *Storage, err error
 	return store, nil
 }
 
+// Create the tables, indexes and other needed items.
 func (self *Storage) Init() (err error) {
 	// TODO: create a versioned db update system that contains commands
 	// to execute.
@@ -168,6 +171,7 @@ func (self *Storage) Init() (err error) {
 	return nil
 }
 
+// Register a new device to a given userID.
 func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, err error) {
 	// value check?
 
@@ -210,11 +214,12 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 	return dev.ID, nil
 }
 
+// Return known info about a device.
 func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 
 	// collect the data for a given device for display
 
-	var deviceId, userId, pushUrl, name []uint8
+	var deviceId, userId, pushUrl, name, secret []uint8
 	var lockable, loggedIn bool
 	var statement, accepts string
 	var positions []Position
@@ -228,7 +233,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 	defer dbh.Close()
 
 	// verify that the device belongs to the user
-	statement = "select d.deviceId, u.userId, coalesce(u.name,d.deviceId), d.lockable, d.loggedin, d.pushUrl, d.accepts from userToDeviceMap as u, deviceInfo as d where u.deviceId=$1 and u.deviceId=d.deviceId;"
+	statement = "select d.deviceId, u.userId, coalesce(u.name,d.deviceId), d.lockable, d.loggedin, d.pushUrl, d.accepts, d.hawksecret from userToDeviceMap as u, deviceInfo as d where u.deviceId=$1 and u.deviceId=d.deviceId;"
 	stmt, err := dbh.Prepare(statement)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not query device info",
@@ -242,7 +247,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		return nil, err
 	}
 	row.Next()
-	err = row.Scan(&deviceId, &userId, &name, &lockable, &loggedIn, &pushUrl, &accepts)
+	err = row.Scan(&deviceId, &userId, &name, &lockable, &loggedIn, &pushUrl, &accepts, &secret)
 	switch {
 	case err == sql.ErrNoRows:
 		return nil, ErrUnknownDevice
@@ -285,6 +290,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		ID:                string(deviceId),
 		User:              string(userId),
 		Name:              string(name),
+		Secret:            string(secret),
 		Lockable:          lockable,
 		LoggedIn:          loggedIn,
 		PreviousPositions: positions,
@@ -301,8 +307,9 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 	return reply, nil
 }
 
+
+// Get pending commands.
 func (self *Storage) GetPending(devId string) (cmd string, err error) {
-	// TODO: Get oldest pending command
 	dbh, err := self.openDb()
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not open DB",
@@ -323,10 +330,10 @@ func (self *Storage) GetPending(devId string) (cmd string, err error) {
 		statement = "delete from pendingCommands where id = $1"
 		dbh.Exec(statement, id)
 	}
-	// Remove pending commands for the device.
 	return cmd, nil
 }
 
+// Get all known devices for this user.
 func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err error) {
 	//TODO: get list of devices
 	var data []DeviceList
@@ -353,6 +360,7 @@ func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err
 	return data, err
 }
 
+// Open the database (for realsies)
 func (self *Storage) openDb() (dbh *sql.DB, err error) {
 	if dbh, err = sql.Open("postgres", self.dsn); err != nil {
 		return nil, err
@@ -365,6 +373,7 @@ func (self *Storage) openDb() (dbh *sql.DB, err error) {
 	return dbh, nil
 }
 
+// Store a command into the list of pending commands for a device.
 func (self *Storage) StoreCommand(devId, command string) (err error) {
 	//update device table to store command where devId = $1
 	statement := "insert into pendingCommands (deviceId, time, cmd) values ($1, $2,  $3);"
@@ -386,6 +395,8 @@ func (self *Storage) StoreCommand(devId, command string) (err error) {
 	return nil
 }
 
+
+// Shorthand function to set the lock state for a device.
 func (self *Storage) SetDeviceLocked(devId string, state bool) (err error) {
 	// TODO: update the device record
 	dbh, err := self.openDb()
@@ -406,6 +417,7 @@ func (self *Storage) SetDeviceLocked(devId string, state bool) (err error) {
 	return nil
 }
 
+// Add the location information to the known set for a device.
 func (self *Storage) SetDeviceLocation(devId string, position Position) (err error) {
 	// TODO: set the current device position
 	dbh, err := self.openDb()
@@ -430,6 +442,7 @@ func (self *Storage) SetDeviceLocation(devId string, position Position) (err err
 	return nil
 }
 
+// Remove old postion information for devices.
 func (self *Storage) GcPosition(devId string) (err error) {
 	dbh, err := self.openDb()
 	if err != nil {

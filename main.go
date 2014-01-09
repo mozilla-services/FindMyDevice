@@ -65,24 +65,24 @@ func main() {
 	var verRoot = strings.SplitN(VERSION, ".", 2)[0]
 
 	// REST calls
-    // Device calls.
+	// Device calls.
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/register/", verRoot),
 		handlers.Register)
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/cmd/", verRoot),
 		handlers.Cmd)
-    // Web UI calls
-    RESTMux.HandleFunc(fmt.Sprintf("/%s/queue/", verRoot),
-        handlers.Queue)
+	// Web UI calls
+	RESTMux.HandleFunc(fmt.Sprintf("/%s/queue/", verRoot),
+		handlers.Queue)
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/state/", verRoot),
 		handlers.State)
 	RESTMux.HandleFunc("/static/",
-        handlers.Static)
-    // Operations call
+		handlers.Static)
+	// Operations call
 	RESTMux.HandleFunc("/status/",
 		handlers.Status)
-    // Handle root calls as webUI
-    RESTMux.HandleFunc("/",
-        handlers.Index);
+	// Handle root calls as webUI
+	RESTMux.HandleFunc("/",
+		handlers.Index)
 
 	logger.Info("main", "startup...",
 		util.Fields{"host": host, "port": port})

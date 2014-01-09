@@ -1,18 +1,19 @@
 #!/usr/bin/python
 
-import time
-import ConfigParser
-import json
-import random
-import httplib
-import urlparse
 from pprint import pprint
-import getopt
-import sys
-import os
-import hmac
-import hashlib
 from string import Template
+import ConfigParser
+import base64
+import getopt
+import hashlib
+import hmac
+import httplib
+import json
+import os
+import random
+import sys
+import time
+import urlparse
 
 
 def genHawkSignature(method, url, extra, secret, now=None, nonce=None):
@@ -32,9 +33,12 @@ def genHawkSignature(method, url, extra, secret, now=None, nonce=None):
         host,
         port,
         extra)
-    return now, nonce, hmac.new(secret.encode("utf-8"),
-                                marshalStr.encode("utf-8"),
-                                digestmod=hashlib.sha256).hexdigest()
+    # print "Marshal Str: <<%s>>\nSecret: <<%s>>\n" % (marshalStr, secret)
+    mac = hmac.new(secret.encode("utf-8"),
+                   marshalStr.encode("utf-8"),
+                   digestmod=hashlib.sha256).digest()
+    # print "mac: <<" + ','.join([str(ord(elem)) for elem in mac]) + ">>\n"
+    return now, nonce, base64.b64encode(mac)
 
 
 def parseHawkHeader(header):
@@ -52,7 +56,8 @@ def checkHawk(method, url, extra, secret, header):
     hawk = parseHawkHeader(header)
     ts, n, mac = genHawkSignature(method, url, extra, secret,
                                   hawk["ts"], hawk["nonce"])
-    return mac == hawk["mac"]
+    # remove "white space
+    return mac.replace('=','') == hawk["mac"].replace('=','')
 
 
 def geoWalk():
@@ -114,6 +119,7 @@ def send(urlStr, data, cred, method="POST"):
                           ).safe_substitute(id=cred.get("id"),
                                             extra=extra,
                                             ts=ts, nonce=nonce, mac=mac)
+        print "Header: %s\n" % (header)
         headers["Authorization"] = header
     http.request(method, url.path, datas, headers)
     response = http.getresponse()
