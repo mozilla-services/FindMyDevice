@@ -307,7 +307,6 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 	return reply, nil
 }
 
-
 // Get pending commands.
 func (self *Storage) GetPending(devId string) (cmd string, err error) {
 	dbh, err := self.openDb()
@@ -394,7 +393,6 @@ func (self *Storage) StoreCommand(devId, command string) (err error) {
 	}
 	return nil
 }
-
 
 // Shorthand function to set the lock state for a device.
 func (self *Storage) SetDeviceLocked(devId string, state bool) (err error) {

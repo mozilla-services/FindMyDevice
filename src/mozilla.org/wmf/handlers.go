@@ -4,6 +4,7 @@ import (
 	"mozilla.org/util"
 	"mozilla.org/wmf/storage"
 
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -251,6 +252,25 @@ func (self *Handler) logReply(devId, cmd string, args reply_t) (err error) {
 		err = self.store.LogState(devId, string(cmd[0]))
 	}
 	return err
+}
+
+func SendPush(devRec *storage.Device) error {
+	// wow, so very tempted to make sure this matches the known push server.
+	bbody := []byte{}
+	body := bytes.NewReader(bbody)
+	req, err := http.NewRequest("PUT", devRec.PushUrl, body)
+	if err != nil {
+		return err
+	}
+	cli := http.Client{}
+	resp, err := cli.Do(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != 200 {
+		return errors.New("Push Server Error")
+	}
+	return nil
 }
 
 //Handler Public Functions
@@ -639,6 +659,14 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 						"command": string(cmd),
 						"device":  deviceId,
 						"args":    fmt.Sprintf("%v", args)})
+				http.Error(resp, "Server Error", http.StatusServiceUnavailable)
+			}
+			// trigger the push
+			err = SendPush(devRec)
+			if err != nil {
+				self.logger.Error(self.logCat, "Could not send Push",
+					util.Fields{"error": err.Error(),
+						"pushUrl": devRec.PushUrl})
 				http.Error(resp, "Server Error", http.StatusServiceUnavailable)
 			}
 		}

@@ -33,7 +33,7 @@
     <div class="device">You have no device registered yet.</div>
     {{end}}
     {{with $device := .Device}}
-        <div class="device">
+        <div class="device" data-id="{{$device.ID}}">
             <div class="name">{{html ($device.Name)}}</div>
             <div class="loggedin" data-state="{{$device.LoggedIn}}">Device is {{if not $device.LoggedIn }}<b>not</b>{{end}} accessible</div>
             <div class="lockable" data-state="{{$device.Lockable}}">Device {{if $device.Lockable }}has{{else}}does not have{{end}} a lock code</div>
@@ -65,11 +65,11 @@
 //      add /logout call to server
 
 function getDeviceId() {
-    return "test1";
+    return document.getElementsByClassName("device")[0].dataset.id
 }
 
 function getUserId() {
-    return "user1";
+    return RegExp("user=([^;]*)").exec(document.cookie)[1]
 }
 
 function cmdResponse() {
@@ -95,7 +95,13 @@ window.addEventListener("load",
         }
         navigator.id.watch({
                 loggedInUser:email,
-                onlogout: function(){},
+                onlogout: function(){
+                if (document.cookie.length > 0) {
+                    alert("logging off...");
+                    document.cookie="user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
+                    document.location = "/";
+                    }
+                    },
                 onlogin: function(assertion) {
                     body.style.cursor = "auto";
                     /* TODO: Send the assertion.
@@ -150,15 +156,19 @@ window.addEventListener("load",
 
         //TODO: scan commands, only activate ones that are allowed by device
 
+        if (document.getElementById("signin")) {
         document.getElementById("signin").addEventListener("click",
                 function(){
                 document.getElementsByTagName("body")[0].style.cursor="wait";
                 navigator.id.request();
                 });
+        }
+        if (document.getElementById("signout")) {
         document.getElementById("signout").addEventListener("click",
                 function(){
                 navigator.id.logout();
                 });
+        }
     });
 </script>
 </body>
