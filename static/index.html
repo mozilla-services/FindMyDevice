@@ -88,7 +88,6 @@ function sendCommand(cmd) {
     console.debug("Sending", cmd);
     xhr.open("PUT", "/0/queue/" + getDeviceId());
     xhr.send(JSON.stringify(cmd));
-    console.debug("here");
 }
 
 window.addEventListener("load",
@@ -172,6 +171,8 @@ window.addEventListener("load",
         document.getElementById("signout").addEventListener("click",
                 function(){
                 navigator.id.logout();
+                document.cookie="user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
+                document.location = "/";
                 });
         }
     });
