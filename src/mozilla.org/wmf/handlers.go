@@ -254,6 +254,25 @@ func (self *Handler) logReply(devId, cmd string, args reply_t) (err error) {
 	return err
 }
 
+func (self *Handler)rangeCheck(s string, min, max int64) string {
+    val, err := strconv.ParseInt(s, 10, 64)
+    if err != nil {
+        self.logger.Error(self.logCat, "Unparsable range value",
+            util.Fields{"error": err.Error(),
+                        "string": s});
+        return "0";
+    }
+    if val < min {
+        return strconv.FormatInt(min, 10)
+    }
+    if val > max {
+        return strconv.FormatInt(max, 10)
+    }
+    return s
+}
+
+
+
 func SendPush(devRec *storage.Device) error {
 	// wow, so very tempted to make sure this matches the known push server.
 	bbody := []byte{}
@@ -378,7 +397,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	resp.Write([]byte(fmt.Sprintf("{\"id\":\"%s\", \"secret\":\"%s\"}",
+	resp.Write([]byte(fmt.Sprintf("{\"deviceid\":\"%s\", \"secret\":\"%s\"}",
 		self.devId,
 		secret)))
 	return
@@ -391,6 +410,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	var l int
 
 	self.logCat = "handler:Cmd"
+    resp.Header().Set("Content-Type","application/json")
 	deviceId := getDevFromUrl(req)
 	if deviceId == "" {
 		self.logger.Error(self.logCat, "Invalid call (No device id)", nil)
@@ -536,6 +556,8 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 	var lbody int
 
 	self.logCat = "handler:Queue"
+    resp.Header().Set("Content-Type","application/json")
+    fmt.Printf("here")
 	deviceId := getDevFromUrl(req)
 	if deviceId == "" {
 		self.logger.Error(self.logCat, "Invalid call (No device id)", nil)
@@ -623,17 +645,37 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 			switch c {
 			case "l":
 				if v, ok = rargs["c"]; ok {
+                    max, err := strconv.ParseInt(util.MzGet(self.config,
+                        "location.c.max",
+                        "10500"), 10, 64)
+                    if err != nil {
+                        max = 10500
+                    }
 					vs := v.(string)
-					rargs["c"] = strings.Map(digitsOnly, vs[:minInt(4, len(vs))])
+					rargs["c"] = strings.Map(digitsOnly,
+                        vs[:minInt(4, len(vs))])
+                    rargs["c"] = self.rangeCheck(rargs["c"].(string),
+                        0,
+                        max)
 				}
 				if v, ok = rargs["m"]; ok {
 					vs := v.(string)
-					rargs["m"] = strings.Map(asciiOnly, vs[:minInt(100, len(vs))])
+					rargs["m"] = strings.Map(asciiOnly,
+                        vs[:minInt(100, len(vs))])
 				}
 			case "r", "t":
 				if v, ok = rargs["d"]; ok {
+                    max, err := strconv.ParseInt(
+                        util.MzGet(self.config,
+                            "location."+c+".max",
+                            "10500"), 10, 64)
+                    if err != nil {
+                        max = 10500
+                    }
 					vs := v.(string)
 					rargs["d"] = strings.Map(digitsOnly, vs)
+                    rargs["d"] = self.rangeCheck(rargs["d"].(string),
+                        0, max)
 				}
 			case "e":
 				rargs = storage.Unstructured{}
@@ -730,6 +772,15 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 				}
 				return
 			}
+            data.Device.PreviousPositions, err = self.store.GetPositions(sessionInfo.DeviceId)
+            if err != nil {
+                self.logger.Error(self.logCat,
+                    "Could not get device's position information",
+                    util.Fields{"error": err.Error(),
+                        "user": data.UserId,
+                        "device": sessionInfo.DeviceId})
+                return
+            }
 		}
 	}
 

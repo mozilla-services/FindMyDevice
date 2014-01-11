@@ -116,7 +116,7 @@ def send(urlStr, data, cred, method="POST"):
                                           cred.get("secret"))
         header = Template('Hawk id="$id", ts="$ts", ' +
                           'nonce="$nonce", ext="$extra", mac="$mac"'
-                          ).safe_substitute(id=cred.get("id"),
+                          ).safe_substitute(id=cred.get("deviceid"),
                                             extra=extra,
                                             ts=ts, nonce=nonce, mac=mac)
         print "Header: %s\n" % (header)
@@ -147,7 +147,7 @@ def sendTrack(config, cred):
     trg = Template(tmpl).safe_substitute(
         scheme=config.get("main", "scheme"),
         host=config.get("main", "host"),
-        id=cred.get("id"))
+        id=cred.get("deviceid"))
     return send(trg, newLocation(), cred)
     print "\n============\n\n"
 

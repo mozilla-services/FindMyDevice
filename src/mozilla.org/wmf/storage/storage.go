@@ -222,7 +222,6 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 	var deviceId, userId, pushUrl, name, secret []uint8
 	var lockable, loggedIn bool
 	var statement, accepts string
-	var positions []Position
 
 	dbh, err := self.openDb()
 	if err != nil {
@@ -258,7 +257,40 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		return nil, err
 	default:
 	}
-	statement = "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time desc limit 10;"
+    row.Close()
+    stmt.Close()
+	reply := &Device{
+		ID:                string(deviceId),
+		User:              string(userId),
+		Name:              string(name),
+		Secret:            string(secret),
+		Lockable:          lockable,
+		LoggedIn:          loggedIn,
+		PushUrl:           string(pushUrl),
+		Accepts:           accepts,
+	}
+
+	/*
+			self.logger.Debug(self.logCat, "Device info",
+		    util.Fields{"userId":userId,
+		        "device": deviceId,
+		        "data": fmt.Sprintf("%v\n", reply)})
+	*/
+	return reply, nil
+}
+
+// Oh, db driver, why do you make me hate you so?
+func (self *Storage) GetPositions(devId string) (positions []Position, err error){
+
+	dbh, err := self.openDb()
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open DB",
+			util.Fields{"error": err.Error()})
+		return nil, err
+	}
+	defer dbh.Close()
+
+    statement := "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time desc limit 10;"
 	rows, err := dbh.Query(statement, devId)
 	if err == nil {
 		var time int32 = 0
@@ -281,30 +313,14 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 				Time:      int64(time)})
 		}
 		// gather the positions
+        rows.Close()
 	} else {
 		self.logger.Error(self.logCat, "Could not get positions",
 			util.Fields{"error": err.Error()})
 	}
 
-	reply := &Device{
-		ID:                string(deviceId),
-		User:              string(userId),
-		Name:              string(name),
-		Secret:            string(secret),
-		Lockable:          lockable,
-		LoggedIn:          loggedIn,
-		PreviousPositions: positions,
-		PushUrl:           string(pushUrl),
-		Accepts:           accepts,
-	}
+    return positions, nil
 
-	/*
-			self.logger.Debug(self.logCat, "Device info",
-		    util.Fields{"userId":userId,
-		        "device": deviceId,
-		        "data": fmt.Sprintf("%v\n", reply)})
-	*/
-	return reply, nil
 }
 
 // Get pending commands.

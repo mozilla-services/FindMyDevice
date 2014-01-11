@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <head>
     <title>{{.ProductName}}</title>
+    <link rel="stylesheet" type="text/css" href="/static/fonts.css">
     <link rel="stylesheet" type="text/css" href="/static/style.css">
 </head>
 <body>
@@ -51,6 +52,7 @@
                 <div class="cmd l"><button data-cmd="l" class="cmdb">Lock</button><label>Lock Code:<input name="c" placeholder="0123"/></label><label>Lock Screen Message<input name="m" placeholder="Help! I'm lost!"/></label></div>
                 <div class="cmd e"><button data-cmd="e" class="cmdb">Erase</button></div>
             </div>
+        </div>
     {{end}}
     {{end}}
     <footer>
@@ -73,17 +75,20 @@ function getUserId() {
 }
 
 function cmdResponse() {
-    console.debug(this);
+    console.debug("cmdResponse", this);
     //TODO: Update page to show cmd in effect
 }
 
 function sendCommand(cmd) {
     // generate HAWK header
     var xhr = new XMLHttpRequest();
-    xhr.onload = cmdResponse;
+    xhr.onload = function(e) {
+        console.debug("cmdResponse", e);
+    }
     console.debug("Sending", cmd);
     xhr.open("PUT", "/0/queue/" + getDeviceId());
     xhr.send(JSON.stringify(cmd));
+    console.debug("here");
 }
 
 window.addEventListener("load",
@@ -96,7 +101,7 @@ window.addEventListener("load",
         navigator.id.watch({
                 loggedInUser:email,
                 onlogout: function(){
-                if (document.cookie.length > 0) {
+                if (document.cookie.length > 0 && str.indexOf("user")) {
                     alert("logging off...");
                     document.cookie="user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
                     document.location = "/";
