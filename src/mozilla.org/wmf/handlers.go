@@ -23,6 +23,7 @@ type Handler struct {
 	config  util.JsMap
 	logger  *util.HekaLogger
 	store   *storage.Storage
+	metrics *util.Metrics
 	devId   string
 	logCat  string
 	accepts []string
@@ -249,29 +250,27 @@ func (self *Handler) logReply(devId, cmd string, args reply_t) (err error) {
 			}
 		}
 		// log the state? (Device is currently cmd-ing)?
-		err = self.store.LogState(devId, string(cmd[0]))
+		err = self.store.Touch(devId, string(cmd[0]))
 	}
 	return err
 }
 
-func (self *Handler)rangeCheck(s string, min, max int64) string {
-    val, err := strconv.ParseInt(s, 10, 64)
-    if err != nil {
-        self.logger.Error(self.logCat, "Unparsable range value",
-            util.Fields{"error": err.Error(),
-                        "string": s});
-        return "0";
-    }
-    if val < min {
-        return strconv.FormatInt(min, 10)
-    }
-    if val > max {
-        return strconv.FormatInt(max, 10)
-    }
-    return s
+func (self *Handler) rangeCheck(s string, min, max int64) string {
+	val, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		self.logger.Error(self.logCat, "Unparsable range value",
+			util.Fields{"error": err.Error(),
+				"string": s})
+		return "0"
+	}
+	if val < min {
+		return strconv.FormatInt(min, 10)
+	}
+	if val > max {
+		return strconv.FormatInt(max, 10)
+	}
+	return s
 }
-
-
 
 func SendPush(devRec *storage.Device) error {
 	// wow, so very tempted to make sure this matches the known push server.
@@ -299,7 +298,10 @@ func NewHandler(config util.JsMap, logger *util.HekaLogger, store *storage.Stora
 		logger: logger,
 		logCat: "handler",
 		hawk:   &Hawk{logger: logger},
-		store:  store}
+		metrics: util.NewMetrics(util.MzGet(config,
+			"metrics.prefix",
+			"WMF")),
+		store: store}
 }
 
 func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
@@ -396,7 +398,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			self.devId = deviceid
 		}
 	}
-
+	self.metrics.Increment("registration")
 	resp.Write([]byte(fmt.Sprintf("{\"deviceid\":\"%s\", \"secret\":\"%s\"}",
 		self.devId,
 		secret)))
@@ -410,7 +412,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	var l int
 
 	self.logCat = "handler:Cmd"
-    resp.Header().Set("Content-Type","application/json")
+	resp.Header().Set("Content-Type", "application/json")
 	deviceId := getDevFromUrl(req)
 	if deviceId == "" {
 		self.logger.Error(self.logCat, "Invalid call (No device id)", nil)
@@ -509,9 +511,10 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 						"acceptable": devRec.Accepts})
 				continue
 			}
+			self.metrics.Increment("cmd.received." + string(c))
 			switch c {
 			case "l", "r", "m", "e":
-				err = self.store.StoreCommand(deviceId, string(body))
+				err = self.store.Touch(deviceId, string(body))
 			case "t":
 				// track
 				err = self.logPosition(deviceId, args.(map[string]interface{}))
@@ -546,6 +549,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	extra := hex.EncodeToString(hasher.Sum(nil))
 	authHeader := self.hawk.AsHeader(req, devRec.User, extra, devRec.Secret)
 	resp.Header().Add("Authorization", authHeader)
+	// total cheat to get the command without parsing the cmd data.
+	self.metrics.Increment("cmd.send." + string(cmd[2]))
 	resp.Write(output)
 }
 
@@ -556,8 +561,8 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 	var lbody int
 
 	self.logCat = "handler:Queue"
-    resp.Header().Set("Content-Type","application/json")
-    fmt.Printf("here")
+	resp.Header().Set("Content-Type", "application/json")
+	fmt.Printf("here")
 	deviceId := getDevFromUrl(req)
 	if deviceId == "" {
 		self.logger.Error(self.logCat, "Invalid call (No device id)", nil)
@@ -645,37 +650,37 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 			switch c {
 			case "l":
 				if v, ok = rargs["c"]; ok {
-                    max, err := strconv.ParseInt(util.MzGet(self.config,
-                        "location.c.max",
-                        "10500"), 10, 64)
-                    if err != nil {
-                        max = 10500
-                    }
+					max, err := strconv.ParseInt(util.MzGet(self.config,
+						"location.c.max",
+						"10500"), 10, 64)
+					if err != nil {
+						max = 10500
+					}
 					vs := v.(string)
 					rargs["c"] = strings.Map(digitsOnly,
-                        vs[:minInt(4, len(vs))])
-                    rargs["c"] = self.rangeCheck(rargs["c"].(string),
-                        0,
-                        max)
+						vs[:minInt(4, len(vs))])
+					rargs["c"] = self.rangeCheck(rargs["c"].(string),
+						0,
+						max)
 				}
 				if v, ok = rargs["m"]; ok {
 					vs := v.(string)
 					rargs["m"] = strings.Map(asciiOnly,
-                        vs[:minInt(100, len(vs))])
+						vs[:minInt(100, len(vs))])
 				}
 			case "r", "t":
 				if v, ok = rargs["d"]; ok {
-                    max, err := strconv.ParseInt(
-                        util.MzGet(self.config,
-                            "location."+c+".max",
-                            "10500"), 10, 64)
-                    if err != nil {
-                        max = 10500
-                    }
+					max, err := strconv.ParseInt(
+						util.MzGet(self.config,
+							"location."+c+".max",
+							"10500"), 10, 64)
+					if err != nil {
+						max = 10500
+					}
 					vs := v.(string)
 					rargs["d"] = strings.Map(digitsOnly, vs)
-                    rargs["d"] = self.rangeCheck(rargs["d"].(string),
-                        0, max)
+					rargs["d"] = self.rangeCheck(rargs["d"].(string),
+						0, max)
 				}
 			case "e":
 				rargs = storage.Unstructured{}
@@ -704,6 +709,8 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 				http.Error(resp, "Server Error", http.StatusServiceUnavailable)
 			}
 			// trigger the push
+			self.metrics.Increment("cmd.store." + c)
+			self.metrics.Increment("push.send")
 			err = SendPush(devRec)
 			if err != nil {
 				self.logger.Error(self.logCat, "Could not send Push",
@@ -772,15 +779,15 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 				}
 				return
 			}
-            data.Device.PreviousPositions, err = self.store.GetPositions(sessionInfo.DeviceId)
-            if err != nil {
-                self.logger.Error(self.logCat,
-                    "Could not get device's position information",
-                    util.Fields{"error": err.Error(),
-                        "user": data.UserId,
-                        "device": sessionInfo.DeviceId})
-                return
-            }
+			data.Device.PreviousPositions, err = self.store.GetPositions(sessionInfo.DeviceId)
+			if err != nil {
+				self.logger.Error(self.logCat,
+					"Could not get device's position information",
+					util.Fields{"error": err.Error(),
+						"user":   data.UserId,
+						"device": sessionInfo.DeviceId})
+				return
+			}
 		}
 	}
 
@@ -802,6 +809,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		self.logger.Error(self.logCat, "Could not execute template",
 			util.Fields{"error": err.Error()})
 	}
+	self.metrics.Increment("page.index")
 	return
 }
 
@@ -844,4 +852,21 @@ func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
 	if len(req.URL.Path) > sl {
 		http.ServeFile(resp, req, "./static/"+req.URL.Path[sl:])
 	}
+}
+
+func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
+	snapshot := self.metrics.Snapshot()
+
+	resp.Header().Set("Content-Type", "application/json")
+	reply, err := json.Marshal(snapshot)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not generate metrics report",
+			util.Fields{"error": err.Error()})
+		resp.Write([]byte("{}"))
+		return
+	}
+	if reply == nil {
+		reply = []byte("{}")
+	}
+	resp.Write(reply)
 }

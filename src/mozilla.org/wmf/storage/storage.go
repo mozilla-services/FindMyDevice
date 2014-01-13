@@ -257,17 +257,17 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		return nil, err
 	default:
 	}
-    row.Close()
-    stmt.Close()
+	row.Close()
+	stmt.Close()
 	reply := &Device{
-		ID:                string(deviceId),
-		User:              string(userId),
-		Name:              string(name),
-		Secret:            string(secret),
-		Lockable:          lockable,
-		LoggedIn:          loggedIn,
-		PushUrl:           string(pushUrl),
-		Accepts:           accepts,
+		ID:       string(deviceId),
+		User:     string(userId),
+		Name:     string(name),
+		Secret:   string(secret),
+		Lockable: lockable,
+		LoggedIn: loggedIn,
+		PushUrl:  string(pushUrl),
+		Accepts:  accepts,
 	}
 
 	/*
@@ -280,7 +280,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 }
 
 // Oh, db driver, why do you make me hate you so?
-func (self *Storage) GetPositions(devId string) (positions []Position, err error){
+func (self *Storage) GetPositions(devId string) (positions []Position, err error) {
 
 	dbh, err := self.openDb()
 	if err != nil {
@@ -290,7 +290,7 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 	}
 	defer dbh.Close()
 
-    statement := "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time desc limit 10;"
+	statement := "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time desc limit 10;"
 	rows, err := dbh.Query(statement, devId)
 	if err == nil {
 		var time int32 = 0
@@ -313,13 +313,13 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 				Time:      int64(time)})
 		}
 		// gather the positions
-        rows.Close()
+		rows.Close()
 	} else {
 		self.logger.Error(self.logCat, "Could not get positions",
 			util.Fields{"error": err.Error()})
 	}
 
-    return positions, nil
+	return positions, nil
 
 }
 
@@ -419,7 +419,7 @@ func (self *Storage) SetDeviceLocked(devId string, state bool) (err error) {
 		return err
 	}
 
-	statement := "update deviceInfo set lockable = $1 where deviceId =$2"
+	statement := "update deviceInfo set lockable = $1, lastexchange = now()  where deviceId =$2"
 	_, err = dbh.Exec(statement, state, devId)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not set device lock state",
@@ -483,6 +483,18 @@ func (self *Storage) GcPosition(devId string) (err error) {
 	return nil
 }
 
-func (self *Storage) LogState(devId string, cmd string) (err error) {
+func (self *Storage) Touch(devId string, cmd string) (err error) {
+	dbh, err := self.openDb()
+	if err != nil {
+		return err
+	}
+	defer dbh.Close()
+
+	sql := "update deviceInfo set lastexchange = now() where deviceid = $1"
+	_, err = dbh.Exec(sql)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

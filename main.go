@@ -77,6 +77,8 @@ func main() {
 		handlers.State)
 	RESTMux.HandleFunc("/static/",
 		handlers.Static)
+	RESTMux.HandleFunc("/metrics/",
+		handlers.Metrics)
 	// Operations call
 	RESTMux.HandleFunc("/status/",
 		handlers.Status)
