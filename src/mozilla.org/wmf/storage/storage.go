@@ -34,13 +34,13 @@ type Device struct {
 	User              string // userID
 	Name              string
 	PreviousPositions []Position
-	Lockable          bool   // is device lockable
-	LoggedIn          bool   // is the device logged in
-	Secret            string // HAWK secret
-	PushUrl           string // SimplePush URL
-	Pending           string // pending command
-	LastExchange      int32  // last time we did anything
-	Accepts           string // commands the device accepts
+	Lockable          bool    // is device lockable
+	LoggedIn          bool    // is the device logged in
+	Secret            string  // HAWK secret
+	PushUrl           string  // SimplePush URL
+	Pending           string  // pending command
+	LastExchange      int32 // last time we did anything
+	Accepts           string  // commands the device accepts
 }
 
 type DeviceList struct {
@@ -219,7 +219,8 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 
 	// collect the data for a given device for display
 
-	var deviceId, userId, pushUrl, name, secret []uint8
+	var deviceId, userId, pushUrl, name, secret, lestr []uint8
+	var lastexchange float64
 	var lockable, loggedIn bool
 	var statement, accepts string
 
@@ -232,16 +233,17 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 	defer dbh.Close()
 
 	// verify that the device belongs to the user
-	statement = "select d.deviceId, u.userId, coalesce(u.name,d.deviceId), d.lockable, d.loggedin, d.pushUrl, d.accepts, d.hawksecret from userToDeviceMap as u, deviceInfo as d where u.deviceId=$1 and u.deviceId=d.deviceId;"
+	statement = "select d.deviceId, u.userId, coalesce(u.name,d.deviceId), d.lockable, d.loggedin, d.pushUrl, d.accepts, d.hawksecret, extract(epoch from d.lastexchange) from userToDeviceMap as u, deviceInfo as d where u.deviceId=$1 and u.deviceId=d.deviceId;"
 	stmt, err := dbh.Prepare(statement)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not query device info",
 			util.Fields{"error": err.Error()})
 		return nil, err
 	}
-    defer stmt.Close()
+	defer stmt.Close()
 	row := stmt.QueryRow(devId)
-	err = row.Scan(&deviceId, &userId, &name, &lockable, &loggedIn, &pushUrl, &accepts, &secret)
+	err = row.Scan(&deviceId, &userId, &name, &lockable,
+		&loggedIn, &pushUrl, &accepts, &secret, &lestr)
 	switch {
 	case err == sql.ErrNoRows:
 		return nil, ErrUnknownDevice
@@ -252,15 +254,17 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		return nil, err
 	default:
 	}
+	lastexchange, _ = strconv.ParseFloat(string(lestr), 32)
 	reply := &Device{
-		ID:       string(deviceId),
-		User:     string(userId),
-		Name:     string(name),
-		Secret:   string(secret),
-		Lockable: lockable,
-		LoggedIn: loggedIn,
-		PushUrl:  string(pushUrl),
-		Accepts:  accepts,
+		ID:           string(deviceId),
+		User:         string(userId),
+		Name:         string(name),
+		Secret:       string(secret),
+		Lockable:     lockable,
+		LoggedIn:     loggedIn,
+		LastExchange: int32(lastexchange),
+		PushUrl:      string(pushUrl),
+		Accepts:      accepts,
 	}
 
 	/*

@@ -38,10 +38,10 @@
             <div class="name">{{html ($device.Name)}}</div>
             <div class="loggedin" data-state="{{$device.LoggedIn}}">Device is {{if not $device.LoggedIn }}<b>not</b>{{end}} accessible</div>
             <div class="lockable" data-state="{{$device.Lockable}}">Device {{if $device.Lockable }}has{{else}}does not have{{end}} a lock code</div>
-            <div class="lastexchange" data-contact="{{$device.LastExchange}}">Last contact: {{$device.LastExchange}}</div>
+            <div class="lastexchange">Last contact: <span class="date" data-time="{{$device.LastExchange}}"</span></div>
             <ol class="positions">
                 {{range $position := $device.PreviousPositions}}
-                <li> <a data-time={{$position.Time}} data-latitude={{$position.Latitude}} data-longitude={{$position.Longitude}} data-altitude={{$position.Altitude}} href="http://maps.google.com/maps?hl=en&ll={{$position.Latitude}},{{$position.Longitude}}" class="position">Position at {{$position.Time}}</a></li>
+                <li> <a data-latitude={{$position.Latitude}} data-longitude={{$position.Longitude}} data-altitude={{$position.Altitude}} href="http://maps.google.com/maps?hl=en&ll={{$position.Latitude}},{{$position.Longitude}}" class="position" date>Position at <span class="date" data-time="{{$position.Time}}">{{$position.Time}}</span></a></li>
                 {{end}}
             </ol>
             <!-- only display commands that the client specified it accepts
@@ -148,7 +148,7 @@ window.addEventListener("load",
         }
 
         //fix up dates...
-        var plis = document.getElementsByClassName("position");
+        var plis = document.getElementsByClassName("date");
         var plisn = plis.length;
         for (var i=0; i<plisn; i++) {
             var p = plis[i];
