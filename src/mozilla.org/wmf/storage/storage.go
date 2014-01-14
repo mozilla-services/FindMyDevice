@@ -239,13 +239,8 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 			util.Fields{"error": err.Error()})
 		return nil, err
 	}
-	row, err := stmt.Query(devId)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not query device info",
-			util.Fields{"error": err.Error()})
-		return nil, err
-	}
-	row.Next()
+    defer stmt.Close()
+	row := stmt.QueryRow(devId)
 	err = row.Scan(&deviceId, &userId, &name, &lockable, &loggedIn, &pushUrl, &accepts, &secret)
 	switch {
 	case err == sql.ErrNoRows:
@@ -257,8 +252,6 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		return nil, err
 	default:
 	}
-	row.Close()
-	stmt.Close()
 	reply := &Device{
 		ID:       string(deviceId),
 		User:     string(userId),
