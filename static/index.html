@@ -15,12 +15,13 @@
         {{end}}
     </div>
     </header>
+    <div class="welcome">
     {{if not .UserId}}
-            <div class="welcome">
-                Please log in so that there is such wow and joy.
-            </div>
+        Please log in so that there is such wow and joy.
+        </div>
     {{else}}
-    <p>Welcome!</p>
+        <p>Welcome!</p>
+        </div>
     {{if len .DeviceList }}
         <div class="caption">You have more than one device.
         Please select which device you'd like to work with.</div>
@@ -34,11 +35,13 @@
     <div class="device">You have no device registered yet.</div>
     {{end}}
     {{with $device := .Device}}
-        <div class="device" data-id="{{$device.ID}}">
+    <div class="device" data-id="{{$device.ID}}">
+        <div class="status">
             <div class="name">{{html ($device.Name)}}</div>
             <div class="loggedin" data-state="{{$device.LoggedIn}}">Device is {{if not $device.LoggedIn }}<b>not</b>{{end}} accessible</div>
             <div class="lockable" data-state="{{$device.Lockable}}">Device {{if $device.Lockable }}has{{else}}does not have{{end}} a lock code</div>
             <div class="lastexchange">Last contact: <span class="date" data-time="{{$device.LastExchange}}"</span></div>
+        </div>
             <ol class="positions">
                 {{range $position := $device.PreviousPositions}}
                 <li> <a data-latitude={{$position.Latitude}} data-longitude={{$position.Longitude}} data-altitude={{$position.Altitude}} href="http://maps.google.com/maps?hl=en&ll={{$position.Latitude}},{{$position.Longitude}}" class="position" date>Position at <span class="date" data-time="{{$position.Time}}">{{$position.Time}}</span></a></li>
@@ -47,9 +50,10 @@
             <!-- only display commands that the client specified it accepts
             -->
             <div class="commands">
-                <div class="cmd t"><button data-cmd="t" class="cmdb">Track Location</button><label>Duration (in seconds):<input name="d" placeholder="600"></label></div>
-                <div class="cmd r"><button data-cmd="r" class="cmdb">Ring</button><label>Duration (in seconds):<input name="d" placeholder="60"></label></div>
-                <div class="cmd l"><button data-cmd="l" class="cmdb">Lock</button><label>Lock Code:<input name="c" placeholder="0123"/></label><label>Lock Screen Message<input name="m" placeholder="Help! I'm lost!"/></label></div>
+                <div class="cmd t"><button data-cmd="t" class="cmdb">Track</button><label for="d">Duration (in seconds):</label><input name="d" placeholder="600"></div>
+            <div class="cmd r"><button data-cmd="r" class="cmdb">Ring</button><label for="d">Duration (in seconds):</label><input name="d" placeholder="60"></div>
+            <div class="cmd l"><span class="lock"><button data-cmd="l" class="cmdb">Lock</button><label for="c">Lock Code:</label><input name="c" placeholder="0123"/></span>
+                <span class="msg"><label for="m">Lock Screen Message</label><input name="m" placeholder="Help! I'm lost!"/></span></div>
                 <div class="cmd e"><button data-cmd="e" class="cmdb">Erase</button></div>
             </div>
         </div>
