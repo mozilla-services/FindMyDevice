@@ -471,7 +471,6 @@ func (self *Storage) GcPosition(devId string) (err error) {
 	st, err := dbh.Prepare(statement)
 	_, err = st.Exec()
 	st.Close()
-	fmt.Printf("Back\n")
 	if err != nil {
 		self.logger.Error(self.logCat, "Error gc'ing positions",
 			util.Fields{"error": err.Error()})
@@ -488,7 +487,7 @@ func (self *Storage) Touch(devId string, cmd string) (err error) {
 	defer dbh.Close()
 
 	sql := "update deviceInfo set lastexchange = now() where deviceid = $1"
-	_, err = dbh.Exec(sql)
+	_, err = dbh.Exec(sql, devId)
 	if err != nil {
 		return err
 	}

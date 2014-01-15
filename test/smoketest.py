@@ -121,6 +121,7 @@ def send(urlStr, data, cred, method="POST"):
                                             ts=ts, nonce=nonce, mac=mac)
         print "Header: %s\n" % (header)
         headers["Authorization"] = header
+    print "Sending %s\n" % (url.path)
     http.request(method, url.path, datas, headers)
     response = http.getresponse()
     if response.status != 200:
@@ -137,7 +138,13 @@ def send(urlStr, data, cred, method="POST"):
 def processCmd(config, cmd, cred):
     print "Command..."
     pprint(cmd)
+    tmpl = config.get("urls", "cmd")
+    trg = Template(tmpl).safe_substitute(
+            scheme = config.get("main","scheme"),
+            host = config.get("main","host"),
+            id = cred.get("deviceid", "test1"))
     print "\n============\n\n"
+
 
 
 def sendTrack(config, cred):
@@ -147,7 +154,7 @@ def sendTrack(config, cred):
     trg = Template(tmpl).safe_substitute(
         scheme=config.get("main", "scheme"),
         host=config.get("main", "host"),
-        id=cred.get("deviceid"))
+        id=cred.get("deviceid", "test1"))
     return send(trg, newLocation(), cred)
     print "\n============\n\n"
 
@@ -155,7 +162,10 @@ def sendTrack(config, cred):
 def main(argv):
     config = getConfig(argv)
     cmd = {}
-    creds = config.get("main", "cred")
+    try:
+        creds = config.get("main", "cred")
+    except Exception:
+        creds = None
     if creds is None:
         cred = {}
     else:

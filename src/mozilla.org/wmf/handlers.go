@@ -212,6 +212,9 @@ func (self *Handler) logPosition(devId string, args map[string]interface{}) (err
 	var locked bool
 
 	for key, arg := range args {
+        if len(key) == 0 {
+            continue
+        }
 		switch k := strings.ToLower(key[:2]); k {
 		case "la":
 			location.Latitude = arg.(float64)
@@ -487,7 +490,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	self.logger.Info(self.logCat, "Handling cmd",
 		util.Fields{
 			"cmd": string(body),
-			"l":   fmt.Sprintf("%d", l),
+			"length":   fmt.Sprintf("%d", l),
 		})
 	if l > 0 {
 		reply := make(reply_t)
@@ -550,7 +553,9 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	authHeader := self.hawk.AsHeader(req, devRec.User, extra, devRec.Secret)
 	resp.Header().Add("Authorization", authHeader)
 	// total cheat to get the command without parsing the cmd data.
-	self.metrics.Increment("cmd.send." + string(cmd[2]))
+    if len(cmd) > 2 {
+    	self.metrics.Increment("cmd.send." + string(cmd[2]))
+    }
 	resp.Write(output)
 }
 
