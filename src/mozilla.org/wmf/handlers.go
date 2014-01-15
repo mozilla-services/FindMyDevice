@@ -547,7 +547,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			util.Fields{"error": err.Error()})
 		http.Error(resp, "Server Error", http.StatusServiceUnavailable)
 	}
-    if output == nil or len(output) < 2 {
+    if output == nil || len(output) < 2 {
         output = []byte("{}")
     }
 	hasher := sha256.New()
