@@ -42,19 +42,20 @@
             <div class="lockable" data-state="{{$device.Lockable}}">Device {{if $device.Lockable }}has{{else}}does not have{{end}} a lock code</div>
             <div class="lastexchange">Last contact: <span class="date" data-time="{{$device.LastExchange}}"</span></div>
         </div>
-            <ol class="positions">
+        <div class="map" id="map_{{$device.ID}}"></div>
+        <ol class="positions">
                 {{range $position := $device.PreviousPositions}}
                 <li> <a data-latitude={{$position.Latitude}} data-longitude={{$position.Longitude}} data-altitude={{$position.Altitude}} href="http://maps.google.com/maps?hl=en&ll={{$position.Latitude}},{{$position.Longitude}}" class="position" date>Position at <span class="date" data-time="{{$position.Time}}">{{$position.Time}}</span></a></li>
                 {{end}}
-            </ol>
+        </ol>
             <!-- only display commands that the client specified it accepts
             -->
-            <div class="commands">
-                <div class="cmd t"><button data-cmd="t" class="cmdb">Track</button><label for="d">Duration (in seconds):</label><input name="d" placeholder="600"></div>
+        <div class="commands">
+            <div class="cmd t"><button data-cmd="t" class="cmdb">Track</button><label for="d">Duration (in seconds):</label><input name="d" placeholder="600"></div>
             <div class="cmd r"><button data-cmd="r" class="cmdb">Ring</button><label for="d">Duration (in seconds):</label><input name="d" placeholder="60"></div>
             <div class="cmd l"><span class="lock"><button data-cmd="l" class="cmdb">Lock</button><label for="c">Lock Code:</label><input name="c" placeholder="0123"/></span>
                 <span class="msg"><label for="m">Lock Screen Message</label><input name="m" placeholder="Help! I'm lost!"/></span></div>
-                <div class="cmd e"><button data-cmd="e" class="cmdb">Erase</button></div>
+            <div class="cmd e"><button data-cmd="e" class="cmdb">Erase</button></div>
             </div>
         </div>
     {{end}}
@@ -63,6 +64,7 @@
          <i>Footery stuffs...</i>
          </footer>
          <script id='bidjs' src="https://login.persona.org/include.js" type="text/javascript"></script>
+         <script id='oljs' src="/static/OpenLayers-2.13.1/OpenLayers.js" type="text/javascript"></script>
          <script type="text/javascript">
 // javascript
 //TODO: add Persona Login
@@ -162,6 +164,20 @@ window.addEventListener("load",
             p.innerHTML = day.toString();
         }
 
+        // initialize the maps
+/*
+        var mapDiv = document.getElementsByClassName('map')[0];
+        document.map = OpenLayers.Map(mapDiv.id);
+        var wms = OpenLayers.Layer.OSM();
+        var vectorLayer = new OpenLayers.Layer.Vector("Overlay");
+        var feature = new OpenLayers.Feature.Vector(
+                new OpenLayers.Geometry.Point(-71, 42),
+                {some:'data'},
+                {externalGraphic: 'static/img/marker.png',
+                    graphicHeight:21, graphicWidth:16});
+        vectorLayer.addFeatures(feature);
+        map.addLayer(vectorLayer);
+*/
         //TODO: scan commands, only activate ones that are allowed by device
 
         if (document.getElementById("signin")) {
