@@ -469,6 +469,9 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		// Generate the comparator signature from what we know.
 		lhawk.Nonce = rhawk.Nonce
 		lhawk.Time = rhawk.Time
+        //lhawk.Hash = rhawk.Hash
+
+        fmt.Printf("\n rhawk: %+v\n\n lhawk: %+v\n\n", rhawk, lhawk)
 		err = lhawk.GenerateSignature(req, rhawk.Extra, string(body),
 			devRec.Secret)
 		if err != nil {

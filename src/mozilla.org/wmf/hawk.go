@@ -155,6 +155,7 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 func (self *Hawk) ParseAuthHeader(req *http.Request, logger *util.HekaLogger) (err error) {
 
 	auth := req.Header.Get("Authorization")
+    fmt.Printf("auth: %s", auth)
 	if auth == "" {
 		return ErrNoAuth
 	}
@@ -163,7 +164,7 @@ func (self *Hawk) ParseAuthHeader(req *http.Request, logger *util.HekaLogger) (e
 	}
 	elements := strings.Split(auth[5:], ", ")
 	for _, element := range elements {
-		kv := strings.Split(element, "=")
+		kv := strings.SplitN(element, "=", 2)
 		if len(kv) < 2 {
 			continue
 		}
