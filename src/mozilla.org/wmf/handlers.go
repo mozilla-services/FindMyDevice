@@ -212,9 +212,9 @@ func (self *Handler) logPosition(devId string, args map[string]interface{}) (err
 	var locked bool
 
 	for key, arg := range args {
-        if len(key) == 0 {
-            continue
-        }
+		if len(key) == 0 {
+			continue
+		}
 		switch k := strings.ToLower(key[:2]); k {
 		case "la":
 			location.Latitude = arg.(float64)
@@ -442,6 +442,15 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		}
 		return
 	}
+	//decode the body
+	var body = make([]byte, req.ContentLength)
+	l, err = req.Body.Read(body)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not read body",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Invalid", 400)
+		return
+	}
 	//validate the Hawk header
 	if util.MzGetFlag(self.config, "hawk.disabled") == false {
 		// Remote Hawk
@@ -460,7 +469,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		// Generate the comparator signature from what we know.
 		lhawk.Nonce = rhawk.Nonce
 		lhawk.Time = rhawk.Time
-		err = lhawk.GenerateSignature(req, rhawk.Extra, devRec.Secret)
+		err = lhawk.GenerateSignature(req, rhawk.Extra, string(body),
+			devRec.Secret)
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not verify sig",
 				util.Fields{"error": err.Error()})
@@ -478,19 +488,11 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
-	//decode the body
-	var body = make([]byte, req.ContentLength)
-	l, err = req.Body.Read(body)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not read body",
-			util.Fields{"error": err.Error()})
-		http.Error(resp, "Invalid", 400)
-		return
-	}
+	// Do the command.
 	self.logger.Info(self.logCat, "Handling cmd",
 		util.Fields{
-			"cmd": string(body),
-			"length":   fmt.Sprintf("%d", l),
+			"cmd":    string(body),
+			"length": fmt.Sprintf("%d", l),
 		})
 	if l > 0 {
 		reply := make(reply_t)
@@ -547,18 +549,16 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			util.Fields{"error": err.Error()})
 		http.Error(resp, "Server Error", http.StatusServiceUnavailable)
 	}
-    if output == nil || len(output) < 2 {
-        output = []byte("{}")
-    }
-	hasher := sha256.New()
-	hasher.Write(output)
-	extra := hex.EncodeToString(hasher.Sum(nil))
-	authHeader := self.hawk.AsHeader(req, devRec.User, extra, devRec.Secret)
+	if output == nil || len(output) < 2 {
+		output = []byte("{}")
+	}
+	authHeader := self.hawk.AsHeader(req, devRec.User, string(output),
+		"", devRec.Secret)
 	resp.Header().Add("Authorization", authHeader)
 	// total cheat to get the command without parsing the cmd data.
-    if len(cmd) > 2 {
-    	self.metrics.Increment("cmd.send." + string(cmd[2]))
-    }
+	if len(cmd) > 2 {
+		self.metrics.Increment("cmd.send." + string(cmd[2]))
+	}
 	resp.Write(output)
 }
 

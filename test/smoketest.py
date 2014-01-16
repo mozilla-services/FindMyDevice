@@ -16,7 +16,20 @@ import time
 import urlparse
 
 
-def genHawkSignature(method, url, extra, secret, now=None, nonce=None):
+def genHash(body, ctype="application/json"):
+    if len(body) == 0:
+        return ""
+    marshalStr = "%s\n%s\n%s" % (
+        "hawk.1.payload",
+        ctype,
+        body)
+    bhash = base64.b64encode(hashlib.sha256(marshalStr).digest())
+    print "Hash:<<%s>>\nBHash:<<%s>>\n" % (marshalStr, bhash)
+    return bhash
+
+
+def genHawkSignature(method, url, bodyHash, extra, secret,
+                     now=None, nonce=None, ctype="application/json"):
     path = url.path
     host = url.hostname
     port = url.port
@@ -24,7 +37,7 @@ def genHawkSignature(method, url, extra, secret, now=None, nonce=None):
         nonce = os.urandom(5).encode("hex")
     if now is None:
         now = int(time.time())
-    marshalStr = "%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n%s" % (
+    marshalStr = "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s" % (
         "hawk.1.header",
         now,
         nonce,
@@ -32,12 +45,13 @@ def genHawkSignature(method, url, extra, secret, now=None, nonce=None):
         path,
         host,
         port,
+        bodyHash,
         extra)
-    # print "Marshal Str: <<%s>>\nSecret: <<%s>>\n" % (marshalStr, secret)
+    print "Marshal Str: <<%s>>\nSecret: <<%s>>\n" % (marshalStr, secret)
     mac = hmac.new(secret.encode("utf-8"),
                    marshalStr.encode("utf-8"),
                    digestmod=hashlib.sha256).digest()
-    # print "mac: <<" + ','.join([str(ord(elem)) for elem in mac]) + ">>\n"
+    print "mac: <<" + ','.join([str(ord(elem)) for elem in mac]) + ">>\n"
     return now, nonce, base64.b64encode(mac)
 
 
@@ -54,10 +68,10 @@ def parseHawkHeader(header):
 
 def checkHawk(method, url, extra, secret, header):
     hawk = parseHawkHeader(header)
-    ts, n, mac = genHawkSignature(method, url, extra, secret,
+    ts, n, mac = genHawkSignature(method, url, extra, hawk["hash"], secret,
                                   hawk["ts"], hawk["nonce"])
     # remove "white space
-    return mac.replace('=','') == hawk["mac"].replace('=','')
+    return mac.replace('=', '') == hawk["mac"].replace('=', '')
 
 
 def geoWalk():
@@ -105,19 +119,19 @@ def registerNew(config):
 def send(urlStr, data, cred, method="POST"):
     url = urlparse.urlparse(urlStr)
     http = httplib.HTTPConnection(url.netloc)
-    headers = {}
+    headers = {"Content-Type": "application/json"}
     datas = json.dumps(data)
     if cred.get("secret") is not None:
         # generate HAWK auth header
-        h = hashlib.sha256()
-        h.update(datas)
-        extra = h.hexdigest()
-        ts, nonce, mac = genHawkSignature(method, url, extra,
+        bodyHash = genHash(datas, "application/json")
+        ts, nonce, mac = genHawkSignature(method, url, bodyHash, "",
                                           cred.get("secret"))
         header = Template('Hawk id="$id", ts="$ts", ' +
-                          'nonce="$nonce", ext="$extra", mac="$mac"'
+                          'nonce="$nonce", ext="$extra", ' +
+                          'hash="$bhash", mac="$mac"'
                           ).safe_substitute(id=cred.get("deviceid"),
-                                            extra=extra,
+                                            extra="",
+                                            bhash=bodyHash,
                                             ts=ts, nonce=nonce, mac=mac)
         print "Header: %s\n" % (header)
         headers["Authorization"] = header
@@ -140,11 +154,10 @@ def processCmd(config, cmd, cred):
     pprint(cmd)
     tmpl = config.get("urls", "cmd")
     trg = Template(tmpl).safe_substitute(
-            scheme = config.get("main","scheme"),
-            host = config.get("main","host"),
-            id = cred.get("deviceid", "test1"))
+        scheme=config.get("main", "scheme"),
+        host=config.get("main", "host"),
+        id=cred.get("deviceid", "test1"))
     print "\n============\n\n"
-
 
 
 def sendTrack(config, cred):

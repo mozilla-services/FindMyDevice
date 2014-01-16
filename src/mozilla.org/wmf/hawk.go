@@ -31,6 +31,7 @@ type Hawk struct {
 	Host      string
 	Port      string
 	Extra     string
+	Hash      string
 	Signature string
 }
 
@@ -45,15 +46,16 @@ func GenNonce(l int) string {
 }
 
 // Return a Hawk Authorization header
-func (self *Hawk) AsHeader(req *http.Request, id, extra, secret string) string {
+func (self *Hawk) AsHeader(req *http.Request, id, body, extra, secret string) string {
 	if self.Signature == "" {
-		self.GenerateSignature(req, extra, secret)
+		self.GenerateSignature(req, extra, body, secret)
 	}
-	return fmt.Sprintf("Hawk id=\"%s\", ts=\"%s\", nonce=\"%s\" ext=\"%s\", mac=\"%s\"",
+	return fmt.Sprintf("Hawk id=\"%s\", ts=\"%s\", nonce=\"%s\" ext=\"%s\", hash=\"%s\" mac=\"%s\"",
 		id,
 		self.Time,
 		self.Nonce,
 		self.Extra,
+		self.Hash,
 		self.Signature)
 }
 
@@ -84,13 +86,31 @@ func getHostPort(req *http.Request) (host, port string) {
 	return host, port
 }
 
+func (self *Hawk) genHash(req *http.Request, body string) (hash string) {
+	contentType := req.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "text/plain"
+	}
+	marshalStr := fmt.Sprintf("%s\n%s\n%s",
+		"hawk.1.payload",
+		contentType,
+		body)
+	sha := sha256.Sum256([]byte(marshalStr))
+	hash = base64.StdEncoding.EncodeToString([]byte(sha[:32]))
+	self.logger.Debug("hawk", "genHash",
+		util.Fields{"marshalStr": marshalStr,
+			"hash": hash})
+	return hash
+
+}
+
 // Initialize self from request, extra and secret
 /* Things to check:
  * Are all values being sent? (e.g. extra, time, secret)
  * Do the secrets match?
  * is the other format string formatted correctly? (two \n before extra, 0 after)
  */
-func (self *Hawk) GenerateSignature(req *http.Request, extra, secret string) (err error) {
+func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret string) (err error) {
 	// create path
 	if self.Path == "" {
 		self.Path = getFullPath(req)
@@ -108,7 +128,10 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, secret string) (er
 	if self.Method == "" {
 		self.Method = strings.ToUpper(req.Method)
 	}
-	marshalStr := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n%s",
+	if self.Hash == "" {
+		self.Hash = self.genHash(req, body)
+	}
+	marshalStr := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s",
 		"hawk.1.header",
 		self.Time,
 		self.Nonce,
@@ -116,6 +139,7 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, secret string) (er
 		self.Path,
 		self.Host,
 		self.Port,
+		self.Hash,
 		extra)
 
 	self.logger.Debug("hawk", "Marshal",
@@ -153,6 +177,8 @@ func (self *Hawk) ParseAuthHeader(req *http.Request, logger *util.HekaLogger) (e
 			self.Nonce = val
 		case "ext":
 			self.Extra = val
+		case "hash":
+			self.Hash = val
 		case "mac":
 			self.Signature = val
 		}
