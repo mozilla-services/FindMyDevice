@@ -167,41 +167,42 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 }
 
 // get the user id from the session, or the assertion.
-func (self *Handler) getUser(req *http.Request) (userid string, err error) {
+func (self *Handler) getUser(req *http.Request) (userid string, user string, err error) {
 	//TODO: accept Auth before cookie?
+
 
 	useridc, err := req.Cookie("user")
 	if err == http.ErrNoCookie {
 		var auth string
 		if auth = req.FormValue("assertion"); auth == "" {
-			return "", AuthorizationErr
+			return "", "", AuthorizationErr
 		}
-		userid, _, err = self.verifyAssertion(auth)
+		userid, user, err = self.verifyAssertion(auth)
 		if err != nil {
-			return "", AuthorizationErr
+			return "", "", AuthorizationErr
 		}
 	} else {
 
 		if err != nil {
-			return "", AuthorizationErr
+			return "", "", AuthorizationErr
 		}
 		userid = useridc.Value
 	}
-	return userid, nil
+	return userid, user, nil
 }
 
 // set the user info into the session
 func (self *Handler) getSessionInfo(req *http.Request) (session *sessionInfo, err error) {
 	// Get this from the session?
 	dev := getDevFromUrl(req)
-	user, err := self.getUser(req)
+	userid, _, err := self.getUser(req)
 	if err != nil {
 		self.logger.Error("handler", "Could not get user",
 			util.Fields{"error": err.Error()})
 		return nil, err
 	}
 	session = &sessionInfo{
-		UserId:   user,
+		UserId:   userid,
 		DeviceId: dev}
 	return
 }
@@ -313,6 +314,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 	var buffer util.JsMap = util.JsMap{}
 	var userid string
+    var user string
 	var pushUrl string
 	var deviceid string
 	var secret string
@@ -331,11 +333,12 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			http.Error(resp, "Unauthorized", 401)
 			return
 		} else {
-			userid, _, err = self.verifyAssertion(assertion)
+			userid, user, err = self.verifyAssertion(assertion)
 			if err != nil {
 				http.Error(resp, "Unauthorized", 401)
 			}
 			self.logger.Info(self.logCat, "### Got user "+userid, nil)
+            user = strings.SplitN(user, "@", 2)[0]
 		}
 
 		if _, ok = buffer["pushurl"]; !ok {
@@ -383,6 +386,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			userid,
 			storage.Device{
 				ID:       deviceid,
+                Name:     user,
 				Secret:   secret,
 				PushUrl:  pushUrl,
 				Lockable: lockable,
@@ -580,7 +584,7 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
-	userId, err := self.getUser(req)
+	userId, _, err := self.getUser(req)
 	if err != nil {
 		self.logger.Error(self.logCat, "No userid", nil)
 		http.Error(resp, "Unauthorized", 401)

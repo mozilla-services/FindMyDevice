@@ -2,13 +2,13 @@ package storage
 
 import (
 	"database/sql"
-	// _ "github.com/jbarham/gopgsqldriver"
 	_ "github.com/lib/pq"
 	"mozilla.org/util"
 
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -20,6 +20,7 @@ type Storage struct {
 	dsn      string
 	logCat   string
 	defExpry int64
+	db       *sql.DB
 }
 
 type Position struct {
@@ -34,13 +35,13 @@ type Device struct {
 	User              string // userID
 	Name              string
 	PreviousPositions []Position
-	Lockable          bool    // is device lockable
-	LoggedIn          bool    // is the device logged in
-	Secret            string  // HAWK secret
-	PushUrl           string  // SimplePush URL
-	Pending           string  // pending command
-	LastExchange      int32 // last time we did anything
-	Accepts           string  // commands the device accepts
+	Lockable          bool   // is device lockable
+	LoggedIn          bool   // is the device logged in
+	Secret            string // HAWK secret
+	PushUrl           string // SimplePush URL
+	Pending           string // pending command
+	LastExchange      int32  // last time we did anything
+	Accepts           string // commands the device accepts
 }
 
 type DeviceList struct {
@@ -117,12 +118,21 @@ func Open(config util.JsMap, logger *util.HekaLogger) (store *Storage, err error
 	if err != nil {
 		defExpry = 1500
 	}
-
-	store = &Storage{config: config,
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxIdleConns(100)
+	if err = db.Ping(); err != nil {
+		return nil, err
+	}
+	store = &Storage{
+		config:   config,
 		logger:   logger,
 		logCat:   logCat,
 		defExpry: defExpry,
-		dsn:      dsn}
+		dsn:      dsn,
+		db:       db}
 	if err = store.Init(); err != nil {
 		return nil, err
 	}
@@ -151,12 +161,7 @@ func (self *Storage) Init() (err error) {
 		"create trigger update_le before update on deviceinfo for each row execute procedure update_time();",
 	}
 
-	dbh, err := self.openDb()
-	if err != nil {
-		return err
-	}
-	defer dbh.Close()
-
+	dbh := self.db
 	for _, s := range cmds {
 		res, err := dbh.Exec(s)
 		self.logger.Debug(self.logCat, "db init",
@@ -179,8 +184,7 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 	if dev.ID == "" {
 		dev.ID, _ = util.GenUUID4()
 	}
-	dbh, err := self.openDb()
-	defer dbh.Close()
+	dbh := self.db
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not insert device",
 			util.Fields{"error": err.Error()})
@@ -194,21 +198,53 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 		dev.Secret,
 		dev.Accepts,
 		dev.PushUrl); err != nil {
-		self.logger.Error(self.logCat, "Could not create device",
-			util.Fields{"error": err.Error(),
-				"device": fmt.Sprintf("%+v", dev)})
-		return "", err
-	}
-	if _, err = dbh.Exec("insert into userToDeviceMap (userId, deviceId) values ($1, $2);", userid, dev.ID); err != nil {
-		switch {
-		default:
-			self.logger.Error(self.logCat,
-				"Could not map device to user",
-				util.Fields{
-					"uid":      userid,
-					"deviceId": devId,
-					"error":    err.Error()})
+		fmt.Printf("ERROR: %s\n", err.Error())
+		if strings.Contains(err.Error(), "duplicate key value") {
+			fmt.Printf("#### Updating... \n")
+			statement = "update deviceinfo set lockable=$2, accepts=$3, pushUrl=$4 where deviceId=$1"
+			if _, err = dbh.Exec(statement,
+				string(dev.ID),
+				dev.Lockable,
+				dev.Accepts,
+				dev.PushUrl,
+			); err != nil {
+				self.logger.Error(self.logCat, "Could not update device",
+					util.Fields{"error": err.Error(),
+						"device": fmt.Sprintf("%+v", dev)})
+				return "", err
+			}
+			statement = "update usertodevicemap set name = $1 where deviceId=$2 and userId=$3"
+			if _, err = dbh.Exec(statement,
+				string(dev.Name),
+				string(dev.ID),
+				userid,
+			); err != nil {
+				self.logger.Error(self.logCat,
+					"Could not update device name",
+					util.Fields{"error": err.Error(),
+						"device": fmt.Sprintf("%+v", dev),
+						"userid": userid})
+				return "", err
+			}
+		} else {
+			self.logger.Error(self.logCat, "Could not create device",
+				util.Fields{"error": err.Error(),
+					"device": fmt.Sprintf("%+v", dev)})
 			return "", err
+		}
+	} else {
+		if _, err = dbh.Exec("insert into userToDeviceMap (userId, deviceId, name) values ($1, $2, $3);", userid, dev.ID, dev.Name); err != nil {
+			switch {
+			default:
+				self.logger.Error(self.logCat,
+					"Could not map device to user",
+					util.Fields{
+						"uid":      userid,
+						"deviceId": dev.ID,
+						"name":     dev.Name,
+						"error":    err.Error()})
+				return "", err
+			}
 		}
 	}
 	return dev.ID, nil
@@ -224,13 +260,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 	var lockable, loggedIn bool
 	var statement, accepts string
 
-	dbh, err := self.openDb()
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not open DB",
-			util.Fields{"error": err.Error()})
-		return nil, err
-	}
-	defer dbh.Close()
+	dbh := self.db
 
 	// verify that the device belongs to the user
 	statement = "select d.deviceId, u.userId, coalesce(u.name,d.deviceId), d.lockable, d.loggedin, d.pushUrl, d.accepts, d.hawksecret, extract(epoch from d.lastexchange) from userToDeviceMap as u, deviceInfo as d where u.deviceId=$1 and u.deviceId=d.deviceId;"
@@ -267,25 +297,13 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		Accepts:      accepts,
 	}
 
-	/*
-			self.logger.Debug(self.logCat, "Device info",
-		    util.Fields{"userId":userId,
-		        "device": deviceId,
-		        "data": fmt.Sprintf("%v\n", reply)})
-	*/
 	return reply, nil
 }
 
 // Oh, db driver, why do you make me hate you so?
 func (self *Storage) GetPositions(devId string) (positions []Position, err error) {
 
-	dbh, err := self.openDb()
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not open DB",
-			util.Fields{"error": err.Error()})
-		return nil, err
-	}
-	defer dbh.Close()
+	dbh := self.db
 
 	statement := "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time desc limit 10;"
 	rows, err := dbh.Query(statement, devId)
@@ -322,12 +340,8 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 
 // Get pending commands.
 func (self *Storage) GetPending(devId string) (cmd string, err error) {
-	dbh, err := self.openDb()
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not open DB",
-			util.Fields{"error": err.Error()})
-		return "", err
-	}
+	dbh := self.db
+
 	statement := "select id, cmd from pendingCommands where deviceId = $1 order by time limit 1;"
 	rows, err := dbh.Query(statement, devId)
 	if rows.Next() {
@@ -350,8 +364,10 @@ func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err
 	//TODO: get list of devices
 	var data []DeviceList
 
-	dbh, err := self.openDb()
-	defer dbh.Close()
+	dbh := self.db
+	if err != nil {
+		return nil, err
+	}
 
 	statement := "select deviceId, coalesce(name,deviceId) from userToDeviceMap where userId = $1;"
 	rows, err := dbh.Query(statement, userId)
@@ -372,25 +388,12 @@ func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err
 	return data, err
 }
 
-// Open the database (for realsies)
-func (self *Storage) openDb() (dbh *sql.DB, err error) {
-	if dbh, err = sql.Open("postgres", self.dsn); err != nil {
-		return nil, err
-	}
-	err = dbh.Ping()
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not ping open db", util.Fields{"error": err.Error()})
-		return nil, err
-	}
-	return dbh, nil
-}
-
 // Store a command into the list of pending commands for a device.
 func (self *Storage) StoreCommand(devId, command string) (err error) {
 	//update device table to store command where devId = $1
 	statement := "insert into pendingCommands (deviceId, time, cmd) values ($1, $2,  $3);"
-	dbh, err := self.openDb()
-	defer dbh.Close()
+	dbh := self.db
+
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not open db",
 			util.Fields{"error": err.Error()})
@@ -410,11 +413,7 @@ func (self *Storage) StoreCommand(devId, command string) (err error) {
 // Shorthand function to set the lock state for a device.
 func (self *Storage) SetDeviceLocked(devId string, state bool) (err error) {
 	// TODO: update the device record
-	dbh, err := self.openDb()
-	defer dbh.Close()
-	if err != nil {
-		return err
-	}
+	dbh := self.db
 
 	statement := "update deviceInfo set lockable = $1, lastexchange = now()  where deviceId =$2"
 	_, err = dbh.Exec(statement, state, devId)
@@ -431,11 +430,8 @@ func (self *Storage) SetDeviceLocked(devId string, state bool) (err error) {
 // Add the location information to the known set for a device.
 func (self *Storage) SetDeviceLocation(devId string, position Position) (err error) {
 	// TODO: set the current device position
-	dbh, err := self.openDb()
-	if err != nil {
-		return err
-	}
-	defer dbh.Close()
+	dbh := self.db
+
 	statement := "insert into position (deviceId, time, latitude, longitude, altitude) values ($1, $2, $3, $4, $5);"
 	st, err := dbh.Prepare(statement)
 	_, err = st.Exec(
@@ -455,11 +451,7 @@ func (self *Storage) SetDeviceLocation(devId string, position Position) (err err
 
 // Remove old postion information for devices.
 func (self *Storage) GcPosition(devId string) (err error) {
-	dbh, err := self.openDb()
-	if err != nil {
-		return err
-	}
-	defer dbh.Close()
+	dbh := self.db
 
 	// because prepare doesn't like single quoted vars
 	// because calling dbh.Exec() causes a lock race condition.
@@ -480,11 +472,7 @@ func (self *Storage) GcPosition(devId string) (err error) {
 }
 
 func (self *Storage) Touch(devId string, cmd string) (err error) {
-	dbh, err := self.openDb()
-	if err != nil {
-		return err
-	}
-	defer dbh.Close()
+	dbh := self.db
 
 	sql := "update deviceInfo set lastexchange = now() where deviceid = $1"
 	_, err = dbh.Exec(sql, devId)

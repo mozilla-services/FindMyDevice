@@ -184,12 +184,9 @@ def main(argv):
     else:
         cred = json.loads(creds)
     # register a new device
-    if 'id' not in cred:
-        print "Registering as new client... \n"
-        cmd, cred = registerNew(config)
-    else:
-        print "Already registered...\n"
-        cmd = sendTrack(config, cred)
+    print "Registering client... \n"
+    cmd, cred = registerNew(config)
+    cmd = sendTrack(config, cred)
     while cmd is not None:
         print "Processing commands...\n"
         cmd = processCmd(config, cmd, cred)

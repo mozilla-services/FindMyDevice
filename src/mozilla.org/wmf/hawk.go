@@ -72,12 +72,14 @@ func getFullPath(req *http.Request) (path string) {
 }
 
 // get the host and port from the request
-func getHostPort(req *http.Request) (host, port string) {
+func (self *Hawk) getHostPort(req *http.Request) (host, port string) {
+
 	elements := strings.Split(req.Host, ":")
 	host = elements[0]
 	switch {
-	case len(elements) > 1:
-		port = elements[1]
+    // because nginx proxies, don't take the :port at face value
+	//case len(elements) > 1:
+	//	port = elements[1]
 	case req.URL.Scheme == "https":
 		port = "443"
 	default:
@@ -117,7 +119,7 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 	}
 	// figure out port
 	if self.Host == "" {
-		self.Host, self.Port = getHostPort(req)
+		self.Host, self.Port = self.getHostPort(req)
 	}
 	if self.Nonce == "" {
 		self.Nonce = GenNonce(6)
@@ -131,13 +133,14 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 	if self.Hash == "" {
 		self.Hash = self.genHash(req, body)
 	}
+
 	marshalStr := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s",
 		"hawk.1.header",
 		self.Time,
 		self.Nonce,
-		self.Method,
+		strings.ToUpper(self.Method),
 		self.Path,
-		self.Host,
+		strings.ToLower(self.Host),
 		self.Port,
 		self.Hash,
 		extra)
@@ -185,7 +188,7 @@ func (self *Hawk) ParseAuthHeader(req *http.Request, logger *util.HekaLogger) (e
 		}
 	}
 	self.Path = getFullPath(req)
-	self.Host, self.Port = getHostPort(req)
+	self.Host, self.Port = self.getHostPort(req)
 	return err
 }
 
