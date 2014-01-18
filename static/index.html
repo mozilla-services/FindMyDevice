@@ -37,7 +37,7 @@
     {{with $device := .Device}}
     <div class="device" data-id="{{$device.ID}}">
         <div class="status">
-            <div class="name">{{html ($device.Name)}}</div>
+            <div class="name">{{html ($device.Name)}}'s Phone</div>
             <div class="loggedin" data-state="{{$device.LoggedIn}}">Device is {{if not $device.LoggedIn }}<b>not</b>{{end}} accessible</div>
             <div class="lockable" data-state="{{$device.Lockable}}">Device {{if $device.Lockable }}has{{else}}does not have{{end}} a lock code</div>
             <div class="lastexchange">Last contact: <span class="date" data-time="{{$device.LastExchange}}"</span></div>
@@ -53,7 +53,7 @@
         <div class="commands">
             <div class="cmd t"><button data-cmd="t" class="cmdb">Track</button><label for="d">Duration (in seconds):</label><input name="d" placeholder="600"></div>
             <div class="cmd r"><button data-cmd="r" class="cmdb">Ring</button><label for="d">Duration (in seconds):</label><input name="d" placeholder="60"></div>
-            <div class="cmd l"><span class="lock"><button data-cmd="l" class="cmdb">Lock</button><label for="c">Lock Code:</label><input name="c" placeholder="0123"/></span>
+            <div class="cmd l"><span class="lock"><button data-cmd="l" class="cmdb">Lock</button><label for="c">Lock Code:</label><input name="c" placeholder="0000" {{ if $device.Lockable }} disabled title="Device already has a lock code set."{{end}}/></span>
                 <span class="msg"><label for="m">Lock Screen Message</label><input name="m" placeholder="Help! I'm lost!"/></span></div>
             <div class="cmd e"><button data-cmd="e" class="cmdb">Erase</button></div>
             </div>

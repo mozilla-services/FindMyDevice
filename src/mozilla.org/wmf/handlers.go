@@ -262,7 +262,7 @@ func (self *Handler) logReply(devId, cmd string, args reply_t) (err error) {
 func (self *Handler) rangeCheck(s string, min, max int64) string {
 	val, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		self.logger.Error(self.logCat, "Unparsable range value",
+		self.logger.Warn(self.logCat, "Unparsable range value, returning 0",
 			util.Fields{"error": err.Error(),
 				"string": s})
 		return "0"

@@ -93,10 +93,12 @@ func (self *Hawk) genHash(req *http.Request, body string) (hash string) {
 	if contentType == "" {
 		contentType = "text/plain"
 	}
+    nbody := strings.Replace(body, "\\", "\\\\", -1)
+    nbody = strings.Replace(nbody, "\n", "\\n", -1)
 	marshalStr := fmt.Sprintf("%s\n%s\n%s",
 		"hawk.1.payload",
 		contentType,
-		body)
+		nbody)
 	sha := sha256.Sum256([]byte(marshalStr))
 	hash = base64.StdEncoding.EncodeToString([]byte(sha[:32]))
 	self.logger.Debug("hawk", "genHash",

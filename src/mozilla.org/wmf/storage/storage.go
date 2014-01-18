@@ -285,13 +285,15 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 	default:
 	}
 	lastexchange, _ = strconv.ParseFloat(string(lestr), 32)
+    //If we have a pushUrl, the user is logged in.
+    bloggedIn :=  string(pushUrl) != ""
 	reply := &Device{
 		ID:           string(deviceId),
 		User:         string(userId),
 		Name:         string(name),
 		Secret:       string(secret),
 		Lockable:     lockable,
-		LoggedIn:     loggedIn,
+		LoggedIn:     bloggedIn,
 		LastExchange: int32(lastexchange),
 		PushUrl:      string(pushUrl),
 		Accepts:      accepts,
