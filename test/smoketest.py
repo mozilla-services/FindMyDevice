@@ -186,7 +186,7 @@ def main(argv):
     # register a new device
     print "Registering client... \n"
     cmd, cred = registerNew(config)
-    cmd = sendTrack(config, cred)
+    # cmd = sendTrack(config, cred)
     while cmd is not None:
         print "Processing commands...\n"
         cmd = processCmd(config, cmd, cred)

@@ -3,20 +3,25 @@ package wmf
 import (
 	"mozilla.org/util"
 	"mozilla.org/wmf/storage"
+    "code.google.com/p/go.net/websocket"
 
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+    "time"
 	"text/template"
+    "runtime"
+    "runtime/debug"
+    "log"
+    "fmt"
 )
 
 type Handler struct {
@@ -29,6 +34,10 @@ type Handler struct {
 	accepts []string
 	hawk    *Hawk
 }
+
+type ClientMap map[string]*WWS
+
+var Clients = make(ClientMap)
 
 type reply_t map[string]interface{}
 
@@ -237,6 +246,10 @@ func (self *Handler) logPosition(devId string, args map[string]interface{}) (err
 	}
 	// because go sql locking.
 	self.store.GcPosition(devId)
+    if client, ok := Clients[devId]; ok {
+        js, _ := json.Marshal(location)
+        client.Write(js)
+    }
 	return nil
 }
 
@@ -856,8 +869,13 @@ func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
 	/* Show program status
 	 */
 	self.logCat = "handler:Status"
-	resp.Write([]byte(fmt.Sprintf("%v", req.URL.Path[len("/status/"):])))
-	resp.Write([]byte("OK"))
+    reply := reply_t{
+        "status": "ok",
+        "goroutines": runtime.NumGoroutine(),
+        "version": req.URL.Path[len("/status/"):],
+    }
+    rep, _ := json.Marshal(reply)
+	resp.Write(rep)
 }
 
 func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
@@ -884,4 +902,52 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 		reply = []byte("{}")
 	}
 	resp.Write(reply)
+}
+
+func (self *Handler) WSSocketHandler(ws *websocket.Conn){
+    sock := &WWS{
+        Socket: ws,
+        Logger: self.logger,
+        Born: time.Now(),
+        Quit: false}
+
+
+    defer func(logger *util.HekaLogger) {
+        if r:=recover(); r != nil {
+            debug.PrintStack()
+            if logger != nil {
+                logger.Error(self.logCat, "Uknown Error",
+                    util.Fields{"error": r.(error).Error()})
+            } else {
+                log.Printf("Socket Unknown Error: %s\n", r.(error).Error())
+            }
+        }
+    }(sock.Logger)
+
+    // get the device id from the localAddress:
+    Url, err := url.Parse(ws.LocalAddr().String())
+    if err != nil {
+        self.logger.Error(self.logCat, "Unparsable URL for websocket",
+            util.Fields{"error": err.Error() })
+        return
+    }
+    elements := strings.Split(Url.Path, "/")
+    var deviceId string
+    if len(elements) < 3 {
+        self.logger.Error(self.logCat, "No deviceID found",
+            util.Fields{"error": err.Error(),
+                "path": Url.Path})
+        return
+    }
+    deviceId = elements[3]
+    // Kill the old client.
+    if client,ok := Clients[deviceId]; ok {
+        client.Quit = true
+    }
+
+
+	self.metrics.Increment("Socket")
+    Clients[deviceId] = sock
+    sock.Run()
+    self.metrics.Decrement("Socket")
 }
