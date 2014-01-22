@@ -3,26 +3,25 @@
 body{background-image:linear-gradient(to bottom, #cadeee, #e6e7e7); background-size:auto 1200px}
 footer {display:none;position:absolute;bottom:0;}
 header {background-color:transparent;position:relative;width:100%;}
-h1 {font-size:86px;color: #484848;text-shadow:0px 1px 0px rgba(255, 255,255,0.75);}
+h1 {font-size:48px;color: #484848;text-shadow:0px 1px 0px rgba(255, 255,255,0.75);}
 button {border:0.1rem solid #a6a6a6;font-weight:500;border-radius:0.2rem;background-color:#e7e7e7;}
 .welcome{color: #333; font-size:130%}
 #login {position:absolute; top:30%; right:.5em;}
 #login a {text-decoration: none;}
 .device{position:relative; top: 1em; padding-left:.5em;width:100%;}
-.positions {position:absolute; top:40px; left:50%; list-style-type:none;}
-.commands {width: 50%;padding-left:.5em;}
+.status{position:absolute;top:0;left:0; width:50%; height:100%;}
+.map{position:absolute;top:180px;right:0; width:50%; height:66%; border:1px solid red;}
+.positions {display:none;}
+.commands {padding-left:.5em;}
 .cmd button {width: 70px;}
-.cmd label {display:inline-block;width:10em; text-align:right;}
-.t input{width:2em;}
-.r input{width:2em;}
-.l input{width:4em;}
+.cmd label {position:absolute; left: 80px; display:inline-block;width:10em; text-align:right;}
+.cmd input {position:absolute; left: 250px; width:3.5ex;}
+.l input{width:4.5ex;}
 .l .msg{position:relative;display:block;left:70px;}
-.l .msg input {width: 20em;}
-.e {padding: 1em;}
+.l input[name=m] {width: 20em;}
+.e {padding:4em 1em;}
 .e button{background-color:#f44; color: white;}
 .lastexchange .date{color:#44f;}
 .name {font-size:120%; padding-left: 5px; margin-right:20px;background-color:#C3CFDB}
 
-/*
-.map {border: 1px solid red;position:absolute; bottom:0; right:20px; width: 300px; height:300px;}
-*/
+

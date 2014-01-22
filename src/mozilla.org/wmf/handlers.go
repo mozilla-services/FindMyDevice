@@ -1,27 +1,27 @@
 package wmf
 
 import (
+	"code.google.com/p/go.net/websocket"
 	"mozilla.org/util"
 	"mozilla.org/wmf/storage"
-    "code.google.com/p/go.net/websocket"
 
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
+	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
-    "time"
 	"text/template"
-    "runtime"
-    "runtime/debug"
-    "log"
-    "fmt"
+	"time"
 )
 
 type Handler struct {
@@ -179,7 +179,6 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 func (self *Handler) getUser(req *http.Request) (userid string, user string, err error) {
 	//TODO: accept Auth before cookie?
 
-
 	useridc, err := req.Cookie("user")
 	if err == http.ErrNoCookie {
 		var auth string
@@ -246,10 +245,10 @@ func (self *Handler) logPosition(devId string, args map[string]interface{}) (err
 	}
 	// because go sql locking.
 	self.store.GcPosition(devId)
-    if client, ok := Clients[devId]; ok {
-        js, _ := json.Marshal(location)
-        client.Write(js)
-    }
+	if client, ok := Clients[devId]; ok {
+		js, _ := json.Marshal(location)
+		client.Write(js)
+	}
 	return nil
 }
 
@@ -327,7 +326,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 	var buffer util.JsMap = util.JsMap{}
 	var userid string
-    var user string
+	var user string
 	var pushUrl string
 	var deviceid string
 	var secret string
@@ -351,7 +350,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 				http.Error(resp, "Unauthorized", 401)
 			}
 			self.logger.Info(self.logCat, "### Got user "+userid, nil)
-            user = strings.SplitN(user, "@", 2)[0]
+			user = strings.SplitN(user, "@", 2)[0]
 		}
 
 		if _, ok = buffer["pushurl"]; !ok {
@@ -399,7 +398,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			userid,
 			storage.Device{
 				ID:       deviceid,
-                Name:     user,
+				Name:     user,
 				Secret:   secret,
 				PushUrl:  pushUrl,
 				Lockable: lockable,
@@ -486,9 +485,9 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		// Generate the comparator signature from what we know.
 		lhawk.Nonce = rhawk.Nonce
 		lhawk.Time = rhawk.Time
-        //lhawk.Hash = rhawk.Hash
+		//lhawk.Hash = rhawk.Hash
 
-        fmt.Printf("\n rhawk: %+v\n\n lhawk: %+v\n\n", rhawk, lhawk)
+		fmt.Printf("\n rhawk: %+v\n\n lhawk: %+v\n\n", rhawk, lhawk)
 		err = lhawk.GenerateSignature(req, rhawk.Extra, string(body),
 			devRec.Secret)
 		if err != nil {
@@ -771,12 +770,32 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	var data struct {
 		ProductName string
 		UserId      string
+		MapKey      string
 		DeviceList  []storage.DeviceList
 		Device      *storage.Device
+		Host        map[string]string
 	}
+
+	var err error
 
 	// Get this from the config file?
 	data.ProductName = "Where's My Fox"
+
+	data.MapKey = util.MzGet(self.config, "mapbox.key", "")
+
+	// host information (for websocket callback)
+	data.Host = make(map[string]string)
+	if util.MzGetFlag(self.config, "aws.gethost") {
+		data.Host["Hostname"], err = util.GetAWSPublicHostname()
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not get AWS host name",
+				util.Fields{"error": err.Error()})
+			data.Host["Hostname"] = ""
+		}
+	} else {
+		data.Host["Hostname"] = util.MzGet(self.config,
+			"hostname", "localhost")
+	}
 
 	// get the cached session info (if present)
 	// will also resolve assertions and other bits to get user and dev info.
@@ -869,12 +888,12 @@ func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
 	/* Show program status
 	 */
 	self.logCat = "handler:Status"
-    reply := reply_t{
-        "status": "ok",
-        "goroutines": runtime.NumGoroutine(),
-        "version": req.URL.Path[len("/status/"):],
-    }
-    rep, _ := json.Marshal(reply)
+	reply := reply_t{
+		"status":     "ok",
+		"goroutines": runtime.NumGoroutine(),
+		"version":    req.URL.Path[len("/status/"):],
+	}
+	rep, _ := json.Marshal(reply)
 	resp.Write(rep)
 }
 
@@ -904,50 +923,48 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(reply)
 }
 
-func (self *Handler) WSSocketHandler(ws *websocket.Conn){
-    sock := &WWS{
-        Socket: ws,
-        Logger: self.logger,
-        Born: time.Now(),
-        Quit: false}
+func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
+	sock := &WWS{
+		Socket: ws,
+		Logger: self.logger,
+		Born:   time.Now(),
+		Quit:   false}
 
+	defer func(logger *util.HekaLogger) {
+		if r := recover(); r != nil {
+			debug.PrintStack()
+			if logger != nil {
+				logger.Error(self.logCat, "Uknown Error",
+					util.Fields{"error": r.(error).Error()})
+			} else {
+				log.Printf("Socket Unknown Error: %s\n", r.(error).Error())
+			}
+		}
+	}(sock.Logger)
 
-    defer func(logger *util.HekaLogger) {
-        if r:=recover(); r != nil {
-            debug.PrintStack()
-            if logger != nil {
-                logger.Error(self.logCat, "Uknown Error",
-                    util.Fields{"error": r.(error).Error()})
-            } else {
-                log.Printf("Socket Unknown Error: %s\n", r.(error).Error())
-            }
-        }
-    }(sock.Logger)
-
-    // get the device id from the localAddress:
-    Url, err := url.Parse(ws.LocalAddr().String())
-    if err != nil {
-        self.logger.Error(self.logCat, "Unparsable URL for websocket",
-            util.Fields{"error": err.Error() })
-        return
-    }
-    elements := strings.Split(Url.Path, "/")
-    var deviceId string
-    if len(elements) < 3 {
-        self.logger.Error(self.logCat, "No deviceID found",
-            util.Fields{"error": err.Error(),
-                "path": Url.Path})
-        return
-    }
-    deviceId = elements[3]
-    // Kill the old client.
-    if client,ok := Clients[deviceId]; ok {
-        client.Quit = true
-    }
-
+	// get the device id from the localAddress:
+	Url, err := url.Parse(ws.LocalAddr().String())
+	if err != nil {
+		self.logger.Error(self.logCat, "Unparsable URL for websocket",
+			util.Fields{"error": err.Error()})
+		return
+	}
+	elements := strings.Split(Url.Path, "/")
+	var deviceId string
+	if len(elements) < 3 {
+		self.logger.Error(self.logCat, "No deviceID found",
+			util.Fields{"error": err.Error(),
+				"path": Url.Path})
+		return
+	}
+	deviceId = elements[3]
+	// Kill the old client.
+	if client, ok := Clients[deviceId]; ok {
+		client.Quit = true
+	}
 
 	self.metrics.Increment("Socket")
-    Clients[deviceId] = sock
-    sock.Run()
-    self.metrics.Decrement("Socket")
+	Clients[deviceId] = sock
+	sock.Run()
+	self.metrics.Decrement("Socket")
 }

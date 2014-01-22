@@ -3,6 +3,7 @@
     <title>{{.ProductName}}</title>
     <link rel="stylesheet" type="text/css" href="/static/fonts.css">
     <link rel="stylesheet" type="text/css" href="/static/style.css">
+    <link rel="stylesheet" type="text/css" href="//api.tiles.mapbox.com/mapbox.js/v1.6.0/mapbox.css">
 </head>
 <body>
     <header>
@@ -22,7 +23,7 @@
     {{else}}
         <p>Welcome!</p>
         </div>
-    {{if len .DeviceList }}
+        {{if len .DeviceList }}
         <div class="caption">You have more than one device.
         Please select which device you'd like to work with.</div>
         <ul id="devices">
@@ -41,11 +42,9 @@
             <div class="loggedin" data-state="{{$device.LoggedIn}}">Device is {{if not $device.LoggedIn }}<b>not</b>{{end}} accessible</div>
             <div class="lockable" data-state="{{$device.Lockable}}">Device {{if $device.Lockable }}has{{else}}does not have{{end}} a lock code</div>
             <div class="lastexchange">Last contact: <span class="date" data-time="{{$device.LastExchange}}"</span></div>
-        </div>
-        <div class="map" id="map_{{$device.ID}}"></div>
         <ol class="positions">
                 {{range $position := $device.PreviousPositions}}
-                <li> <a data-latitude={{$position.Latitude}} data-longitude={{$position.Longitude}} data-altitude={{$position.Altitude}} href="http://maps.google.com/maps?hl=en&ll={{$position.Latitude}},{{$position.Longitude}}" class="position" date>Position at <span class="date" data-time="{{$position.Time}}">{{$position.Time}}</span></a></li>
+                <li> <a data-latitude={{$position.Latitude}} data-longitude={{$position.Longitude}} data-altitude={{$position.Altitude}} href="http://maps.google.com/maps?hl=en&ll={{$position.Latitude}},{{$position.Longitude}}" class="position">Position at <span class="date" data-time="{{$position.Time}}">{{$position.Time}}</span></a></li>
                 {{end}}
         </ol>
             <!-- only display commands that the client specified it accepts
@@ -53,18 +52,21 @@
         <div class="commands">
             <div class="cmd t"><button data-cmd="t" class="cmdb">Track</button><label for="d">Duration (in seconds):</label><input name="d" placeholder="600"></div>
             <div class="cmd r"><button data-cmd="r" class="cmdb">Ring</button><label for="d">Duration (in seconds):</label><input name="d" placeholder="60"></div>
-            <div class="cmd l"><span class="lock"><button data-cmd="l" class="cmdb">Lock</button><label for="c">Lock Code:</label><input name="c" placeholder="0000" {{ if $device.Lockable }} disabled title="Device already has a lock code set."{{end}}/></span>
-                <span class="msg"><label for="m">Lock Screen Message</label><input name="m" placeholder="Help! I'm lost!"/></span></div>
+            <div class="cmd l">
+                <div class="block"><button data-cmd="l" class="cmdb">Lock</button><label for="c">Lock Code:</label><input name="c" placeholder="0000" {{ if $device.Lockable }} disabled title="Device already has a lock code set."{{end}}/><br/>
+                    <label for="m">Lock Screen Message</label><input name="m" placeholder="Help! I'm lost!"/></div></div>
             <div class="cmd e"><button data-cmd="e" class="cmdb">Erase</button></div>
             </div>
         </div>
+        </div>
+        <div class="map" id="map_{{$device.ID}}"></div>
     {{end}}
     {{end}}
     <footer>
          <i>Footery stuffs...</i>
          </footer>
          <script id='bidjs' src="https://login.persona.org/include.js" type="text/javascript"></script>
-         <script id='oljs' src="/static/OpenLayers-2.13.1/OpenLayers.js" type="text/javascript"></script>
+         <script id="mapbox" src="//api.tiles.mapbox.com/mapbox.js/v1.6.0/mapbox.js" type="text/javascript"></script>
          <script type="text/javascript">
 // javascript
 //TODO: add Persona Login
@@ -165,20 +167,37 @@ window.addEventListener("load",
         }
 
         // initialize the maps
-/*
         var mapDiv = document.getElementsByClassName('map')[0];
-        document.map = OpenLayers.Map(mapDiv.id);
-        var wms = OpenLayers.Layer.OSM();
-        var vectorLayer = new OpenLayers.Layer.Vector("Overlay");
-        var feature = new OpenLayers.Feature.Vector(
-                new OpenLayers.Geometry.Point(-71, 42),
-                {some:'data'},
-                {externalGraphic: 'static/img/marker.png',
-                    graphicHeight:21, graphicWidth:16});
-        vectorLayer.addFeatures(feature);
-        map.addLayer(vectorLayer);
-*/
+        var id ="{{.MapKey}}";
+        var map = L.mapbox.map(mapDiv, id);
         //TODO: scan commands, only activate ones that are allowed by device
+        var locations = document.getElementsByClassName("position");
+        var iloc = locations.length;
+        if (iloc > 0) {
+            loc = locations[0];
+            map.setView([loc.dataset.latitude, loc.dataset.longitude], 12);
+            L.marker([loc.dataset.latitude, loc.dataset.longitude]).addTo(map);
+            for (var i=1; i<iloc; i++) {
+                loc = locations[i];
+                L.marker([loc.dataset.latitude,
+                        loc.dataset.longitude]).addTo(map);
+            }
+        } else {
+            map.setView([0,0], 4);
+        }
+
+        var socket = new WebSocket("ws://{{.Host.Hostname}}/0/ws/{{.Device.ID}}");
+        // socket.onopen = function(){ console.debug("Socket open..."); }
+        socket.onmessage = function(msg) {
+            try {
+                data = JSON.parse(msg.data);
+                L.marker([data.Latitude, data.Longitude]).addTo(map);
+            } catch(e) {
+                socket.close();
+                console.error("Add Fail:", e);
+            }
+        }
+        // socket.onclose = function(){ console.debug("Socket closed...");}
 
         if (document.getElementById("signin")) {
         document.getElementById("signin").addEventListener("click",
