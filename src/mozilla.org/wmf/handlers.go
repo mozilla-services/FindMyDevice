@@ -785,17 +785,8 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 
 	// host information (for websocket callback)
 	data.Host = make(map[string]string)
-	if util.MzGetFlag(self.config, "aws.gethost") {
-		data.Host["Hostname"], err = util.GetAWSPublicHostname()
-		if err != nil {
-			self.logger.Error(self.logCat, "Could not get AWS host name",
-				util.Fields{"error": err.Error()})
-			data.Host["Hostname"] = ""
-		}
-	} else {
-		data.Host["Hostname"] = util.MzGet(self.config,
-			"hostname", "localhost")
-	}
+	data.Host["Hostname"] = util.MzGet(self.config,
+		"ws_hostname", "localhost")
 
 	// get the cached session info (if present)
 	// will also resolve assertions and other bits to get user and dev info.

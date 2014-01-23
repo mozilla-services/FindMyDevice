@@ -10,7 +10,7 @@ button {border:0.1rem solid #a6a6a6;font-weight:500;border-radius:0.2rem;backgro
 #login a {text-decoration: none;}
 .device{position:relative; top: 1em; padding-left:.5em;width:100%;}
 .status{position:absolute;top:0;left:0; width:50%; height:100%;}
-.map{position:absolute;top:180px;right:0; width:50%; height:66%; border:1px solid red;}
+.map{position:absolute;top:16ex;right:0; width:50%; height:66%; border:1px solid red;}
 .positions {display:none;}
 .commands {padding-left:.5em;}
 .cmd button {width: 70px;}

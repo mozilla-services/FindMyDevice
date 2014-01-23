@@ -167,38 +167,41 @@ window.addEventListener("load",
         }
 
         // initialize the maps
-        var mapDiv = document.getElementsByClassName('map')[0];
-        var id ="{{.MapKey}}";
-        var map = L.mapbox.map(mapDiv, id);
-        //TODO: scan commands, only activate ones that are allowed by device
-        var locations = document.getElementsByClassName("position");
-        var iloc = locations.length;
-        if (iloc > 0) {
-            loc = locations[0];
-            map.setView([loc.dataset.latitude, loc.dataset.longitude], 12);
-            L.marker([loc.dataset.latitude, loc.dataset.longitude]).addTo(map);
-            for (var i=1; i<iloc; i++) {
-                loc = locations[i];
-                L.marker([loc.dataset.latitude,
-                        loc.dataset.longitude]).addTo(map);
-            }
-        } else {
-            map.setView([0,0], 4);
+        var maps = document.getElementsByClassName('map');
+        if (maps.length) {
+                var mapDiv = document.getElementsByClassName('map')[0];
+                var id ="{{.MapKey}}";
+                var map = L.mapbox.map(mapDiv, id);
+                //TODO: scan commands, only activate ones that are allowed by device
+                var locations = document.getElementsByClassName("position");
+                var iloc = locations.length;
+                if (iloc > 0) {
+                    loc = locations[0];
+                    map.setView([loc.dataset.latitude, loc.dataset.longitude], 12);
+                    L.marker([loc.dataset.latitude, loc.dataset.longitude]).addTo(map);
+                    for (var i=1; i<iloc; i++) {
+                        loc = locations[i];
+                        L.marker([loc.dataset.latitude,
+                                loc.dataset.longitude]).addTo(map);
+                    }
+                } else {
+                    map.setView([0,0], 4);
+                }
+{{ if .Device }}
+                var socket = new WebSocket("ws://{{.Host.Hostname}}/0/ws/{{.Device.ID}}");
+                // socket.onopen = function(){ console.debug("Socket open..."); }
+                socket.onmessage = function(msg) {
+                    try {
+                        data = JSON.parse(msg.data);
+                        L.marker([data.Latitude, data.Longitude]).addTo(map);
+                    } catch(e) {
+                        socket.close();
+                        console.error("Add Fail:", e);
+                    }
+                }
+                // socket.onclose = function(){ console.debug("Socket closed...");}
+{{end}}
         }
-
-        var socket = new WebSocket("ws://{{.Host.Hostname}}/0/ws/{{.Device.ID}}");
-        // socket.onopen = function(){ console.debug("Socket open..."); }
-        socket.onmessage = function(msg) {
-            try {
-                data = JSON.parse(msg.data);
-                L.marker([data.Latitude, data.Longitude]).addTo(map);
-            } catch(e) {
-                socket.close();
-                console.error("Add Fail:", e);
-            }
-        }
-        // socket.onclose = function(){ console.debug("Socket closed...");}
-
         if (document.getElementById("signin")) {
         document.getElementById("signin").addEventListener("click",
                 function(){

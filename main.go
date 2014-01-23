@@ -44,6 +44,11 @@ func main() {
 	}
 	config := util.MzGetConfig(opts.ConfigFile)
 	config["VERSION"] = VERSION
+    if util.MzGetFlag(config,"aws.get_hostname") {
+        if hostname,err := util.GetAWSPublicHostname(); err == nil {
+            config["ws_hostname"] = hostname
+        }
+    }
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	logger := util.NewHekaLogger(config)
 	store, err := storage.Open(config, logger)
