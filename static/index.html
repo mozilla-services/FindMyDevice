@@ -103,6 +103,7 @@ function sendCommand(cmd) {
 
 function newMarker(lat, lon, t) {
     // see https://www.mapbox.com/developers/simplestyle/
+    var d = new Date(t);
     var marker = L.mapbox.markerLayer({
         type: "Feature",
         geometry: {
@@ -112,8 +113,8 @@ function newMarker(lat, lon, t) {
         properties:{
             'marker-color': '#f00',
             'marker-symbol':'telephone',
-            title:'phone location',
-            description: t,
+            title:d.toLocaleTimeString(),
+            description: d.toLocaleDateString(),
             }});
     return marker
 }
@@ -208,9 +209,9 @@ window.addEventListener("load",
                     // FYI: if map.hasLayer(marker) {map.removeLayer(marker) }
                     for (var i = 0;i<=iloc; i++) {
                         loc = locations[i];
-                        t = loc.dataset.time;
                         marker = newMarker(parseFloat(loc.dataset.latitude),
-                                parseFloat(loc.dataset.longitude), t);
+                                parseFloat(loc.dataset.longitude),
+                                parseInt(loc.dataset.time));
                         marker.addTo(map);
                         markers.push(marker);
                     }

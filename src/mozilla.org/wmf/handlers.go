@@ -313,7 +313,7 @@ func NewHandler(config util.JsMap, logger *util.HekaLogger, store *storage.Stora
 	return &Handler{config: config,
 		logger: logger,
 		logCat: "handler",
-		hawk:   &Hawk{logger: logger},
+		hawk:   &Hawk{logger: logger, config: config},
 		metrics: util.NewMetrics(util.MzGet(config,
 			"metrics.prefix",
 			"WMF")),
@@ -487,7 +487,6 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		lhawk.Time = rhawk.Time
 		//lhawk.Hash = rhawk.Hash
 
-		fmt.Printf("\n rhawk: %+v\n\n lhawk: %+v\n\n", rhawk, lhawk)
 		err = lhawk.GenerateSignature(req, rhawk.Extra, string(body),
 			devRec.Secret)
 		if err != nil {
@@ -589,7 +588,6 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 
 	self.logCat = "handler:Queue"
 	resp.Header().Set("Content-Type", "application/json")
-	fmt.Printf("here")
 	deviceId := getDevFromUrl(req)
 	if deviceId == "" {
 		self.logger.Error(self.logCat, "Invalid call (No device id)", nil)

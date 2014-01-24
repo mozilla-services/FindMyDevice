@@ -22,6 +22,7 @@ var ErrInvalidSignature = errors.New("Header does not match signature")
 
 type Hawk struct {
 	logger    *util.HekaLogger
+	config    util.JsMap
 	header    string
 	Id        string
 	Time      string
@@ -76,14 +77,19 @@ func (self *Hawk) getHostPort(req *http.Request) (host, port string) {
 
 	elements := strings.Split(req.Host, ":")
 	host = elements[0]
-	switch {
-    // because nginx proxies, don't take the :port at face value
-	//case len(elements) > 1:
-	//	port = elements[1]
-	case req.URL.Scheme == "https":
-		port = "443"
-	default:
-		port = "80"
+	if len(elements) == 2 {
+		port = elements[1]
+	}
+	if port == "" || util.MzGetFlag(self.config, "override_port") {
+		switch {
+		// because nginx proxies, don't take the :port at face value
+		//case len(elements) > 1:
+		//	port = elements[1]
+		case req.URL.Scheme == "https":
+			port = "443"
+		default:
+			port = "80"
+		}
 	}
 	return host, port
 }
@@ -93,17 +99,24 @@ func (self *Hawk) genHash(req *http.Request, body string) (hash string) {
 	if contentType == "" {
 		contentType = "text/plain"
 	}
-    nbody := strings.Replace(body, "\\", "\\\\", -1)
-    nbody = strings.Replace(nbody, "\n", "\\n", -1)
-	marshalStr := fmt.Sprintf("%s\n%s\n%s",
+	// Something is appending the chartype to the content. this can throw off
+	// the hash generator.
+	// Client creates mac using "application/json",
+	// we get "application/json;charset=UTF8" which brings much sadness.
+	contentType = (strings.Split(contentType, ";"))[0]
+	nbody := strings.Replace(body, "\\", "\\\\", -1)
+	nbody = strings.Replace(nbody, "\n", "\\n", -1)
+	marshalStr := fmt.Sprintf("%s\n%s\n%s\n",
 		"hawk.1.payload",
 		contentType,
 		nbody)
 	sha := sha256.Sum256([]byte(marshalStr))
 	hash = base64.StdEncoding.EncodeToString([]byte(sha[:32]))
-	self.logger.Debug("hawk", "genHash",
-		util.Fields{"marshalStr": marshalStr,
-			"hash": hash})
+	if util.MzGetFlag(self.config, "hawk.show_hash") {
+		self.logger.Debug("hawk", "genHash",
+			util.Fields{"marshalStr": marshalStr,
+				"hash": hash})
+	}
 	return hash
 
 }
@@ -136,7 +149,7 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 		self.Hash = self.genHash(req, body)
 	}
 
-	marshalStr := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s",
+	marshalStr := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n",
 		"hawk.1.header",
 		self.Time,
 		self.Nonce,
@@ -147,9 +160,11 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 		self.Hash,
 		extra)
 
-	self.logger.Debug("hawk", "Marshal",
-		util.Fields{"marshalStr": marshalStr,
-			"secret": secret})
+	if util.MzGetFlag(self.config, "hawk.show_hash") {
+		self.logger.Debug("hawk", "Marshal",
+			util.Fields{"marshalStr": marshalStr,
+				"secret": secret})
+	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(marshalStr))
 	self.Signature = base64.StdEncoding.EncodeToString(mac.Sum(nil))
@@ -160,7 +175,6 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 func (self *Hawk) ParseAuthHeader(req *http.Request, logger *util.HekaLogger) (err error) {
 
 	auth := req.Header.Get("Authorization")
-    fmt.Printf("auth: %s", auth)
 	if auth == "" {
 		return ErrNoAuth
 	}
