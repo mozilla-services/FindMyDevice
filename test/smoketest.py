@@ -19,7 +19,7 @@ import urlparse
 def genHash(body, ctype="application/json"):
     if len(body) == 0:
         return ""
-    marshalStr = "%s\n%s\n%s" % (
+    marshalStr = "%s\n%s\n%s\n" % (
         "hawk.1.payload",
         ctype,
         body)
@@ -37,7 +37,7 @@ def genHawkSignature(method, url, bodyHash, extra, secret,
         nonce = os.urandom(5).encode("hex")
     if now is None:
         now = int(time.time())
-    marshalStr = "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s" % (
+    marshalStr = "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n" % (
         "hawk.1.header",
         now,
         nonce,

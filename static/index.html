@@ -101,9 +101,9 @@ function sendCommand(cmd) {
     xhr.send(JSON.stringify(cmd));
 }
 
-function newMarker(lat, lon, t) {
+function newMarker(lat, lon, secs) {
     // see https://www.mapbox.com/developers/simplestyle/
-    var d = new Date(t);
+    var d = new Date(secs*1000);
     var marker = L.mapbox.markerLayer({
         type: "Feature",
         geometry: {
@@ -137,13 +137,14 @@ window.addEventListener("load",
         }
         navigator.id.watch({
                 loggedInUser:email,
-                onlogout: function(){
-                if (document.cookie.length > 0 && str.indexOf("user")) {
+                onlogout: function(e){
+                str = document.cookie;
+                if ((str.length > 0) && str.indexOf("user")>=0) {
                     alert("logging off...");
                     document.cookie="user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
                     document.location = "/";
                     }
-                    },
+                },
                 onlogin: function(assertion) {
                     body.style.cursor = "auto";
                     /* TODO: Send the assertion.

@@ -394,7 +394,8 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		}
 
 		// create the new device record
-		if devId, err := self.store.RegisterDevice(
+		var devId string
+		if devId, secret, err = self.store.RegisterDevice(
 			userid,
 			storage.Device{
 				ID:       deviceid,
