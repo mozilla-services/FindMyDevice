@@ -122,9 +122,10 @@ function newMarker(lat, lon, secs) {
 function fadeMarkers() {
     var markers = document.getElementsByClassName("leaflet-marker-icon");
     var i = markers.length-1;
+    var inc = 1 / i;
     console.log("Fading " + i + " markers");
     for (;i>=0;i--) {
-        markers[i].style.opacity = i * 0.1;
+        markers[i].style.opacity = i * inc;
     }
 }
 
