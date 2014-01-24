@@ -307,7 +307,7 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 
 	dbh := self.db
 
-	statement := "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time desc limit 10;"
+	statement := "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time limit 10;"
 	rows, err := dbh.Query(statement, devId)
 	if err == nil {
 		var time int32 = 0
