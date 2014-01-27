@@ -543,6 +543,11 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				// track
 				err = self.logPosition(deviceId, args.(map[string]interface{}))
 				// store tracking info.
+            case "q":
+                // User has quit, nuke what we know.
+                if util.MzGetFlag(self.config, "cmd.q.allow") {
+                    err = self.store.DeleteDevice(deviceId)
+                }
 			}
 			if err != nil {
 				// Log the error
