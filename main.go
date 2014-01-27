@@ -1,8 +1,8 @@
 package main
 
 import (
+	"code.google.com/p/go.net/websocket"
 	flags "github.com/jessevdk/go-flags"
-    "code.google.com/p/go.net/websocket"
 	"mozilla.org/util"
 	"mozilla.org/wmf"
 	"mozilla.org/wmf/storage"
@@ -44,11 +44,11 @@ func main() {
 	}
 	config := util.MzGetConfig(opts.ConfigFile)
 	config["VERSION"] = VERSION
-    if util.MzGetFlag(config,"aws.get_hostname") {
-        if hostname,err := util.GetAWSPublicHostname(); err == nil {
-            config["ws_hostname"] = hostname
-        }
-    }
+	if util.MzGetFlag(config, "aws.get_hostname") {
+		if hostname, err := util.GetAWSPublicHostname(); err == nil {
+			config["ws_hostname"] = hostname
+		}
+	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	logger := util.NewHekaLogger(config)
 	store, err := storage.Open(config, logger)
@@ -68,7 +68,7 @@ func main() {
 	port := util.MzGet(config, "port", "8080")
 
 	var RESTMux *http.ServeMux = http.DefaultServeMux
-    var WSMux *http.ServeMux = http.DefaultServeMux
+	var WSMux *http.ServeMux = http.DefaultServeMux
 	var verRoot = strings.SplitN(VERSION, ".", 2)[0]
 
 	// REST calls
@@ -89,8 +89,8 @@ func main() {
 	// Operations call
 	RESTMux.HandleFunc("/status/",
 		handlers.Status)
-    WSMux.Handle(fmt.Sprintf("/%s/ws/", verRoot),
-        websocket.Handler(handlers.WSSocketHandler))
+	WSMux.Handle(fmt.Sprintf("/%s/ws/", verRoot),
+		websocket.Handler(handlers.WSSocketHandler))
 	// Handle root calls as webUI
 	RESTMux.HandleFunc("/",
 		handlers.Index)

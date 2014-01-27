@@ -13,9 +13,10 @@ button {border:0.1rem solid #a6a6a6;font-weight:500;border-radius:0.2rem;backgro
 .map{position:absolute;top:16ex;right:0; width:50%; height:66%; border:1px solid red;}
 .positions {display:none;}
 .commands {padding-left:.5em;}
+.cmd {vertical-align:top;}
 .cmd button {width: 70px;}
-.cmd label {position:absolute; left: 80px; display:inline-block;width:10em; text-align:right;}
-.cmd input {position:absolute; left: 250px; width:3.5ex;}
+.cmd label {display:inline-block;min-width:10em;text-align:right;}
+.cmd input {position:absolute;left:250px;width:3.5ex;}
 .l input{width:4.5ex;}
 .l .msg{position:relative;display:block;left:70px;}
 .l input[name=m] {width: 20em;}

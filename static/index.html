@@ -52,14 +52,14 @@
         </ol>
             <!-- only display commands that the client specified it accepts
             -->
-        <div class="commands">
-            <div class="cmd t"><button data-cmd="t" class="cmdb">Track</button><label for="d">Duration (in seconds):</label><input name="d" placeholder="600"></div>
-            <div class="cmd r"><button data-cmd="r" class="cmdb">Ring</button><label for="d">Duration (in seconds):</label><input name="d" placeholder="60"></div>
-            <div class="cmd l">
-                <div class="block"><button data-cmd="l" class="cmdb">Lock</button><label for="c">Lock Code:</label><input name="c" placeholder="0000" {{ if $device.Lockable }} disabled title="Device already has a lock code set."{{end}}/><br/>
-                    <label for="m">Lock Screen Message</label><input name="m" placeholder="Help! I'm lost!"/></div></div>
-            <div class="cmd e"><button data-cmd="e" class="cmdb">Erase</button></div>
-            </div>
+        <table class="commands">
+            <tr class="cmd t"><td><button data-cmd="t" class="cmdb">Track</button></td><td><label for="d">Duration (in seconds):</label><input name="d" placeholder="600"></td></tr>
+            <tr class="cmd r"><td><button data-cmd="r" class="cmdb">Ring</button></td><td><label for="d">Duration (in seconds):</label><input name="d" placeholder="60"></td></tr>
+            <tr class="cmd l">
+                <td><button data-cmd="l" class="cmdb">Lock</button></td><td><label for="c">Lock Code:</label><input name="c" placeholder="0000" {{ if $device.Lockable }} disabled title="Device already has a lock code set."{{end}}/><br>
+                    <label for="m">Lock Screen Message</label><input name="m" placeholder="Help! I'm lost!"/></td></tr>
+            <tr class="cmd e"><td><button data-cmd="e" class="cmdb">Erase</button></td></tr>
+        </table>
         </div>
         </div>
         <div class="map" id="map_{{$device.ID}}"></div>

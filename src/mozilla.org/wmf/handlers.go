@@ -677,10 +677,10 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 			case "l":
 				if v, ok = rargs["c"]; ok {
 					max, err := strconv.ParseInt(util.MzGet(self.config,
-						"location.c.max",
-						"10500"), 10, 64)
+						"cmd.c.max",
+						"9999"), 10, 64)
 					if err != nil {
-						max = 10500
+						max = 9999
 					}
 					vs := v.(string)
 					rargs["c"] = strings.Map(digitsOnly,
@@ -698,7 +698,7 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 				if v, ok = rargs["d"]; ok {
 					max, err := strconv.ParseInt(
 						util.MzGet(self.config,
-							"location."+c+".max",
+							"cmd."+c+".max",
 							"10500"), 10, 64)
 					if err != nil {
 						max = 10500
@@ -778,7 +778,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	var err error
 
 	// Get this from the config file?
-	data.ProductName = "Where's My Fox"
+	data.ProductName = util.MzGet(self.config, "productname", "Where's My Fox")
 
 	data.MapKey = util.MzGet(self.config, "mapbox.key", "")
 
