@@ -44,7 +44,6 @@ func main() {
 	flags.ParseArgs(&opts, os.Args)
 
 	// Configuration
-	fmt.Printf("Opts: %v", opts)
 	// defaults don't appear to work.
 	if opts.ConfigFile == "" {
 		opts.ConfigFile = "config.ini"
@@ -57,7 +56,6 @@ func main() {
 		}
 	}
 
-	log.Printf("opts: %+v\n", opts)
 	if opts.Profile != "" {
 		log.Printf("Creating profile %s...\n", opts.Profile)
 		f, err := os.Create(opts.Profile)
