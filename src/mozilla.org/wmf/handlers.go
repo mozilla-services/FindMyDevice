@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 package wmf
 
 import (
@@ -5,13 +9,11 @@ import (
 	"mozilla.org/util"
 	"mozilla.org/wmf/storage"
 
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -53,80 +55,6 @@ type ui_cmd struct {
 
 var InvalidReplyErr = errors.New("Invalid Command Response")
 var AuthorizationErr = errors.New("Needs Authorization")
-
-//filters
-func digitsOnly(r rune) rune {
-	switch {
-	case r >= '0' && r <= '9':
-		return r
-	default:
-		return -1
-	}
-}
-
-func asciiOnly(r rune) rune {
-	switch {
-	case r >= 32 && r <= 255:
-		return r
-	default:
-		return -1
-	}
-}
-
-// parse a body and return the JSON
-func parseBody(rbody io.ReadCloser) (rep util.JsMap, err error) {
-	var body []byte
-	rep = util.JsMap{}
-	defer rbody.Close()
-	if body, err = ioutil.ReadAll(rbody.(io.Reader)); err != nil {
-		return nil, err
-	}
-	if err = json.Unmarshal(body, &rep); err != nil {
-		return nil, err
-	}
-	return rep, nil
-}
-
-// Take an interface value and return if it's true or not.
-func isTrue(val interface{}) bool {
-	switch val.(type) {
-	case string:
-		flag, _ := strconv.ParseBool(val.(string))
-		return flag
-	case bool:
-		return val.(bool)
-	case int64:
-		return val.(int64) != 0
-	default:
-		return false
-	}
-}
-
-func minInt(x, y int) int {
-	// There's no built in min function.
-	// awesome.
-	if x < y {
-		return x
-	}
-	return y
-}
-
-// get the device id from the URL path
-func getDevFromUrl(req *http.Request) (devId string) {
-	elements := strings.Split(req.URL.Path, "/")
-	return elements[len(elements)-1]
-}
-
-// get the user id info from the session. (userid/devid)
-func setSessionInfo(resp http.ResponseWriter, session *sessionInfo) (err error) {
-	if session != nil {
-		cookie := http.Cookie{Name: "user",
-			Value: session.UserId,
-			Path:  "/"}
-		http.SetCookie(resp, &cookie)
-	}
-	return err
-}
 
 //Handler private functions
 
@@ -266,7 +194,7 @@ func (self *Handler) logReply(devId, cmd string, args reply_t) (err error) {
 			}
 		}
 		// log the state? (Device is currently cmd-ing)?
-		err = self.store.Touch(devId, string(cmd[0]))
+		err = self.store.Touch(devId)
 	}
 	return err
 }
@@ -286,25 +214,6 @@ func (self *Handler) rangeCheck(s string, min, max int64) string {
 		return strconv.FormatInt(max, 10)
 	}
 	return s
-}
-
-func SendPush(devRec *storage.Device) error {
-	// wow, so very tempted to make sure this matches the known push server.
-	bbody := []byte{}
-	body := bytes.NewReader(bbody)
-	req, err := http.NewRequest("PUT", devRec.PushUrl, body)
-	if err != nil {
-		return err
-	}
-	cli := http.Client{}
-	resp, err := cli.Do(req)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != 200 {
-		return errors.New("Push Server Error")
-	}
-	return nil
 }
 
 //Handler Public Functions
@@ -538,16 +447,16 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			self.metrics.Increment("cmd.received." + string(c))
 			switch c {
 			case "l", "r", "m", "e":
-				err = self.store.Touch(deviceId, string(body))
+				err = self.store.Touch(deviceId)
 			case "t":
 				// track
 				err = self.logPosition(deviceId, args.(map[string]interface{}))
 				// store tracking info.
-            case "q":
-                // User has quit, nuke what we know.
-                if util.MzGetFlag(self.config, "cmd.q.allow") {
-                    err = self.store.DeleteDevice(deviceId)
-                }
+			case "q":
+				// User has quit, nuke what we know.
+				if util.MzGetFlag(self.config, "cmd.q.allow") {
+					err = self.store.DeleteDevice(deviceId)
+				}
 			}
 			if err != nil {
 				// Log the error
