@@ -360,12 +360,8 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		} else {
 			pushUrl = buffer["pushurl"].(string)
 		}
-		if _, ok = buffer["secret"]; !ok {
-			// Return this nonce as part of the reg reply
-			secret = GenNonce(16)
-		} else {
-			secret = buffer["secret"].(string)
-		}
+        //ALWAYS generate a new secret on registration!
+		secret = GenNonce(16)
 		if _, ok = buffer["deviceid"]; !ok {
 			deviceid, err = util.GenUUID4()
 		} else {
@@ -395,7 +391,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 		// create the new device record
 		var devId string
-		if devId, secret, err = self.store.RegisterDevice(
+		if devId, err = self.store.RegisterDevice(
 			userid,
 			storage.Device{
 				ID:       deviceid,

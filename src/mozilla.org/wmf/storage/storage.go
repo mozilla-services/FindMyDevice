@@ -177,10 +177,8 @@ func (self *Storage) Init() (err error) {
 }
 
 // Register a new device to a given userID.
-func (self *Storage) RegisterDevice(userid string, dev Device) (devId, secret string, err error) {
+func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, err error) {
 	// value check?
-	var fetchSecret bool = false
-
 	statement := "insert into deviceInfo (deviceId, lockable, loggedin, lastExchange, hawkSecret, accepts, pushUrl) values ($1, $2, $3, $4, $5, $6, $7);"
 	if dev.ID == "" {
 		dev.ID, _ = util.GenUUID4()
@@ -189,7 +187,7 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId, secret st
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not insert device",
 			util.Fields{"error": err.Error()})
-		return "", "", err
+		return "", err
 	}
 	if _, err = dbh.Exec(statement,
 		string(dev.ID),
@@ -202,18 +200,18 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId, secret st
 		fmt.Printf("ERROR: %s\n", err.Error())
 		if strings.Contains(err.Error(), "duplicate key value") {
 			fmt.Printf("#### Updating... \n")
-			fetchSecret = true
-			statement = "update deviceinfo set lockable=$2, accepts=$3, pushUrl=$4 where deviceId=$1"
+			statement = "update deviceinfo set lockable=$2, accepts=$3, pushUrl=$4, hawkSecret=$5 where deviceId=$1"
 			if _, err = dbh.Exec(statement,
 				string(dev.ID),
 				dev.Lockable,
 				dev.Accepts,
 				dev.PushUrl,
+                dev.Secret,
 			); err != nil {
 				self.logger.Error(self.logCat, "Could not update device",
 					util.Fields{"error": err.Error(),
 						"device": fmt.Sprintf("%+v", dev)})
-				return "", "", err
+				return "", err
 			}
 			statement = "update usertodevicemap set name = $1 where deviceId=$2 and userId=$3"
 			if _, err = dbh.Exec(statement,
@@ -226,13 +224,13 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId, secret st
 					util.Fields{"error": err.Error(),
 						"device": fmt.Sprintf("%+v", dev),
 						"userid": userid})
-				return "", "", err
+				return "", err
 			}
 		} else {
 			self.logger.Error(self.logCat, "Could not create device",
 				util.Fields{"error": err.Error(),
 					"device": fmt.Sprintf("%+v", dev)})
-			return "", "", err
+			return "", err
 		}
 	} else {
 		if _, err = dbh.Exec("insert into userToDeviceMap (userId, deviceId, name) values ($1, $2, $3);", userid, dev.ID, dev.Name); err != nil {
@@ -245,23 +243,11 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId, secret st
 						"deviceId": dev.ID,
 						"name":     dev.Name,
 						"error":    err.Error()})
-				return "", "", err
+				return "", err
 			}
 		}
 	}
-	if fetchSecret {
-		// fetch the secret
-		if err := dbh.QueryRow("select hawksecret from deviceInfo where deviceId = $1", dev.ID).Scan(&secret); err != nil {
-			self.logger.Error(self.logCat, "Could not fetch secret",
-				util.Fields{"error": err.Error(),
-					"uid":      userid,
-					"deviceId": dev.ID})
-			return "", "", err
-		}
-	} else {
-		secret = dev.Secret
-	}
-	return dev.ID, secret, nil
+	return dev.ID, nil
 }
 
 // Return known info about a device.
