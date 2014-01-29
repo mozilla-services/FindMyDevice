@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 package storage
 
 import (
@@ -197,7 +201,6 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 		dev.Secret,
 		dev.Accepts,
 		dev.PushUrl); err != nil {
-		fmt.Printf("ERROR: %s\n", err.Error())
 		if strings.Contains(err.Error(), "duplicate key value") {
 			fmt.Printf("#### Updating... \n")
 			statement = "update deviceinfo set lockable=$2, accepts=$3, pushUrl=$4, hawkSecret=$5 where deviceId=$1"
@@ -358,6 +361,7 @@ func (self *Storage) GetPending(devId string) (cmd string, err error) {
 		statement = "delete from pendingCommands where id = $1"
 		dbh.Exec(statement, id)
 	}
+    self.Touch(devId)
 	return cmd, nil
 }
 
@@ -473,7 +477,7 @@ func (self *Storage) GcPosition(devId string) (err error) {
 	return nil
 }
 
-func (self *Storage) Touch(devId string, cmd string) (err error) {
+func (self *Storage) Touch(devId string) (err error) {
 	dbh := self.db
 
 	sql := "update deviceInfo set lastexchange = now() where deviceid = $1"

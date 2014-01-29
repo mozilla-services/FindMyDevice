@@ -1,3 +1,6 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 package main
 
 import (
@@ -6,12 +9,16 @@ import (
 	"mozilla.org/util"
 	"mozilla.org/wmf"
 	"mozilla.org/wmf/storage"
+// Only add the following for devel.
+//	_ "net/http/pprof"
 
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/pprof"
 	"strings"
 	"syscall"
 )
@@ -37,7 +44,6 @@ func main() {
 	flags.ParseArgs(&opts, os.Args)
 
 	// Configuration
-	fmt.Printf("Opts: %v", opts)
 	// defaults don't appear to work.
 	if opts.ConfigFile == "" {
 		opts.ConfigFile = "config.ini"
@@ -49,6 +55,32 @@ func main() {
 			config["ws_hostname"] = hostname
 		}
 	}
+
+	if opts.Profile != "" {
+		log.Printf("Creating profile %s...\n", opts.Profile)
+		f, err := os.Create(opts.Profile)
+		if err != nil {
+			log.Fatal("Profile creation failed:\n%s\n", err.Error())
+			return
+		}
+		defer func() {
+			log.Printf("Closing profile...\n")
+			pprof.StopCPUProfile()
+		}()
+		pprof.StartCPUProfile(f)
+	}
+	if opts.MemProfile != "" {
+		defer func() {
+			profFile, err := os.Create(opts.MemProfile)
+			if err != nil {
+				log.Fatal("Memory Profile creation failed:\n%s\n", err.Error())
+				return
+			}
+			pprof.WriteHeapProfile(profFile)
+			profFile.Close()
+		}()
+	}
+
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	logger := util.NewHekaLogger(config)
 	store, err := storage.Open(config, logger)
