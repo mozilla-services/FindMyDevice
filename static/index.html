@@ -247,6 +247,8 @@ window.addEventListener("load",
                         var rm = markers.shift();
                         if (map.hasLayer(rm)) { map.removeLayer(rm) }
                         fadeMarkers();
+                        // move the map to the last location
+                        map.panTo([data.Latitude, data.Longitude], map.getZoom());
                     } catch(e) {
                         socket.close();
                         console.error("Add Fail:", e);

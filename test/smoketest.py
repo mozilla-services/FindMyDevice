@@ -75,7 +75,7 @@ def checkHawk(method, url, extra, secret, header):
 
 
 def geoWalk():
-    return (random.randint(0, 99999) * 0.00001)
+    return (random.randint(0, 999) * 0.00001)
 
 
 def newLocation():
@@ -113,7 +113,7 @@ def registerNew(config):
     reply = send(trg, regObj, {})
     pprint(reply)
     cred = reply
-    return sendTrack(config, cred), cred
+    return sendCmd(config, cred, newLocation()), cred
 
 
 def send(urlStr, data, cred, method="POST"):
@@ -150,25 +150,19 @@ def send(urlStr, data, cred, method="POST"):
 
 
 def processCmd(config, cmd, cred):
-    print "Command..."
+    print "Command Recv'd..."
     pprint(cmd)
-    tmpl = config.get("urls", "cmd")
-    trg = Template(tmpl).safe_substitute(
-        scheme=config.get("main", "scheme"),
-        host=config.get("main", "host"),
-        id=cred.get("deviceid", "test1"))
     print "\n============\n\n"
 
 
-def sendTrack(config, cred):
-    # get fake track info
-    print "Sending track info\n"
+def sendCmd(config, cred, cmd):
+    print "Sending Cmd %s\n" % json.dumps(cmd)
     tmpl = config.get("urls", "cmd")
     trg = Template(tmpl).safe_substitute(
         scheme=config.get("main", "scheme"),
         host=config.get("main", "host"),
         id=cred.get("deviceid", "test1"))
-    return send(trg, newLocation(), cred)
+    return send(trg, cmd, cred)
     print "\n============\n\n"
 
 
@@ -186,11 +180,10 @@ def main(argv):
     # register a new device
     print "Registering client... \n"
     cmd, cred = registerNew(config)
-    # cmd = sendTrack(config, cred)
     while cmd is not None:
         print "Processing commands...\n"
         cmd = processCmd(config, cmd, cred)
-
+    sendCmd(config, cred, {})
 
 if __name__ == "__main__":
     main(sys.argv[1:])
