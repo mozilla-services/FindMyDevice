@@ -276,10 +276,10 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		} else {
 			deviceid = buffer["deviceid"].(string)
 		}
-		if _, ok = buffer["lockable"]; !ok {
+		if _, ok = buffer["has_passcode"]; !ok {
 			lockable = true
 		} else {
-			lockable, err = strconv.ParseBool(buffer["lockable"].(string))
+			lockable, err = strconv.ParseBool(buffer["has_passcode"].(string))
 			if err != nil {
 				lockable = false
 			}
@@ -647,7 +647,7 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 			// trigger the push
 			self.metrics.Increment("cmd.store." + c)
 			self.metrics.Increment("push.send")
-			err = SendPush(devRec)
+			err = SendPush(devRec, &self.config)
 			if err != nil {
 				self.logger.Error(self.logCat, "Could not send Push",
 					util.Fields{"error": err.Error(),
