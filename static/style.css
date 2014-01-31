@@ -8,6 +8,7 @@ button {border:0.1rem solid #a6a6a6;font-weight:500;border-radius:0.2rem;backgro
 .welcome{color: #333; font-size:130%}
 #login {position:absolute; top:30%; right:.5em;}
 #login a {text-decoration: none;}
+#lockable .locked, #lockable .unlocked {display: none;}
 .device{position:relative; top: 1em; padding-left:.5em;width:100%;}
 .status{position:absolute;top:0;left:0; width:50%; height:100%;}
 .map{position:absolute;top:16ex;right:0; width:50%; height:66%; border:1px solid red;}
@@ -18,7 +19,7 @@ button {border:0.1rem solid #a6a6a6;font-weight:500;border-radius:0.2rem;backgro
 .cmd button {width: 70px;}
 .cmd label {display:inline-block;min-width:10em;text-align:right;}
 .cmd input {position:absolute;left:250px;width:3.5ex;}
-.l input{width:4.5ex;}
+.l input{width:5ex;text-align:right;}
 .l .msg{position:relative;display:block;left:70px;}
 .l input[name=m] {width: 20em;}
 .e {padding:4em 1em;}

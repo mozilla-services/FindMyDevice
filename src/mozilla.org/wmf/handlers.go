@@ -144,7 +144,7 @@ func (self *Handler) getSessionInfo(req *http.Request) (session *sessionInfo, er
 }
 
 // log the device's position reply
-func (self *Handler) logPosition(devId string, args map[string]interface{}) (err error) {
+func (self *Handler) updatePage(devId string, args map[string]interface{}, logPosition bool) (err error) {
 	var location storage.Position
 	var locked bool
 
@@ -161,18 +161,21 @@ func (self *Handler) logPosition(devId string, args map[string]interface{}) (err
 			location.Altitude = arg.(float64)
 		case "ti":
 			location.Time = int64(arg.(float64))
-		case "ke":
+		case "ha":
 			locked = isTrue(arg)
-			if err = self.store.SetDeviceLocked(devId, locked); err != nil {
+            location.Lockable = !locked
+			if err = self.store.SetDeviceLockable(devId, !locked); err != nil {
 				return err
 			}
 		}
 	}
-	if err = self.store.SetDeviceLocation(devId, location); err != nil {
-		return err
-	}
-	// because go sql locking.
-	self.store.GcPosition(devId)
+    if logPosition {
+    	if err = self.store.SetDeviceLocation(devId, location); err != nil {
+	    	return err
+    	}
+	    // because go sql locking.
+    	self.store.GcPosition(devId)
+    }
 	if client, ok := Clients[devId]; ok {
 		js, _ := json.Marshal(location)
 		client.Write(js)
@@ -444,9 +447,10 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			switch c {
 			case "l", "r", "m", "e":
 				err = self.store.Touch(deviceId)
+                self.updatePage(deviceId, args.(map[string]interface{}), false)
 			case "t":
 				// track
-				err = self.logPosition(deviceId, args.(map[string]interface{}))
+				err = self.updatePage(deviceId, args.(map[string]interface{}), true)
 				// store tracking info.
 			case "q":
 				// User has quit, nuke what we know.

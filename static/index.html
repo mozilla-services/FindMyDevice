@@ -53,8 +53,11 @@ this is a pretty crappy device picker. Obviously, it should be better.
         <div class="status">
             <div class="name">{{html ($device.Name)}}'s Phone</div>
             <div class="loggedin" data-state="{{$device.LoggedIn}}">Device is {{if not $device.LoggedIn }}<b>not</b>{{end}} accessible</div>
-            <div class="lockable" data-state="{{$device.Lockable}}">Device {{if $device.Lockable }}has{{else}}does not have{{end}} a lock code</div>
-            <div class="lastexchange">Last contact: <span class="date" data-time="{{$device.LastExchange}}"</span></div>
+            <div id="lockable" data-state="{{$device.Lockable}}">
+                <div class="locked">Device has a lock code</div>
+                <div class="unlocked">Device dos not have a lock code</div>
+            </div>
+            <div >Last contact: <span id="lastExchange" class="date" data-time="{{$device.LastExchange}}"</span></div>
             <ol class="positions">
                 <!-- Positions are from oldest to newest because map icons
                  are appended to the list. Kind of annoying.
@@ -72,7 +75,7 @@ this is a pretty crappy device picker. Obviously, it should be better.
             <tr class="cmd t"><td><button data-cmd="t" class="cmdb">Track</button></td><td><label for="d">Duration (in seconds):</label><input name="d" placeholder="600"></td></tr>
             <tr class="cmd r"><td><button data-cmd="r" class="cmdb">Ring</button></td><td><label for="d">Duration (in seconds):</label><input name="d" placeholder="60"></td></tr>
             <tr class="cmd l">
-                <td><button data-cmd="l" class="cmdb">Lock</button></td><td><label for="c">Lock Code:</label><input name="c" placeholder="0000" {{ if $device.Lockable }} disabled title="Device already has a lock code set."{{end}}/><br>
+                <td><button data-cmd="l" class="cmdb">Lock</button></td><td><label for="c">Lock Code:</label><input id="lockcode" name="c" placeholder="0000" {{ if not $device.Lockable }} disabled title="Device already has a lock code set."{{end}}/><br>
                     <label for="m">Lock Screen Message</label><input name="m" placeholder="Help! I'm lost!"/></td></tr>
             <tr class="cmd e"><td><button data-cmd="e" class="cmdb">Erase</button></td></tr>
         </table>
@@ -101,6 +104,34 @@ function getUserId() {
 function cmdResponse() {
     console.debug("cmdResponse", this);
     //TODO: Update page to show cmd in effect
+}
+
+function toDateString(utc) {
+    day = new Date(0);
+    day.setUTCSeconds(parseInt(utc));
+    return day.toString();
+}
+
+function deviceUpdate(devInfo) {
+    var ls = document.getElementById("lockable");
+    var lc = document.getElementById("lockcode");
+    console.debug(devInfo);
+    if (devInfo.Lockable) {
+        ls.getElementsByClassName("locked")[0].style.display="none";
+        ls.getElementsByClassName("unlocked")[0].style.display="block";
+        lc.disabled=false;
+        lc.title="Device already has a lock code set.";
+    } else {
+        ls.getElementsByClassName("locked")[0].style.display="block";
+        ls.getElementsByClassName("unlocked")[0].style.display="none";
+        lc.disabled=true;
+        lc.title="";
+    }
+    if (devInfo.Time) {
+        var le = document.getElementById("lastExchange");
+        le.dataset.time = devInfo.Time;
+        le.innerHTML = toDateString(devInfo.Time);
+    }
 }
 
 function sendCommand(cmd) {
@@ -199,15 +230,22 @@ window.addEventListener("load",
                })
            }
         }
-
+        document.getElementById("lockcode").addEventListener(
+                "keyup", function(e){
+                    code = e.originalTarget.value;
+                    if (code.length > 0) {
+                        code = code.replace(/[^\d]/,'').slice(-4);
+                        console.debug(code);
+                        code = ('0000' + code).slice(-4);
+                        e.originalTarget.value = code;
+                    }
+                })
         //fix up dates...
         var plis = document.getElementsByClassName("date");
         var plisn = plis.length;
         for (var i=0; i<plisn; i++) {
             var p = plis[i];
-            day = new Date(0);
-            day.setUTCSeconds(parseInt(p.dataset.time));
-            p.innerHTML = day.toString();
+            p.innerHTML = toDateString(p.dataset.time); 
         }
 
         // initialize the maps
@@ -241,12 +279,17 @@ window.addEventListener("load",
                 socket.onmessage = function(msg) {
                     try {
                         data = JSON.parse(msg.data);
+                        if (data.Latitude) {
                         var marker = newMarker(data.Latitude, data.Longitude, data.Time);
                         marker.addTo(map);
                         markers.push(marker);
                         var rm = markers.shift();
                         if (map.hasLayer(rm)) { map.removeLayer(rm) }
                         fadeMarkers();
+                        map.panTo([data.Latitude, data.Longitude]);
+                        }
+                        deviceUpdate(data);
+
                     } catch(e) {
                         socket.close();
                         console.error("Add Fail:", e);
