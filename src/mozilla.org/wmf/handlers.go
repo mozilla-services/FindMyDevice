@@ -500,6 +500,8 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 	 */
 	var err error
 	var lbody int
+    
+    rep := make(reply_t)
 
 	self.logCat = "handler:Queue"
 	resp.Header().Set("Content-Type", "application/json")
@@ -584,6 +586,8 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 				self.logger.Warn(self.logCat, "Agent does not accept command",
 					util.Fields{"unacceptable": c,
 						"acceptable": devRec.Accepts})
+                rep["error"] = 422
+                rep["cmd"] = cmd
 				continue
 			}
 			rargs := args.(map[string]interface{})
@@ -660,7 +664,8 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 			}
 		}
 	}
-	resp.Write([]byte("{}"))
+    repl,_ := json.Marshal(rep)
+	resp.Write(repl)
 }
 
 // user login functions

@@ -139,6 +139,18 @@ function sendCommand(cmd) {
     var xhr = new XMLHttpRequest();
     xhr.onload = function(e) {
         console.debug("cmdResponse", e);
+        try {
+            ee = JSON.parse(e.target.response);
+            if (ee.error) {
+                //TODO: Show error
+                console.error("Error!", ee);
+            }
+        } catch (x) {
+            console.error(e, x);
+        }
+    }
+    xhr.onerror = function(e,f) {
+        console.error("cmdError", e, f);
     }
     console.debug("Sending", cmd);
     xhr.open("PUT", "/0/queue/" + getDeviceId());
@@ -279,6 +291,7 @@ window.addEventListener("load",
                 socket.onmessage = function(msg) {
                     try {
                         data = JSON.parse(msg.data);
+                        console.debug(data);
                         if (data.Latitude) {
                         var marker = newMarker(data.Latitude, data.Longitude, data.Time);
                         marker.addTo(map);
