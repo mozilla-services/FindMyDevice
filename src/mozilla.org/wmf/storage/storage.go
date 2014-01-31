@@ -32,6 +32,7 @@ type Position struct {
 	Longitude float64
 	Altitude  float64
 	Time      int64
+    Lockable  bool
 }
 
 type Device struct {
@@ -163,6 +164,7 @@ func (self *Storage) Init() (err error) {
 		"create or replace function update_time() returns trigger as $$ begin new.lastexchange = now(); return new; end; $$ language 'plpgsql';",
 		"drop trigger if exists update_le on deviceinfo;",
 		"create trigger update_le before update on deviceinfo for each row execute procedure update_time();",
+        "set time zone utc;",
 	}
 
 	dbh := self.db
@@ -417,7 +419,7 @@ func (self *Storage) StoreCommand(devId, command string) (err error) {
 }
 
 // Shorthand function to set the lock state for a device.
-func (self *Storage) SetDeviceLocked(devId string, state bool) (err error) {
+func (self *Storage) SetDeviceLockable(devId string, state bool) (err error) {
 	// TODO: update the device record
 	dbh := self.db
 

@@ -24,7 +24,7 @@ def genHash(body, ctype="application/json"):
         ctype,
         body)
     bhash = base64.b64encode(hashlib.sha256(marshalStr).digest())
-    print "Hash:<<%s>>\nBHash:<<%s>>\n" % (marshalStr, bhash)
+    #print "Hash:<<%s>>\nBHash:<<%s>>\n" % (marshalStr, bhash)
     return bhash
 
 
@@ -47,11 +47,11 @@ def genHawkSignature(method, url, bodyHash, extra, secret,
         port,
         bodyHash,
         extra)
-    print "Marshal Str: <<%s>>\nSecret: <<%s>>\n" % (marshalStr, secret)
+    #print "Marshal Str: <<%s>>\nSecret: <<%s>>\n" % (marshalStr, secret)
     mac = hmac.new(secret.encode("utf-8"),
                    marshalStr.encode("utf-8"),
                    digestmod=hashlib.sha256).digest()
-    print "mac: <<" + ','.join([str(ord(elem)) for elem in mac]) + ">>\n"
+    #print "mac: <<" + ','.join([str(ord(elem)) for elem in mac]) + ">>\n"
     return now, nonce, base64.b64encode(mac)
 
 
@@ -82,7 +82,7 @@ def newLocation():
     utc = int(time.time())
     lat = 37 + geoWalk()
     lon = -122 + geoWalk()
-    return {"t": {"la": lat, "lo": lon, "ti": utc, "ke": True}}
+    return {"t": {"la": lat, "lo": lon, "ti": utc, "ha": True}}
 
 
 def getConfig(argv):
@@ -133,7 +133,7 @@ def send(urlStr, data, cred, method="POST"):
                                             extra="",
                                             bhash=bodyHash,
                                             ts=ts, nonce=nonce, mac=mac)
-        print "Header: %s\n" % (header)
+        #print "Header: %s\n" % (header)
         headers["Authorization"] = header
     print "Sending %s\n" % (url.path)
     http.request(method, url.path, datas, headers)
@@ -152,11 +152,28 @@ def send(urlStr, data, cred, method="POST"):
 def processCmd(config, cmd, cred):
     print "Command Recv'd..."
     pprint(cmd)
+<<<<<<< HEAD
     print "\n============\n\n"
 
 
 def sendCmd(config, cred, cmd):
     print "Sending Cmd %s\n" % json.dumps(cmd)
+=======
+    tmpl = config.get("urls", "cmd")
+    trg = Template(tmpl).safe_substitute(
+        scheme=config.get("main", "scheme"),
+        host=config.get("main", "host"),
+        id=cred.get("deviceid", "test1"))
+    send (trg, {}, cred);
+    print "\n============\n\n"
+
+
+def sendTrack(config, cred):
+    # get fake track info
+    loc = newLocation()
+    print "Sending track info\n"
+    print json.dumps(loc)
+>>>>>>> 83a9446d4b8a1a42ed0384cb758a5b6173ecdeff
     tmpl = config.get("urls", "cmd")
     trg = Template(tmpl).safe_substitute(
         scheme=config.get("main", "scheme"),

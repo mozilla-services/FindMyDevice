@@ -56,6 +56,9 @@ func main() {
 		}
 	}
 
+    //TODO: Build out the partner cert pool if need be.
+    // certpoo
+
 	if opts.Profile != "" {
 		log.Printf("Creating profile %s...\n", opts.Profile)
 		f, err := os.Create(opts.Profile)
