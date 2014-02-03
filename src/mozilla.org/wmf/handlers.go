@@ -298,7 +298,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			}
 		}
 		if len(accepts) == 0 {
-			accepts = "elrt"
+			accepts = "elrth"
 		}
 
 		// create the new device record
@@ -448,6 +448,12 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			case "l", "r", "m", "e":
 				err = self.store.Touch(deviceId)
                 self.updatePage(deviceId, args.(map[string]interface{}), false)
+            case "h":
+                err = self.store.SetDeviceLockable(deviceId,
+                    !isTrue(args))
+                argl := make(reply_t)
+                argl[string(cmd)] = isTrue(args)
+                self.updatePage(deviceId, argl, false)
 			case "t":
 				// track
 				err = self.updatePage(deviceId, args.(map[string]interface{}), true)
@@ -500,7 +506,7 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 	 */
 	var err error
 	var lbody int
-    
+
     rep := make(reply_t)
 
 	self.logCat = "handler:Queue"

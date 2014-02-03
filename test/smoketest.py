@@ -108,8 +108,7 @@ def registerNew(config):
     # divy up based on scheme.
     regObj = {"assert": "test",
               "pushurl": "http://example.com",
-              "deviceid": "test1",
-              "accepts": ["t", "r", "e"]}
+              "deviceid": "test1"}
     reply = send(trg, regObj, {})
     pprint(reply)
     cred = reply
@@ -152,28 +151,11 @@ def send(urlStr, data, cred, method="POST"):
 def processCmd(config, cmd, cred):
     print "Command Recv'd..."
     pprint(cmd)
-<<<<<<< HEAD
     print "\n============\n\n"
 
 
 def sendCmd(config, cred, cmd):
     print "Sending Cmd %s\n" % json.dumps(cmd)
-=======
-    tmpl = config.get("urls", "cmd")
-    trg = Template(tmpl).safe_substitute(
-        scheme=config.get("main", "scheme"),
-        host=config.get("main", "host"),
-        id=cred.get("deviceid", "test1"))
-    send (trg, {}, cred);
-    print "\n============\n\n"
-
-
-def sendTrack(config, cred):
-    # get fake track info
-    loc = newLocation()
-    print "Sending track info\n"
-    print json.dumps(loc)
->>>>>>> 83a9446d4b8a1a42ed0384cb758a5b6173ecdeff
     tmpl = config.get("urls", "cmd")
     trg = Template(tmpl).safe_substitute(
         scheme=config.get("main", "scheme"),
@@ -200,7 +182,7 @@ def main(argv):
     while cmd is not None:
         print "Processing commands...\n"
         cmd = processCmd(config, cmd, cred)
-    sendCmd(config, cred, {})
+    sendCmd(config, cred, {'has_passcode': False})
 
 if __name__ == "__main__":
     main(sys.argv[1:])
