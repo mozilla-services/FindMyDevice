@@ -219,6 +219,21 @@ window.addEventListener("load",
                     {{end}}
                 }
         })
+        if (document.getElementById("signin")) {
+        document.getElementById("signin").addEventListener("click",
+                function(){
+                document.getElementsByTagName("body")[0].style.cursor="wait";
+                navigator.id.request();
+                });
+        }
+        if (document.getElementById("signout")) {
+        document.getElementById("signout").addEventListener("click",
+                function(){
+                navigator.id.logout();
+                document.cookie="user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
+                document.location = "/";
+                });
+        }
 {{if .UserId}}
         var cmds = document.getElementsByClassName("cmd");
         var cmdi = cmds.length;
@@ -314,21 +329,6 @@ window.addEventListener("load",
             fadeMarkers();
             }
 {{end}}
-        if (document.getElementById("signin")) {
-        document.getElementById("signin").addEventListener("click",
-                function(){
-                document.getElementsByTagName("body")[0].style.cursor="wait";
-                navigator.id.request();
-                });
-        }
-        if (document.getElementById("signout")) {
-        document.getElementById("signout").addEventListener("click",
-                function(){
-                navigator.id.logout();
-                document.cookie="user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
-                document.location = "/";
-                });
-        }
     });
 </script>
 </body>
