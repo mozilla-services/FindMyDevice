@@ -219,7 +219,7 @@ window.addEventListener("load",
                     {{end}}
                 }
         })
-
+{{if .UserId}}
         var cmds = document.getElementsByClassName("cmd");
         var cmdi = cmds.length;
         for (var i=0;i<cmdi;i++) {
@@ -312,7 +312,8 @@ window.addEventListener("load",
                 // socket.onclose = function(){ console.debug("Socket closed...");}
 {{end}}
             fadeMarkers();
-        }
+            }
+{{end}}
         if (document.getElementById("signin")) {
         document.getElementById("signin").addEventListener("click",
                 function(){
