@@ -449,8 +449,6 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				err = self.store.Touch(deviceId)
                 self.updatePage(deviceId, args.(map[string]interface{}), false)
             case "h":
-                err = self.store.SetDeviceLockable(deviceId,
-                    !isTrue(args))
                 argl := make(reply_t)
                 argl[string(cmd)] = isTrue(args)
                 self.updatePage(deviceId, argl, false)

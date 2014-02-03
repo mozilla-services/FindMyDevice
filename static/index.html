@@ -244,8 +244,8 @@ window.addEventListener("load",
                 b[j].addEventListener("click",
                     function(t){
                     var send = {}
-                    var cmd = t.originalTarget.dataset.cmd;
-                    var args = t.originalTarget.parentElement.parentElement.getElementsByTagName("input");
+                    var cmd = t.target.dataset.cmd;
+                    var args = t.target.parentElement.parentElement.getElementsByTagName("input");
                     var largs = args.length;
                     var sargs = {};
                     for (i=0; i< largs; i++) {
@@ -259,12 +259,12 @@ window.addEventListener("load",
         }
         document.getElementById("lockcode").addEventListener(
                 "keyup", function(e){
-                    code = e.originalTarget.value;
+                    code = e.target.value;
                     if (code.length > 0) {
                         code = code.replace(/[^\d]/,'').slice(-4);
                         console.debug(code);
                         code = ('0000' + code).slice(-4);
-                        e.originalTarget.value = code;
+                        e.target.value = code;
                     }
                 })
         //fix up dates...
@@ -306,8 +306,8 @@ window.addEventListener("load",
                 socket.onmessage = function(msg) {
                     try {
                         data = JSON.parse(msg.data);
-                        console.debug(data);
-                        if (data.Latitude) {
+                        console.debug("socket rcv'd:", data);
+                        if (data.Latitude + data.Longitude) {
                             var marker = newMarker(data.Latitude, data.Longitude, data.Time);
                             marker.addTo(map);
                             markers.push(marker);

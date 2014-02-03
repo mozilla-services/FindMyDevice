@@ -183,6 +183,7 @@ def main(argv):
         print "Processing commands...\n"
         cmd = processCmd(config, cmd, cred)
     sendCmd(config, cred, {'has_passcode': False})
+#    sendCmd(config, cred, {'l': {'ok': True}, 'has_passcode': True})
 
 if __name__ == "__main__":
     main(sys.argv[1:])
