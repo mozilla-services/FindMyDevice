@@ -75,13 +75,13 @@ def checkHawk(method, url, extra, secret, header):
 
 
 def geoWalk():
-    return (random.randint(0, 999) * 0.00001)
+    return (random.randint(0, 999) * 0.000001)
 
 
 def newLocation():
     utc = int(time.time())
-    lat = 37 + geoWalk()
-    lon = -122 + geoWalk()
+    lat = 37.3883 + geoWalk()
+    lon = -122.0615 + geoWalk()
     return {"t": {"la": lat, "lo": lon, "ti": utc, "ha": True}}
 
 
@@ -96,6 +96,7 @@ def getConfig(argv):
         if o in ("-c", "--config"):
             configFile = a
     config = ConfigParser.ConfigParser()
+    print "Reading... %s\n" % configFile
     config.read(configFile)
     return config
 
@@ -140,6 +141,8 @@ def send(urlStr, data, cred, method="POST"):
     if response.status != 200:
         # TODO do stuff.
         import pdb; pdb.set_trace()
+        print "Crap."
+        return None
     rbody = response.read()
     if len(rbody) > 0:
         body = json.loads(rbody)

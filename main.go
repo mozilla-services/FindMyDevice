@@ -50,10 +50,19 @@ func main() {
 	}
 	config := util.MzGetConfig(opts.ConfigFile)
 	config["VERSION"] = VERSION
+
+	// Rest Config
+	errChan := make(chan error)
+	host := util.MzGet(config, "host", "localhost")
+	port := util.MzGet(config, "port", "8080")
+
 	if util.MzGetFlag(config, "aws.get_hostname") {
 		if hostname, err := util.GetAWSPublicHostname(); err == nil {
 			config["ws_hostname"] = hostname
 		}
+        if port != "80" {
+            config["ws_hostname"] = config["ws_hostname"].(string) + ":" + port
+        }
 	}
 
     //TODO: Build out the partner cert pool if need be.
@@ -96,11 +105,6 @@ func main() {
 	// Signal handler
 	sigChan := make(chan os.Signal)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, SIGUSR1)
-
-	// Rest Config
-	errChan := make(chan error)
-	host := util.MzGet(config, "host", "localhost")
-	port := util.MzGet(config, "port", "8080")
 
 	var RESTMux *http.ServeMux = http.DefaultServeMux
 	var WSMux *http.ServeMux = http.DefaultServeMux

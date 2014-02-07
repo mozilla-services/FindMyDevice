@@ -721,7 +721,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	var err error
 
 	// Get this from the config file?
-	data.ProductName = util.MzGet(self.config, "productname", "Where's My Fox")
+	data.ProductName = util.MzGet(self.config, "productname", "Find My Device")
 
 	data.MapKey = util.MzGet(self.config, "mapbox.key", "")
 
