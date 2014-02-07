@@ -22,6 +22,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+    "sync"
 	"text/template"
 	"time"
 )
@@ -39,6 +40,7 @@ type Handler struct {
 
 type ClientMap map[string]*WWS
 
+var muClient sync.Mutex
 var Clients = make(ClientMap)
 
 type reply_t map[string]interface{}
@@ -326,7 +328,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			self.devId = deviceid
 		}
 	}
-	self.metrics.Increment("registration")
+	self.metrics.Increment("device.registration")
 	resp.Write([]byte(fmt.Sprintf("{\"deviceid\":\"%s\", \"secret\":\"%s\"}",
 		self.devId,
 		secret)))
@@ -499,7 +501,99 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(output)
 }
 
-func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
+func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *reply_t) (status int, err error) {
+        status = http.StatusOK
+
+        deviceId := devRec.ID
+			// sanitize values.
+			var v interface{}
+			var ok bool
+			c := strings.ToLower(string(cmd[0]))
+			if !strings.Contains(devRec.Accepts, c) {
+				// skip unacceptable command
+				self.logger.Warn(self.logCat, "Agent does not accept command",
+					util.Fields{"unacceptable": c,
+						"acceptable": devRec.Accepts})
+                (*rep)["error"] = 422
+                (*rep)["cmd"] = cmd
+				return
+			}
+			rargs := *args
+			switch c {
+			case "l":
+				if v, ok = rargs["c"]; ok {
+					max, err := strconv.ParseInt(util.MzGet(self.config,
+						"cmd.c.max",
+						"9999"), 10, 64)
+					if err != nil {
+						max = 9999
+					}
+					vs := v.(string)
+					rargs["c"] = strings.Map(digitsOnly,
+						vs[:minInt(4, len(vs))])
+					rargs["c"] = self.rangeCheck(rargs["c"].(string),
+						0,
+						max)
+				}
+				if v, ok = rargs["m"]; ok {
+					vs := v.(string)
+					rargs["m"] = strings.Map(asciiOnly,
+						vs[:minInt(100, len(vs))])
+				}
+			case "r", "t":
+				if v, ok = rargs["d"]; ok {
+					max, err := strconv.ParseInt(
+						util.MzGet(self.config,
+							"cmd."+c+".max",
+							"10500"), 10, 64)
+					if err != nil {
+						max = 10500
+					}
+					vs := v.(string)
+					rargs["d"] = strings.Map(digitsOnly, vs)
+					rargs["d"] = self.rangeCheck(rargs["d"].(string),
+						0, max)
+				}
+			case "e":
+				rargs = reply_t{}
+			default:
+				return http.StatusBadRequest, errors.New("Invalid Command")
+			}
+			fixed, err := json.Marshal(storage.Unstructured{c: rargs})
+			if err != nil {
+				// Log the error
+				self.logger.Error(self.logCat, "Error handling command",
+					util.Fields{"error": err.Error(),
+						"command": string(cmd),
+						"device":  deviceId,
+						"args":    fmt.Sprintf("%v", rargs)})
+                return http.StatusServiceUnavailable, errors.New("Server Error")
+			}
+			err = self.store.StoreCommand(deviceId, string(fixed))
+			if err != nil {
+				// Log the error
+				self.logger.Error(self.logCat, "Error storing command",
+					util.Fields{"error": err.Error(),
+						"command": string(cmd),
+						"device":  deviceId,
+						"args":    fmt.Sprintf("%v", args)})
+                return http.StatusServiceUnavailable, errors.New("Server Error")
+			}
+			// trigger the push
+			self.metrics.Increment("cmd.store." + c)
+			self.metrics.Increment("push.send")
+			err = SendPush(devRec, &self.config)
+			if err != nil {
+				self.logger.Error(self.logCat, "Could not send Push",
+					util.Fields{"error": err.Error(),
+						"pushUrl": devRec.PushUrl})
+                return http.StatusServiceUnavailable, errors.New("Server Error")
+			}
+    return
+}
+
+// Accept a command to queue from the REST interface
+func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	/* Queue commands for the device.
 	 */
 	var err error
@@ -581,91 +675,17 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 		}
 
 		for cmd, args := range reply {
-			// sanitize values.
-			var v interface{}
-			var ok bool
-			c := strings.ToLower(string(cmd[0]))
-			if !strings.Contains(devRec.Accepts, c) {
-				// skip unacceptable command
-				self.logger.Warn(self.logCat, "Agent does not accept command",
-					util.Fields{"unacceptable": c,
-						"acceptable": devRec.Accepts})
-                rep["error"] = 422
-                rep["cmd"] = cmd
-				continue
-			}
-			rargs := args.(map[string]interface{})
-			switch c {
-			case "l":
-				if v, ok = rargs["c"]; ok {
-					max, err := strconv.ParseInt(util.MzGet(self.config,
-						"cmd.c.max",
-						"9999"), 10, 64)
-					if err != nil {
-						max = 9999
-					}
-					vs := v.(string)
-					rargs["c"] = strings.Map(digitsOnly,
-						vs[:minInt(4, len(vs))])
-					rargs["c"] = self.rangeCheck(rargs["c"].(string),
-						0,
-						max)
-				}
-				if v, ok = rargs["m"]; ok {
-					vs := v.(string)
-					rargs["m"] = strings.Map(asciiOnly,
-						vs[:minInt(100, len(vs))])
-				}
-			case "r", "t":
-				if v, ok = rargs["d"]; ok {
-					max, err := strconv.ParseInt(
-						util.MzGet(self.config,
-							"cmd."+c+".max",
-							"10500"), 10, 64)
-					if err != nil {
-						max = 10500
-					}
-					vs := v.(string)
-					rargs["d"] = strings.Map(digitsOnly, vs)
-					rargs["d"] = self.rangeCheck(rargs["d"].(string),
-						0, max)
-				}
-			case "e":
-				rargs = storage.Unstructured{}
-			default:
-				http.Error(resp, "Invalid Command", 400)
-				return
-			}
-			fixed, err := json.Marshal(storage.Unstructured{c: rargs})
-			if err != nil {
-				// Log the error
-				self.logger.Error(self.logCat, "Error handling command",
-					util.Fields{"error": err.Error(),
-						"command": string(cmd),
-						"device":  deviceId,
-						"args":    fmt.Sprintf("%v", rargs)})
-				http.Error(resp, "Server Error", http.StatusServiceUnavailable)
-			}
-			err = self.store.StoreCommand(deviceId, string(fixed))
-			if err != nil {
-				// Log the error
-				self.logger.Error(self.logCat, "Error storing command",
-					util.Fields{"error": err.Error(),
-						"command": string(cmd),
-						"device":  deviceId,
-						"args":    fmt.Sprintf("%v", args)})
-				http.Error(resp, "Server Error", http.StatusServiceUnavailable)
-			}
-			// trigger the push
-			self.metrics.Increment("cmd.store." + c)
-			self.metrics.Increment("push.send")
-			err = SendPush(devRec, &self.config)
-			if err != nil {
-				self.logger.Error(self.logCat, "Could not send Push",
-					util.Fields{"error": err.Error(),
-						"pushUrl": devRec.PushUrl})
-				http.Error(resp, "Server Error", http.StatusServiceUnavailable)
-			}
+            rargs := args.(reply_t)
+            status, err := self.Queue(devRec, cmd, &rargs, &rep)
+            if err != nil {
+                self.logger.Error(self.logCat, "Error processing command",
+                util.Fields{
+                    "error": err.Error(),
+                    "cmd": cmd,
+                    "args": fmt.Sprintf("%+v", args)});
+                http.Error(resp, err.Error(), status)
+                return
+            }
 		}
 	}
     repl,_ := json.Marshal(rep)
@@ -836,9 +856,33 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(reply)
 }
 
+func addClient(id string, sock *WWS) {
+    defer muClient.Unlock()
+    muClient.Lock()
+    Clients[id] = sock
+}
+
+func rmClient(id string) {
+    defer muClient.Unlock()
+    muClient.Lock()
+    if _, ok := Clients[id]; ok {
+        delete (Clients, id)
+    }
+}
+
 func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
+	devRec, err := self.store.GetDeviceInfo(self.devId)
+    if err != nil {
+        self.logger.Error(self.logCat, "Invalid Device for socket",
+                util.Fields{"error": err.Error(),
+                    "devId": self.devId})
+        return
+    }
+
 	sock := &WWS{
 		Socket: ws,
+        Handler: self,
+        Device:  devRec,
 		Logger: self.logger,
 		Born:   time.Now(),
 		Quit:   false}
@@ -876,8 +920,9 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		client.Quit = true
 	}
 
-	self.metrics.Increment("Socket")
-	Clients[deviceId] = sock
+	self.metrics.Increment("page.socket")
+    addClient(deviceId, sock)
 	sock.Run()
-	self.metrics.Decrement("Socket")
+	self.metrics.Decrement("page.socket")
+    rmClient(deviceId)
 }

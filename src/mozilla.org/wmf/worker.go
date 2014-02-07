@@ -7,8 +7,11 @@ package wmf
 import (
 	"code.google.com/p/go.net/websocket"
 	"mozilla.org/util"
+    "mozilla.org/wmf/storage"
 
+    "fmt"
 	"io"
+    "encoding/json"
     "strconv"
 	"time"
 )
@@ -16,6 +19,8 @@ import (
 type WWS struct {
 	Socket  *websocket.Conn
 	Logger  *util.HekaLogger
+    Handler *Handler
+    Device  *storage.Device
 	Born    time.Time
 	Quit    bool
 	input   chan string
@@ -95,11 +100,29 @@ func (self *WWS) Run() {
 			self.Quit = true
 			return
 		case input := <-self.input:
-            self.Logger.Debug("worker",
-                "ignoring input",
-                util.Fields{
-                    "input": input[:100],
-                    "len": strconv.FormatInt(int64(len(input)), 10)})
+            msg := make(reply_t)
+            if err := json.Unmarshal([]byte(input), &msg); err != nil {
+                self.Logger.Error("worker", "Unparsable cmd",
+                    util.Fields{"cmd": input,
+                    "error": err.Error()})
+                self.Socket.Write([]byte("false"))
+                continue
+            }
+            rep := make(reply_t)
+            for cmd, args := range msg {
+                rargs := args.(reply_t)
+                _, err := self.Handler.Queue(self.Device, cmd, &rargs, &rep)
+                if err != nil {
+                    self.Logger.Error("worker", "Error processing command",
+                    util.Fields{
+                        "error": err.Error(),
+                        "cmd": cmd,
+                        "args": fmt.Sprintf("%+v", args)})
+                       self.Socket.Write([]byte("false"))
+                       break
+                }
+            }
+            self.Socket.Write([]byte("true"))
 		case output := <-self.output:
 		    _, err := self.Socket.Write(output)
 			if err != nil {

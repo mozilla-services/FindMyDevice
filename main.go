@@ -114,7 +114,7 @@ func main() {
 		handlers.Cmd)
 	// Web UI calls
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/queue/", verRoot),
-		handlers.Queue)
+		handlers.RestQueue)
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/state/", verRoot),
 		handlers.State)
 	RESTMux.HandleFunc("/static/",
