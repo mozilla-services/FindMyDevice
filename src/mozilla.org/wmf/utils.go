@@ -5,15 +5,15 @@
 package wmf
 
 import (
-    "mozilla.org/util"
+	"mozilla.org/util"
 
-    "io"
-    "io/ioutil"
-    "strconv"
-    "net/http"
-    "encoding/json"
-    "strings"
-
+	"encoding/json"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 )
 
 //filters
@@ -74,8 +74,8 @@ func minInt(x, y int) int {
 }
 
 // get the device id from the URL path
-func getDevFromUrl(req *http.Request) (devId string) {
-	elements := strings.Split(req.URL.Path, "/")
+func getDevFromUrl(u *url.URL) (devId string) {
+	elements := strings.Split(u.Path, "/")
 	return elements[len(elements)-1]
 }
 
@@ -89,5 +89,3 @@ func setSessionInfo(resp http.ResponseWriter, session *sessionInfo) (err error) 
 	}
 	return err
 }
-
-

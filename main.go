@@ -9,8 +9,8 @@ import (
 	"mozilla.org/util"
 	"mozilla.org/wmf"
 	"mozilla.org/wmf/storage"
-// Only add the following for devel.
-//	_ "net/http/pprof"
+	// Only add the following for devel.
+	//	_ "net/http/pprof"
 
 	"fmt"
 	"log"
@@ -60,13 +60,13 @@ func main() {
 		if hostname, err := util.GetAWSPublicHostname(); err == nil {
 			config["ws_hostname"] = hostname
 		}
-        if port != "80" {
-            config["ws_hostname"] = config["ws_hostname"].(string) + ":" + port
-        }
+		if port != "80" {
+			config["ws_hostname"] = config["ws_hostname"].(string) + ":" + port
+		}
 	}
 
-    //TODO: Build out the partner cert pool if need be.
-    // certpoo
+	//TODO: Build out the partner cert pool if need be.
+	// certpoo
 
 	if opts.Profile != "" {
 		log.Printf("Creating profile %s...\n", opts.Profile)

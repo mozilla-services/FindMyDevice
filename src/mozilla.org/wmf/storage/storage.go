@@ -32,7 +32,7 @@ type Position struct {
 	Longitude float64
 	Altitude  float64
 	Time      int64
-    Lockable  bool
+	Lockable  bool
 }
 
 type Device struct {
@@ -164,7 +164,7 @@ func (self *Storage) Init() (err error) {
 		"create or replace function update_time() returns trigger as $$ begin new.lastexchange = now(); return new; end; $$ language 'plpgsql';",
 		"drop trigger if exists update_le on deviceinfo;",
 		"create trigger update_le before update on deviceinfo for each row execute procedure update_time();",
-        "set time zone utc;",
+		"set time zone utc;",
 	}
 
 	dbh := self.db
@@ -204,14 +204,13 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 		dev.Accepts,
 		dev.PushUrl); err != nil {
 		if strings.Contains(err.Error(), "duplicate key value") {
-			fmt.Printf("#### Updating... \n")
 			statement = "update deviceinfo set lockable=$2, accepts=$3, pushUrl=$4, hawkSecret=$5 where deviceId=$1"
 			if _, err = dbh.Exec(statement,
 				string(dev.ID),
 				dev.Lockable,
 				dev.Accepts,
 				dev.PushUrl,
-                dev.Secret,
+				dev.Secret,
 			); err != nil {
 				self.logger.Error(self.logCat, "Could not update device",
 					util.Fields{"error": err.Error(),
@@ -363,7 +362,7 @@ func (self *Storage) GetPending(devId string) (cmd string, err error) {
 		statement = "delete from pendingCommands where id = $1"
 		dbh.Exec(statement, id)
 	}
-    self.Touch(devId)
+	self.Touch(devId)
 	return cmd, nil
 }
 
@@ -407,7 +406,7 @@ func (self *Storage) StoreCommand(devId, command string) (err error) {
 			util.Fields{"error": err.Error()})
 		return err
 	}
-	self.logger.Info(self.logCat, "Storing Command",
+	self.logger.Debug(self.logCat, "Storing Command",
 		util.Fields{"deviceId": devId, "command": command})
 
 	if _, err = dbh.Exec(statement, devId, dbNow(), command); err != nil {
@@ -492,23 +491,23 @@ func (self *Storage) Touch(devId string) (err error) {
 }
 
 func (self *Storage) DeleteDevice(devId string) (err error) {
-    dbh := self.db
+	dbh := self.db
 
-    var tables = []string{"pendingcommands", "position", "usertodevice",
-        "deviceinfo"}
+	var tables = []string{"pendingcommands", "position", "usertodevice",
+		"deviceinfo"}
 
-    for t := range tables {
-        // BURN THE WITCH!
-        table := tables[t]
-        _, err = dbh.Exec("delete from $1 where deviceid=$2;", table, devId)
-        if err != nil {
-            self.logger.Error(self.logCat,
-                "Could not nuke data from table",
-                util.Fields{"error": err.Error(),
-                    "device": devId,
-                    "table": table})
-            return err
-        }
-    }
-    return nil
+	for t := range tables {
+		// BURN THE WITCH!
+		table := tables[t]
+		_, err = dbh.Exec("delete from $1 where deviceid=$2;", table, devId)
+		if err != nil {
+			self.logger.Error(self.logCat,
+				"Could not nuke data from table",
+				util.Fields{"error": err.Error(),
+					"device": devId,
+					"table":  table})
+			return err
+		}
+	}
+	return nil
 }

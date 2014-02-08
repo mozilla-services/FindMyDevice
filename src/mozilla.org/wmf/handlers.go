@@ -22,7 +22,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
-    "sync"
+	"sync"
 	"text/template"
 	"time"
 )
@@ -65,7 +65,7 @@ var AuthorizationErr = errors.New("Needs Authorization")
 func (self *Handler) verifyAssertion(assertion string) (userid, email string, err error) {
 	var ok bool
 	if util.MzGetFlag(self.config, "auth.disabled") {
-		self.logger.Info(self.logCat, "### Skipping validation...", nil)
+		self.logger.Debug(self.logCat, "### Skipping validation...", nil)
 		return "user1", "user@example.com", nil
 	}
 	ver_url := util.MzGet(self.config, "persona.validater_url", "https://verifier.login.persona.org/verify")
@@ -132,7 +132,7 @@ func (self *Handler) getUser(req *http.Request) (userid string, user string, err
 // set the user info into the session
 func (self *Handler) getSessionInfo(req *http.Request) (session *sessionInfo, err error) {
 	// Get this from the session?
-	dev := getDevFromUrl(req)
+	dev := getDevFromUrl(req.URL)
 	userid, _, err := self.getUser(req)
 	if err != nil {
 		self.logger.Error("handler", "Could not get user",
@@ -165,19 +165,19 @@ func (self *Handler) updatePage(devId string, args map[string]interface{}, logPo
 			location.Time = int64(arg.(float64))
 		case "ha":
 			locked = isTrue(arg)
-            location.Lockable = !locked
+			location.Lockable = !locked
 			if err = self.store.SetDeviceLockable(devId, !locked); err != nil {
 				return err
 			}
 		}
 	}
-    if logPosition {
-    	if err = self.store.SetDeviceLocation(devId, location); err != nil {
-	    	return err
-    	}
-	    // because go sql locking.
-    	self.store.GcPosition(devId)
-    }
+	if logPosition {
+		if err = self.store.SetDeviceLocation(devId, location); err != nil {
+			return err
+		}
+		// because go sql locking.
+		self.store.GcPosition(devId)
+	}
 	if client, ok := Clients[devId]; ok {
 		js, _ := json.Marshal(location)
 		client.Write(js)
@@ -263,7 +263,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			if err != nil {
 				http.Error(resp, "Unauthorized", 401)
 			}
-			self.logger.Info(self.logCat, "### Got user "+userid, nil)
+			self.logger.Debug(self.logCat, "Got user "+userid, nil)
 			user = strings.SplitN(user, "@", 2)[0]
 		}
 
@@ -274,7 +274,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		} else {
 			pushUrl = buffer["pushurl"].(string)
 		}
-        //ALWAYS generate a new secret on registration!
+		//ALWAYS generate a new secret on registration!
 		secret = GenNonce(16)
 		if _, ok = buffer["deviceid"]; !ok {
 			deviceid, err = util.GenUUID4()
@@ -343,7 +343,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 
 	self.logCat = "handler:Cmd"
 	resp.Header().Set("Content-Type", "application/json")
-	deviceId := getDevFromUrl(req)
+	deviceId := getDevFromUrl(req.URL)
 	if deviceId == "" {
 		self.logger.Error(self.logCat, "Invalid call (No device id)", nil)
 		http.Error(resp, "Unauthorized", 401)
@@ -418,7 +418,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 	// Do the command.
-	self.logger.Info(self.logCat, "Handling cmd",
+	self.logger.Info(self.logCat, "Handling cmd response from device",
 		util.Fields{
 			"cmd":    string(body),
 			"length": fmt.Sprintf("%d", l),
@@ -449,11 +449,11 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			switch c {
 			case "l", "r", "m", "e":
 				err = self.store.Touch(deviceId)
-                self.updatePage(deviceId, args.(map[string]interface{}), false)
-            case "h":
-                argl := make(reply_t)
-                argl[string(cmd)] = isTrue(args)
-                self.updatePage(deviceId, argl, false)
+				self.updatePage(deviceId, args.(map[string]interface{}), false)
+			case "h":
+				argl := make(reply_t)
+				argl[string(cmd)] = isTrue(args)
+				self.updatePage(deviceId, argl, false)
 			case "t":
 				// track
 				err = self.updatePage(deviceId, args.(map[string]interface{}), true)
@@ -502,94 +502,94 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 }
 
 func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *reply_t) (status int, err error) {
-        status = http.StatusOK
+	status = http.StatusOK
 
-        deviceId := devRec.ID
-			// sanitize values.
-			var v interface{}
-			var ok bool
-			c := strings.ToLower(string(cmd[0]))
-			if !strings.Contains(devRec.Accepts, c) {
-				// skip unacceptable command
-				self.logger.Warn(self.logCat, "Agent does not accept command",
-					util.Fields{"unacceptable": c,
-						"acceptable": devRec.Accepts})
-                (*rep)["error"] = 422
-                (*rep)["cmd"] = cmd
-				return
-			}
-			rargs := *args
-			switch c {
-			case "l":
-				if v, ok = rargs["c"]; ok {
-					max, err := strconv.ParseInt(util.MzGet(self.config,
-						"cmd.c.max",
-						"9999"), 10, 64)
-					if err != nil {
-						max = 9999
-					}
-					vs := v.(string)
-					rargs["c"] = strings.Map(digitsOnly,
-						vs[:minInt(4, len(vs))])
-					rargs["c"] = self.rangeCheck(rargs["c"].(string),
-						0,
-						max)
-				}
-				if v, ok = rargs["m"]; ok {
-					vs := v.(string)
-					rargs["m"] = strings.Map(asciiOnly,
-						vs[:minInt(100, len(vs))])
-				}
-			case "r", "t":
-				if v, ok = rargs["d"]; ok {
-					max, err := strconv.ParseInt(
-						util.MzGet(self.config,
-							"cmd."+c+".max",
-							"10500"), 10, 64)
-					if err != nil {
-						max = 10500
-					}
-					vs := v.(string)
-					rargs["d"] = strings.Map(digitsOnly, vs)
-					rargs["d"] = self.rangeCheck(rargs["d"].(string),
-						0, max)
-				}
-			case "e":
-				rargs = reply_t{}
-			default:
-				return http.StatusBadRequest, errors.New("Invalid Command")
-			}
-			fixed, err := json.Marshal(storage.Unstructured{c: rargs})
+	deviceId := devRec.ID
+	// sanitize values.
+	var v interface{}
+	var ok bool
+	c := strings.ToLower(string(cmd[0]))
+	if !strings.Contains(devRec.Accepts, c) {
+		// skip unacceptable command
+		self.logger.Warn(self.logCat, "Agent does not accept command",
+			util.Fields{"unacceptable": c,
+				"acceptable": devRec.Accepts})
+		(*rep)["error"] = 422
+		(*rep)["cmd"] = cmd
+		return
+	}
+	rargs := *args
+	switch c {
+	case "l":
+		if v, ok = rargs["c"]; ok {
+			max, err := strconv.ParseInt(util.MzGet(self.config,
+				"cmd.c.max",
+				"9999"), 10, 64)
 			if err != nil {
-				// Log the error
-				self.logger.Error(self.logCat, "Error handling command",
-					util.Fields{"error": err.Error(),
-						"command": string(cmd),
-						"device":  deviceId,
-						"args":    fmt.Sprintf("%v", rargs)})
-                return http.StatusServiceUnavailable, errors.New("Server Error")
+				max = 9999
 			}
-			err = self.store.StoreCommand(deviceId, string(fixed))
+			vs := v.(string)
+			rargs["c"] = strings.Map(digitsOnly,
+				vs[:minInt(4, len(vs))])
+			rargs["c"] = self.rangeCheck(rargs["c"].(string),
+				0,
+				max)
+		}
+		if v, ok = rargs["m"]; ok {
+			vs := v.(string)
+			rargs["m"] = strings.Map(asciiOnly,
+				vs[:minInt(100, len(vs))])
+		}
+	case "r", "t":
+		if v, ok = rargs["d"]; ok {
+			max, err := strconv.ParseInt(
+				util.MzGet(self.config,
+					"cmd."+c+".max",
+					"10500"), 10, 64)
 			if err != nil {
-				// Log the error
-				self.logger.Error(self.logCat, "Error storing command",
-					util.Fields{"error": err.Error(),
-						"command": string(cmd),
-						"device":  deviceId,
-						"args":    fmt.Sprintf("%v", args)})
-                return http.StatusServiceUnavailable, errors.New("Server Error")
+				max = 10500
 			}
-			// trigger the push
-			self.metrics.Increment("cmd.store." + c)
-			self.metrics.Increment("push.send")
-			err = SendPush(devRec, &self.config)
-			if err != nil {
-				self.logger.Error(self.logCat, "Could not send Push",
-					util.Fields{"error": err.Error(),
-						"pushUrl": devRec.PushUrl})
-                return http.StatusServiceUnavailable, errors.New("Server Error")
-			}
-    return
+			vs := v.(string)
+			rargs["d"] = strings.Map(digitsOnly, vs)
+			rargs["d"] = self.rangeCheck(rargs["d"].(string),
+				0, max)
+		}
+	case "e":
+		rargs = reply_t{}
+	default:
+		return http.StatusBadRequest, errors.New("Invalid Command")
+	}
+	fixed, err := json.Marshal(storage.Unstructured{c: rargs})
+	if err != nil {
+		// Log the error
+		self.logger.Error(self.logCat, "Error handling command",
+			util.Fields{"error": err.Error(),
+				"command": string(cmd),
+				"device":  deviceId,
+				"args":    fmt.Sprintf("%v", rargs)})
+		return http.StatusServiceUnavailable, errors.New("Server Error")
+	}
+	err = self.store.StoreCommand(deviceId, string(fixed))
+	if err != nil {
+		// Log the error
+		self.logger.Error(self.logCat, "Error storing command",
+			util.Fields{"error": err.Error(),
+				"command": string(cmd),
+				"device":  deviceId,
+				"args":    fmt.Sprintf("%v", args)})
+		return http.StatusServiceUnavailable, errors.New("Server Error")
+	}
+	// trigger the push
+	self.metrics.Increment("cmd.store." + c)
+	self.metrics.Increment("push.send")
+	err = SendPush(devRec, &self.config)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not send Push",
+			util.Fields{"error": err.Error(),
+				"pushUrl": devRec.PushUrl})
+		return http.StatusServiceUnavailable, errors.New("Server Error")
+	}
+	return
 }
 
 // Accept a command to queue from the REST interface
@@ -599,11 +599,11 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	var err error
 	var lbody int
 
-    rep := make(reply_t)
+	rep := make(reply_t)
 
 	self.logCat = "handler:Queue"
 	resp.Header().Set("Content-Type", "application/json")
-	deviceId := getDevFromUrl(req)
+	deviceId := getDevFromUrl(req.URL)
 	if deviceId == "" {
 		self.logger.Error(self.logCat, "Invalid call (No device id)", nil)
 		http.Error(resp, "Unauthorized", 401)
@@ -656,10 +656,10 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "Invalid", 400)
 		return
 	}
-	self.logger.Info(self.logCat, "Handling cmd",
+	self.logger.Info(self.logCat, "Handling cmd from UI",
 		util.Fields{
-			"cmd":   string(body),
-			"lbody": fmt.Sprintf("%d", lbody),
+			"cmd":    string(body),
+			"length": fmt.Sprintf("%d", lbody),
 		})
 	if lbody > 0 {
 		reply := make(reply_t)
@@ -675,20 +675,20 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		}
 
 		for cmd, args := range reply {
-            rargs := args.(reply_t)
-            status, err := self.Queue(devRec, cmd, &rargs, &rep)
-            if err != nil {
-                self.logger.Error(self.logCat, "Error processing command",
-                util.Fields{
-                    "error": err.Error(),
-                    "cmd": cmd,
-                    "args": fmt.Sprintf("%+v", args)});
-                http.Error(resp, err.Error(), status)
-                return
-            }
+			rargs := args.(reply_t)
+			status, err := self.Queue(devRec, cmd, &rargs, &rep)
+			if err != nil {
+				self.logger.Error(self.logCat, "Error processing command",
+					util.Fields{
+						"error": err.Error(),
+						"cmd":   cmd,
+						"args":  fmt.Sprintf("%+v", args)})
+				http.Error(resp, err.Error(), status)
+				return
+			}
 		}
 	}
-    repl,_ := json.Marshal(rep)
+	repl, _ := json.Marshal(rep)
 	resp.Write(repl)
 }
 
@@ -857,35 +857,36 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 }
 
 func addClient(id string, sock *WWS) {
-    defer muClient.Unlock()
-    muClient.Lock()
-    Clients[id] = sock
+	defer muClient.Unlock()
+	muClient.Lock()
+	Clients[id] = sock
 }
 
 func rmClient(id string) {
-    defer muClient.Unlock()
-    muClient.Lock()
-    if _, ok := Clients[id]; ok {
-        delete (Clients, id)
-    }
+	defer muClient.Unlock()
+	muClient.Lock()
+	if _, ok := Clients[id]; ok {
+		delete(Clients, id)
+	}
 }
 
 func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
+	self.devId = getDevFromUrl(ws.Request().URL)
 	devRec, err := self.store.GetDeviceInfo(self.devId)
-    if err != nil {
-        self.logger.Error(self.logCat, "Invalid Device for socket",
-                util.Fields{"error": err.Error(),
-                    "devId": self.devId})
-        return
-    }
+	if err != nil {
+		self.logger.Error(self.logCat, "Invalid Device for socket",
+			util.Fields{"error": err.Error(),
+				"devId": self.devId})
+		return
+	}
 
 	sock := &WWS{
-		Socket: ws,
-        Handler: self,
-        Device:  devRec,
-		Logger: self.logger,
-		Born:   time.Now(),
-		Quit:   false}
+		Socket:  ws,
+		Handler: self,
+		Device:  devRec,
+		Logger:  self.logger,
+		Born:    time.Now(),
+		Quit:    false}
 
 	defer func(logger *util.HekaLogger) {
 		if r := recover(); r != nil {
@@ -921,8 +922,8 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	}
 
 	self.metrics.Increment("page.socket")
-    addClient(deviceId, sock)
+	addClient(deviceId, sock)
 	sock.Run()
 	self.metrics.Decrement("page.socket")
-    rmClient(deviceId)
+	rmClient(deviceId)
 }

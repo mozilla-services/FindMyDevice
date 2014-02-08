@@ -7,20 +7,20 @@ package wmf
 import (
 	"code.google.com/p/go.net/websocket"
 	"mozilla.org/util"
-    "mozilla.org/wmf/storage"
+	"mozilla.org/wmf/storage"
 
-    "fmt"
+	"encoding/json"
+	"fmt"
 	"io"
-    "encoding/json"
-    "strconv"
+	"strconv"
 	"time"
 )
 
 type WWS struct {
 	Socket  *websocket.Conn
 	Logger  *util.HekaLogger
-    Handler *Handler
-    Device  *storage.Device
+	Handler *Handler
+	Device  *storage.Device
 	Born    time.Time
 	Quit    bool
 	input   chan string
@@ -36,10 +36,10 @@ func (self *WWS) sniffer() {
 	)
 
 	defer func() {
-        lived := int64(time.Now().Sub(self.Born).Seconds())
-        self.Logger.Debug("worker",
-            "Closing go routine",
-            util.Fields{"seconds_lived": strconv.FormatInt(lived, 10)})
+		lived := int64(time.Now().Sub(self.Born).Seconds())
+		self.Logger.Debug("worker",
+			"Closing Sniffer",
+			util.Fields{"seconds_lived": strconv.FormatInt(lived, 10)})
 	}()
 
 	for {
@@ -72,14 +72,16 @@ func (self *WWS) sniffer() {
 func (self *WWS) Run() {
 	self.input = make(chan string)
 	self.quitter = make(chan bool)
-    self.output = make(chan []byte)
+	self.output = make(chan []byte)
 
 	defer func(sock *WWS) {
 		if r := recover(); r != nil {
 			err := r.(error)
 			switch {
 			case err == io.EOF:
-				sock.Logger.Debug("worker", "Closing socket", nil)
+				lived := int64(time.Now().Sub(self.Born).Seconds())
+				sock.Logger.Debug("worker", "Closing Socket",
+					util.Fields{"seconds_lived": strconv.FormatInt(lived, 10)})
 			default:
 				sock.Logger.Error("worker",
 					"Unhandled error in Run",
@@ -100,35 +102,35 @@ func (self *WWS) Run() {
 			self.Quit = true
 			return
 		case input := <-self.input:
-            msg := make(reply_t)
-            if err := json.Unmarshal([]byte(input), &msg); err != nil {
-                self.Logger.Error("worker", "Unparsable cmd",
-                    util.Fields{"cmd": input,
-                    "error": err.Error()})
-                self.Socket.Write([]byte("false"))
-                continue
-            }
-            rep := make(reply_t)
-            for cmd, args := range msg {
-                rargs := args.(reply_t)
-                _, err := self.Handler.Queue(self.Device, cmd, &rargs, &rep)
-                if err != nil {
-                    self.Logger.Error("worker", "Error processing command",
-                    util.Fields{
-                        "error": err.Error(),
-                        "cmd": cmd,
-                        "args": fmt.Sprintf("%+v", args)})
-                       self.Socket.Write([]byte("false"))
-                       break
-                }
-            }
-            self.Socket.Write([]byte("true"))
+			msg := make(reply_t)
+			if err := json.Unmarshal([]byte(input), &msg); err != nil {
+				self.Logger.Error("worker", "Unparsable cmd",
+					util.Fields{"cmd": input,
+						"error": err.Error()})
+				self.Socket.Write([]byte("false"))
+				continue
+			}
+			rep := make(reply_t)
+			for cmd, args := range msg {
+				rargs := args.(reply_t)
+				_, err := self.Handler.Queue(self.Device, cmd, &rargs, &rep)
+				if err != nil {
+					self.Logger.Error("worker", "Error processing command",
+						util.Fields{
+							"error": err.Error(),
+							"cmd":   cmd,
+							"args":  fmt.Sprintf("%+v", args)})
+					self.Socket.Write([]byte("false"))
+					break
+				}
+			}
+			self.Socket.Write([]byte("true"))
 		case output := <-self.output:
-		    _, err := self.Socket.Write(output)
+			_, err := self.Socket.Write(output)
 			if err != nil {
 				self.Logger.Error("worker",
-                "Unhandled error writing to socket",
-                util.Fields{"error": err.Error()})
+					"Unhandled error writing to socket",
+					util.Fields{"error": err.Error()})
 			}
 		}
 	}
