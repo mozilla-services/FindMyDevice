@@ -97,7 +97,7 @@ func main() {
 	logger := util.NewHekaLogger(config)
 	store, err := storage.Open(config, logger)
 	if err != nil {
-		logger.Error("main", "FAIL", nil)
+		logger.Error("main", "Unable to connect to database. Have you configured it yet?", nil)
 		return
 	}
 	handlers := wmf.NewHandler(config, logger, store)
