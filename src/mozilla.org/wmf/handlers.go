@@ -9,6 +9,7 @@ import (
 	"mozilla.org/util"
 	"mozilla.org/wmf/storage"
 
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -71,9 +72,25 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 	ver_url := util.MzGet(self.config, "persona.validater_url", "https://verifier.login.persona.org/verify")
 	audience := util.MzGet(self.config, "persona.audience",
 		"http://localhost:8080")
-	res, err := http.PostForm(ver_url, url.Values{
-		"assertion": {assertion},
-		"audience":  {audience}})
+	body, err := json.Marshal(util.Fields{"assertion": assertion, "audience": audience})
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not marshal assertion",
+			util.Fields{"error": err.Error()})
+		return "", "", AuthorizationErr
+	}
+	req, err := http.NewRequest("POST", ver_url, bytes.NewReader(body))
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not POST assertion",
+			util.Fields{"error": err.Error()})
+	}
+	req.Header.Add("Content-Type", "application/json")
+	cli := http.Client{}
+	res, err := cli.Do(req)
+	/*
+	   res, err := http.PostForm(ver_url, url.Values{
+	   "assertion": {assertion},
+	   "audience":  {audience}})
+	*/
 	if err != nil {
 		self.logger.Error(self.logCat, "Persona verification failed",
 			util.Fields{"error": err.Error()})
@@ -677,7 +694,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		}
 
 		for cmd, args := range reply {
-			rargs := args.(reply_t)
+			rargs := reply_t(args.(map[string]interface{}))
 			status, err := self.Queue(devRec, cmd, &rargs, &rep)
 			if err != nil {
 				self.logger.Error(self.logCat, "Error processing command",
