@@ -5,6 +5,7 @@
 package util
 
 import (
+    "strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,13 +18,15 @@ var metrex sync.Mutex
 type Metrics struct {
 	dict   map[string]int64
 	prefix string
+    logger *HekaLogger
 	//  statsdc *statsd.Client
 }
 
-func NewMetrics(prefix string) (self *Metrics) {
+func NewMetrics(prefix string, logger *HekaLogger) (self *Metrics) {
 	self = &Metrics{
 		dict:   make(map[string]int64),
 		prefix: prefix,
+        logger: logger,
 	}
 	return self
 }
@@ -62,6 +65,10 @@ func (self *Metrics) IncrementBy(metric string, count int) {
 	}
 	atomic.AddInt64(&m, int64(count))
 	self.dict[metric] = m
+    if self.logger != nil {
+        self.logger.Info("metrics", "counter." + metric,
+            Fields{"value": strconv.FormatInt(m, 10)})
+    }
 	/*	if statsdc != nil {
 			statsdc.Inc(metric, int64(count), 1.0)
 		}

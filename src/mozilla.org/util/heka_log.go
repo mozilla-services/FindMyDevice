@@ -66,7 +66,7 @@ func NewHekaLogger(conf JsMap) *HekaLogger {
 		conf["heka.server_addr"] = "127.0.0.1:5565"
 	}
 	if _, ok = conf["heka.logger_name"]; !ok {
-		conf["heka.logger_name"] = "simplepush"
+		conf["heka.logger_name"] = "wmf"
 	}
 	if _, ok = conf["heka.current_host"]; !ok {
 		conf["heka.current_host"], _ = os.Hostname()

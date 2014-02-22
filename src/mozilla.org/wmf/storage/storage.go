@@ -73,17 +73,14 @@ type Users map[string]string
        deviceId       UUID index
        name           string
        lockable       boolean
-       loggedin       boolean
        lastExchange   time
        hawkSecret     string
        pushUrl        string
-       pendingCommand string
        accepts        string
 
    table position:
        positionId UUID index
        deviceId   UUID index
-       expry      interval index
        time       timeStamp
        latitude   float
        longitude  float
@@ -159,7 +156,7 @@ func (self *Storage) Init() (err error) {
 		"create table if not exists pendingCommands (id bigserial, deviceId varchar, time timestamp, cmd varchar);",
 		"create index on pendingCommands (deviceId);",
 
-		"create table if not exists position (id bigserial, deviceId varchar, expry interval, time  timestamp, latitude real, longitude real, altitude real);",
+		"create table if not exists position (id bigserial, deviceId varchar, time  timestamp, latitude real, longitude real, altitude real);",
 		"create index on position (deviceId);",
 		"create or replace function update_time() returns trigger as $$ begin new.lastexchange = now(); return new; end; $$ language 'plpgsql';",
 		"drop trigger if exists update_le on deviceinfo;",
@@ -347,18 +344,22 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 // Get pending commands.
 func (self *Storage) GetPending(devId string) (cmd string, err error) {
 	dbh := self.db
+    var created int32
 
-	statement := "select id, cmd from pendingCommands where deviceId = $1 order by time limit 1;"
+	statement := "select id, cmd, time from pendingCommands where deviceId = $1 order by time limit 1;"
 	rows, err := dbh.Query(statement, devId)
 	if rows.Next() {
 		var id string
-		err = rows.Scan(&id, &cmd)
+		err = rows.Scan(&id, &cmd, &created)
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not read pending command",
 				util.Fields{"error": err.Error(),
 					"deviceId": devId})
 			return "", err
 		}
+        lifespan := time.Now().Unix() - int64(created)
+        self.logger.Info("metrics", "timer.cmd.pending",
+            util.Fields{"value": strconv.FormatInt(lifespan, 10)})
 		statement = "delete from pendingCommands where id = $1"
 		dbh.Exec(statement, id)
 	}

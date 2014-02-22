@@ -230,7 +230,7 @@ func NewHandler(config util.JsMap, logger *util.HekaLogger, store *storage.Stora
 		hawk:   &Hawk{logger: logger, config: config},
 		metrics: util.NewMetrics(util.MzGet(config,
 			"metrics.prefix",
-			"WMF")),
+			"WMF"), logger),
 		store: store}
 }
 
@@ -616,12 +616,14 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if userId == "" {
+		self.logger.Error(self.logCat, "No userid", nil)
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
 
 	devRec, err := self.store.GetDeviceInfo(deviceId)
 	if devRec.User != userId {
+		self.logger.Error(self.logCat, "Unauthorized userid", nil)
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
@@ -689,6 +691,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 	repl, _ := json.Marshal(rep)
+	self.metrics.Increment("cmd.queued.rest")
 	resp.Write(repl)
 }
 
@@ -925,5 +928,8 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	addClient(deviceId, sock)
 	sock.Run()
 	self.metrics.Decrement("page.socket")
+	self.logger.Info("metrics",
+		"timer.page.socket",
+		util.Fields{"value": strconv.FormatInt(time.Now().Unix()-sock.Born.Unix(), 10)})
 	rmClient(deviceId)
 }
