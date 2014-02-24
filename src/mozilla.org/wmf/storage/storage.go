@@ -21,6 +21,7 @@ var DatabaseError = errors.New("Database Error")
 type Storage struct {
 	config   util.JsMap
 	logger   *util.HekaLogger
+    metrics  *util.Metrics
 	dsn      string
 	logCat   string
 	defExpry int64
@@ -108,7 +109,7 @@ func dbNow() (ret string) {
 }
 
 // Open the database.
-func Open(config util.JsMap, logger *util.HekaLogger) (store *Storage, err error) {
+func Open(config util.JsMap, logger *util.HekaLogger, metrics *util.Metrics) (store *Storage, err error) {
 	dsn := fmt.Sprintf("user=%s password=%s host=%s dbname=%s sslmode=%s",
 		util.MzGet(config, "db.user", "user"),
 		util.MzGet(config, "db.password", "password"),
@@ -358,8 +359,7 @@ func (self *Storage) GetPending(devId string) (cmd string, err error) {
 			return "", err
 		}
         lifespan := time.Now().Unix() - int64(created)
-        self.logger.Info("metrics", "timer.cmd.pending",
-            util.Fields{"value": strconv.FormatInt(lifespan, 10)})
+        self.metrics.Timer("cmd.pending", lifespan)
 		statement = "delete from pendingCommands where id = $1"
 		dbh.Exec(statement, id)
 	}

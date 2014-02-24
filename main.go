@@ -33,6 +33,7 @@ var opts struct {
 var (
 	logger *util.HekaLogger
 	store  *storage.Storage
+    metrics *util.Metrics
 )
 
 const (
@@ -46,7 +47,7 @@ func main() {
 	// Configuration
 	// defaults don't appear to work.
 	if opts.ConfigFile == "" {
-		opts.ConfigFile = "config.ini"
+	opts.ConfigFile = "config.ini"
 	}
 	config := util.MzGetConfig(opts.ConfigFile)
 	config["VERSION"] = VERSION
@@ -95,12 +96,15 @@ func main() {
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	logger := util.NewHekaLogger(config)
-	store, err := storage.Open(config, logger)
+    metrics := util.NewMetrics(util.MzGet(config,
+                           "metrics.prefix",
+                           "wmf"), logger)
+	store, err := storage.Open(config, logger, metrics)
 	if err != nil {
 		logger.Error("main", "Unable to connect to database. Have you configured it yet?", nil)
 		return
 	}
-	handlers := wmf.NewHandler(config, logger, store)
+	handlers := wmf.NewHandler(config, logger, store, metrics)
 
 	// Signal handler
 	sigChan := make(chan os.Signal)

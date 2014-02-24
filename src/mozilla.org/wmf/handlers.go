@@ -240,14 +240,12 @@ func (self *Handler) rangeCheck(s string, min, max int64) string {
 
 //Handler Public Functions
 
-func NewHandler(config util.JsMap, logger *util.HekaLogger, store *storage.Storage) *Handler {
+func NewHandler(config util.JsMap, logger *util.HekaLogger, store *storage.Storage, metrics *util.Metrics) *Handler {
 	return &Handler{config: config,
 		logger: logger,
 		logCat: "handler",
 		hawk:   &Hawk{logger: logger, config: config},
-		metrics: util.NewMetrics(util.MzGet(config,
-			"metrics.prefix",
-			"WMF"), logger),
+        metrics: metrics,
 		store: store}
 }
 
@@ -945,8 +943,6 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	addClient(deviceId, sock)
 	sock.Run()
 	self.metrics.Decrement("page.socket")
-	self.logger.Info("metrics",
-		"timer.page.socket",
-		util.Fields{"value": strconv.FormatInt(time.Now().Unix()-sock.Born.Unix(), 10)})
+    self.metrics.Timer("page.socket", time.Now().Unix() - sock.Born.Unix())
 	rmClient(deviceId)
 }
