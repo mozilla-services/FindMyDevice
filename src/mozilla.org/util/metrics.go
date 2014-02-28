@@ -9,54 +9,71 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+    "time"
 
-	//	"github.com/cactus/go-statsd-client/statsd"
+    "github.com/cactus/go-statsd-client/statsd"
 )
 
 var metrex sync.Mutex
 
 type Metrics struct {
-	dict   map[string]int64
-    timer  map[string]float64
-	prefix string
+	dict   map[string]int64     // counters
+    timer  map[string]float64   // timers
+	prefix string               // prefix for
 	logger *HekaLogger
-	//  statsdc *statsd.Client
+	statsd *statsd.Client
+    born   time.Time
 }
 
-func NewMetrics(prefix string, logger *HekaLogger) (self *Metrics) {
+func NewMetrics(prefix string, logger *HekaLogger, config JsMap) (self *Metrics) {
+
+    var statsdc *statsd.Client
+    if server, ok := config["statsd.server"].(string); ok {
+        name := strings.ToLower(MzGet(config, "statsd.name", "undef"))
+        client, err := statsd.New(server, name)
+        if err != nil {
+            logger.Error("metrics", "Could not init statsd connection",
+                Fields{"error": err.Error()})
+            } else {
+                statsdc = client
+            }
+        }
+
+
 	self = &Metrics{
 		dict:   make(map[string]int64),
         timer:  make(map[string]float64),
 		prefix: prefix,
 		logger: logger,
+        statsd: statsdc,
+        born:   time.Now(),
 	}
 	return self
 }
 
 func (self *Metrics) Prefix(newPrefix string) {
 	self.prefix = strings.TrimRight(newPrefix, ".")
+    if self.statsd != nil {
+        self.statsd.SetPrefix(newPrefix);
+    }
 }
 
-/*
-func (self *Metrics) StatsdTarget(target string) (err error) {
-	self.statsdc, err = statsd.New(target, self.prefix)
-	if err != nil {
-		return
-	}
-	return
-}
-*/
 func (self *Metrics) Snapshot() map[string]interface{} {
 	defer metrex.Unlock()
 	metrex.Lock()
+    var pfx string
+    if len(self.prefix) > 0 {
+        pfx = self.prefix + "."
+    }
 	oldMetrics := make(map[string]interface{})
 	// copy the old metrics
 	for k, v := range self.dict {
-		oldMetrics["counter." + k] = v
+		oldMetrics[pfx + "counter." + k] = v
 	}
     for k, v := range self.timer {
-        oldMetrics["avg." + k] = v
+        oldMetrics[pfx + "age_avg." + k] = v
     }
+    oldMetrics[pfx + "age.server"] = time.Now().Unix() - self.born.Unix();
 	return oldMetrics
 }
 
@@ -75,6 +92,13 @@ func (self *Metrics) IncrementBy(metric string, count int) {
 			Fields{"value": strconv.FormatInt(m, 10),
                    "type": "counter"})
 	}
+    if self.statsd != nil {
+        if count >= 0 {
+            self.statsd.Inc(metric, int64(count), 1.0)
+        } else {
+            self.statsd.Dec(metric, int64(count), 1.0)
+        }
+    }
 }
 
 func (self *Metrics) Increment(metric string) {
@@ -107,4 +131,7 @@ func (self *Metrics) Timer(metric string, value int64) {
 			Fields{"value": strconv.FormatInt(value, 10),
 				"type": "timer"})
 	}
+    if self.statsd != nil {
+        self.statsd.Timing(metric, value, 1.0)
+    }
 }

@@ -2,6 +2,7 @@ code.google.com/p/go-uuid -d
 code.google.com/p/go-uuid/uuid
 code.google.com/p/go.net -d
 code.google.com/p/goprotobuf -d
+github.com/cactus/go-statsd-client/statsd
 github.com/jessevdk/go-flags
 github.com/lib/pq
 github.com/mozilla-services/heka/client

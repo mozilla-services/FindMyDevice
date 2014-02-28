@@ -98,7 +98,7 @@ func main() {
 	logger := util.NewHekaLogger(config)
     metrics := util.NewMetrics(util.MzGet(config,
                            "metrics.prefix",
-                           "wmf"), logger)
+                           "wmf"), logger, config)
 	store, err := storage.Open(config, logger, metrics)
 	if err != nil {
 		logger.Error("main", "Unable to connect to database. Have you configured it yet?", nil)
