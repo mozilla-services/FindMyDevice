@@ -11,6 +11,7 @@ import (
 
 	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -67,7 +68,35 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 	var ok bool
 	if util.MzGetFlag(self.config, "auth.disabled") {
 		self.logger.Debug(self.logCat, "### Skipping validation...", nil)
-		return "user1", "user@example.com", nil
+		fmt.Printf("assertion: %s\n", assertion)
+		if len(assertion) == 0 {
+			return "user1", "user@example.com", nil
+		} else {
+			// Time to UberFake! THIS IS VERY DANGEROUS!
+			self.logger.Warn(self.logCat, "!!! Using Assertion Without Validation !!!", nil)
+			bits := strings.Split(assertion, ".")
+			// get the interesting bit
+			int_bit := bits[1]
+			// pad to byte boundry
+			int_bit = int_bit + "===="[:len(int_bit)%4]
+			decoded, err := base64.StdEncoding.DecodeString(int_bit)
+			if err != nil {
+				self.logger.Error(self.logCat, "Could not decode assertion",
+					util.Fields{"error": err.Error()})
+				return "", "", err
+			} else {
+				asrt := make(reply_t)
+				err = json.Unmarshal(decoded, &asrt)
+				if err != nil {
+					self.logger.Error(self.logCat, "Could not unmarshal",
+						util.Fields{"error": err.Error()})
+					return "", "", err
+				}
+				email = asrt["principal"].(map[string]interface{})["email"].(string)
+				userid = strings.Split(email, "@")[0]
+			}
+			return userid, email, nil
+		}
 	}
 	ver_url := util.MzGet(self.config, "persona.validater_url", "https://verifier.login.persona.org/verify")
 	audience := util.MzGet(self.config, "persona.audience",
@@ -132,6 +161,7 @@ func (self *Handler) getUser(req *http.Request) (userid string, user string, err
 		if auth = req.FormValue("assertion"); auth == "" {
 			return "", "", AuthorizationErr
 		}
+		fmt.Printf("assertion: %s\n", auth)
 		userid, user, err = self.verifyAssertion(auth)
 		if err != nil {
 			return "", "", AuthorizationErr
@@ -242,11 +272,11 @@ func (self *Handler) rangeCheck(s string, min, max int64) string {
 
 func NewHandler(config util.JsMap, logger *util.HekaLogger, store *storage.Storage, metrics *util.Metrics) *Handler {
 	return &Handler{config: config,
-		logger: logger,
-		logCat: "handler",
-		hawk:   &Hawk{logger: logger, config: config},
-        metrics: metrics,
-		store: store}
+		logger:  logger,
+		logCat:  "handler",
+		hawk:    &Hawk{logger: logger, config: config},
+		metrics: metrics,
+		store:   store}
 }
 
 func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
@@ -943,6 +973,6 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	addClient(deviceId, sock)
 	sock.Run()
 	self.metrics.Decrement("page.socket")
-    self.metrics.Timer("page.socket", time.Now().Unix() - sock.Born.Unix())
+	self.metrics.Timer("page.socket", time.Now().Unix()-sock.Born.Unix())
 	rmClient(deviceId)
 }
