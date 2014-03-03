@@ -93,7 +93,9 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 					return "", "", err
 				}
 				email = asrt["principal"].(map[string]interface{})["email"].(string)
-				userid = strings.Split(email, "@")[0]
+                hasher := sha256.New()
+                hasher.Write([]byte(email))
+                userid = hex.EncodeToString(hasher.Sum(nil))
 			}
 			return userid, email, nil
 		}
