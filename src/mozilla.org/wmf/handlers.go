@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -93,10 +94,12 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 					return "", "", err
 				}
 				email = asrt["principal"].(map[string]interface{})["email"].(string)
-                hasher := sha256.New()
-                hasher.Write([]byte(email))
-                userid = hex.EncodeToString(hasher.Sum(nil))
+				hasher := sha256.New()
+				hasher.Write([]byte(email))
+				userid = hex.EncodeToString(hasher.Sum(nil))
 			}
+			self.logger.Debug(self.logCat, "Extracted credentials",
+				util.Fields{"userId": userid, "email": email})
 			return userid, email, nil
 		}
 	}
@@ -419,7 +422,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	//decode the body
 	var body = make([]byte, req.ContentLength)
 	l, err = req.Body.Read(body)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		self.logger.Error(self.logCat, "Could not read body",
 			util.Fields{"error": err.Error()})
 		http.Error(resp, "Invalid", 400)
@@ -659,11 +662,13 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	userId, _, err := self.getUser(req)
 	if err != nil {
 		self.logger.Error(self.logCat, "No userid", nil)
+		http.SetCookie(resp, &http.Cookie{Name: "user", MaxAge: -1})
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
 	if userId == "" {
 		self.logger.Error(self.logCat, "No userid", nil)
+		http.SetCookie(resp, &http.Cookie{Name: "user", MaxAge: -1})
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
@@ -671,6 +676,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	devRec, err := self.store.GetDeviceInfo(deviceId)
 	if devRec.User != userId {
 		self.logger.Error(self.logCat, "Unauthorized userid", nil)
+		http.SetCookie(resp, &http.Cookie{Name: "user", MaxAge: -1})
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
@@ -680,6 +686,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 			util.Fields{
 				"deviceId": deviceId,
 				"userId":   userId})
+		http.SetCookie(resp, &http.Cookie{Name: "user", MaxAge: -1})
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
@@ -699,7 +706,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	//decode the body
 	var body = make([]byte, req.ContentLength)
 	lbody, err = req.Body.Read(body)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		self.logger.Error(self.logCat, "Could not read body",
 			util.Fields{"error": err.Error()})
 		http.Error(resp, "Invalid", 400)
@@ -833,7 +840,11 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		}
 		return
 	}
-	setSessionInfo(resp, sessionInfo)
+	if sessionInfo != nil {
+		setSessionInfo(resp, sessionInfo)
+	} else {
+		http.SetCookie(resp, &http.Cookie{Name: "user", MaxAge: -1})
+	}
 	err = tmpl.Execute(resp, data)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not execute template",
