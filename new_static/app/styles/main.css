@@ -3,12 +3,17 @@ html, body, #stage, #stage > div, #map {
   width: 100%;
 }
 
+a {
+  cursor: pointer;
+}
+
 #stage {
   position: relative;
 }
 
 #stage header {
   background: #f4f4f4;
+  height: 50px;
   left: 0;
   padding: 0 20px;
   position: absolute;
@@ -35,10 +40,29 @@ html, body, #stage, #stage > div, #map {
   z-index: 1000;
 }
 
+#stage footer span {
+  padding-right: 10px;
+}
+
 .leaflet-top {
   top: 50px;
 }
 
 .leaflet-bottom {
   bottom: 30px;
+}
+
+@media only screen and (min-width: 768px) {
+  #stage footer {
+    background: #e7e7e7;
+    bottom: auto;
+    color: #333;
+    padding-left: 20px;
+    text-align: left;
+    top: 50px;
+  }
+
+  .leaflet-top {
+    top: 75px;
+  }
 }
