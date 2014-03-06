@@ -29,6 +29,4 @@ require([
   'router'
 ], function (Backbone, Router) {
   Backbone.history.start();
-
-  L.mapbox.map('map', 'nchapman.hejm93ej');
 });

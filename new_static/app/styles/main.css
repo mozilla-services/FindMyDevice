@@ -1,8 +1,44 @@
-body {
-    background: #fafafa;
+html, body, #stage, #stage > div, #map {
+  height: 100%;
+  width: 100%;
 }
 
-.hero-unit {
-    margin: 50px auto 0 auto;
-    width: 300px;
+#stage {
+  position: relative;
+}
+
+#stage header {
+  background: #f4f4f4;
+  left: 0;
+  padding: 0 20px;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  z-index: 1000;
+}
+
+#stage header h1 {
+  color: #8a8b97;
+  font-size: 22px;
+  font-weight: normal;
+}
+
+#stage footer {
+  background: #242426;
+  color: #f2f1ec;
+  bottom: 0;
+  left: 0;
+  padding: 4px;
+  position: absolute;
+  text-align: center;
+  width: 100%;
+  z-index: 1000;
+}
+
+.leaflet-top {
+  top: 50px;
+}
+
+.leaflet-bottom {
+  bottom: 30px;
 }

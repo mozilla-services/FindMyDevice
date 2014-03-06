@@ -9,7 +9,8 @@
     "requirejs-text": "~2.0.5",
     "modernizr": "~2.6.2",
     "mustache": "~0.8.1",
-    "requirejs-mustache": "*"
+    "requirejs-mustache": "*",
+    "normalize-css": "~3.0.0"
   },
   "devDependencies": {}
 }

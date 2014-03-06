@@ -7,7 +7,11 @@ define([
   'use strict';
 
   var LocationView = BaseView.extend({
-    template: LocationTemplate
+    template: LocationTemplate,
+
+    afterInsert: function() {
+      L.mapbox.map('map', 'nchapman.hejm93ej');
+    }
   });
 
   return LocationView;

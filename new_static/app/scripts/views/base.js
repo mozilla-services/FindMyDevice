@@ -84,6 +84,10 @@ define(
         // Implement in subclasses
       },
 
+      afterInsert: function() {
+        // Implement in subclasses
+      },
+
       /**
       * Renders local collection using the provided view and inserts into the provided selector.
       *
