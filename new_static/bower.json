@@ -7,7 +7,9 @@
     "backbone": "~1.0.0",
     "requirejs": "~2.1.5",
     "requirejs-text": "~2.0.5",
-    "modernizr": "~2.6.2"
+    "modernizr": "~2.6.2",
+    "mustache": "~0.8.1",
+    "requirejs-mustache": "*"
   },
   "devDependencies": {}
 }

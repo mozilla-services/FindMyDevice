@@ -53,12 +53,6 @@ module.exports = function (grunt) {
                     'test/spec/**/*.js'
                 ]
             },
-            mustache: {
-                files: [
-                    '<%= yeoman.app %>/scripts/templates/*.mustache'
-                ],
-                tasks: ['mustache']
-            },
             test: {
                 files: ['<%= yeoman.app %>/scripts/{,*/}*.js', 'test/spec/**/*.js'],
                 tasks: ['test:true']
@@ -138,7 +132,7 @@ module.exports = function (grunt) {
                         '<%= yeoman.app %>/bower_components/jquery/jquery.js',
                         '<%= yeoman.app %>/bower_components/underscore/underscore.js',
                         '<%= yeoman.app %>/bower_components/backbone/backbone.js',
-                        '.tmp/scripts/templates.js'
+                        'app/scripts/templates.js'
                     ]
                 }
             }
@@ -172,7 +166,7 @@ module.exports = function (grunt) {
                     baseUrl: '<%= yeoman.app %>/scripts',
                     optimize: 'none',
                     paths: {
-                        'templates': '../../.tmp/scripts/templates',
+                        'templates': '../../app/scripts/templates',
                         'jquery': '../../app/bower_components/jquery/jquery',
                         'underscore': '../../app/bower_components/underscore/underscore',
                         'backbone': '../../app/bower_components/backbone/backbone'
@@ -184,7 +178,8 @@ module.exports = function (grunt) {
                     // http://requirejs.org/docs/errors.html#sourcemapcomments
                     preserveLicenseComments: false,
                     useStrict: true,
-                    wrap: true
+                    wrap: true,
+                    //stubModules: ['text', 'stache']
                     //uglify2: {} // https://github.com/mishoo/UglifyJS2
                 }
             }
@@ -264,16 +259,6 @@ module.exports = function (grunt) {
                 rjsConfig: '<%= yeoman.app %>/scripts/main.js'
             }
         },
-        mustache: {
-            files: {
-                src: '<%= yeoman.app %>/scripts/templates/',
-                dest: '.tmp/scripts/templates.js',
-                options: {
-                    prefix: 'define(function() { this.JST = ',
-                    postfix: '; return this.JST;});'
-                }
-            }
-        },
         rev: {
             dist: {
                 files: {
@@ -286,10 +271,6 @@ module.exports = function (grunt) {
                 }
             }
         }
-    });
-
-    grunt.registerTask('createDefaultTemplate', function () {
-        grunt.file.write('.tmp/scripts/templates.js', 'this.JST = this.JST || {};');
     });
 
     grunt.registerTask('server', function () {
@@ -306,8 +287,6 @@ module.exports = function (grunt) {
             return grunt.task.run([
                 'clean:server',
                 'coffee',
-                'createDefaultTemplate',
-                'mustache',
                 'connect:test',
                 'open:test',
                 'watch:livereload'
@@ -317,8 +296,6 @@ module.exports = function (grunt) {
         grunt.task.run([
             'clean:server',
             'coffee:dist',
-            'createDefaultTemplate',
-            'mustache',
             'connect:livereload',
             'open:server',
             'watch'
@@ -330,12 +307,10 @@ module.exports = function (grunt) {
         var testTasks = [
                 'clean:server',
                 'coffee',
-                'createDefaultTemplate',
-                'mustache',
                 'jasmine',
                 'watch:test'
             ];
-            
+
         if(!isConnected) {
             return grunt.task.run(testTasks);
         } else {
@@ -348,8 +323,6 @@ module.exports = function (grunt) {
     grunt.registerTask('build', [
         'clean:dist',
         'coffee',
-        'createDefaultTemplate',
-        'mustache',
         'useminPrepare',
         'requirejs',
         'imagemin',
