@@ -9,7 +9,7 @@ import (
 	"mozilla.org/util"
 
 	"io"
-    "strconv"
+	"strconv"
 	"time"
 )
 
@@ -31,10 +31,10 @@ func (self *WWS) sniffer() {
 	)
 
 	defer func() {
-        lived := int64(time.Now().Sub(self.Born).Seconds())
-        self.Logger.Debug("worker",
-            "Closing go routine",
-            util.Fields{"seconds_lived": strconv.FormatInt(lived, 10)})
+		lived := int64(time.Now().Sub(self.Born).Seconds())
+		self.Logger.Debug("worker",
+			"Closing go routine",
+			util.Fields{"seconds_lived": strconv.FormatInt(lived, 10)})
 	}()
 
 	for {
@@ -67,7 +67,7 @@ func (self *WWS) sniffer() {
 func (self *WWS) Run() {
 	self.input = make(chan string)
 	self.quitter = make(chan bool)
-    self.output = make(chan []byte)
+	self.output = make(chan []byte)
 
 	defer func(sock *WWS) {
 		if r := recover(); r != nil {
@@ -95,17 +95,17 @@ func (self *WWS) Run() {
 			self.Quit = true
 			return
 		case input := <-self.input:
-            self.Logger.Debug("worker",
-                "ignoring input",
-                util.Fields{
-                    "input": input[:100],
-                    "len": strconv.FormatInt(int64(len(input)), 10)})
+			self.Logger.Debug("worker",
+				"ignoring input",
+				util.Fields{
+					"input": input[:100],
+					"len": strconv.FormatInt(int64(len(input)), 10)})
 		case output := <-self.output:
-		    _, err := self.Socket.Write(output)
+			_, err := self.Socket.Write(output)
 			if err != nil {
 				self.Logger.Error("worker",
-                "Unhandled error writing to socket",
-                util.Fields{"error": err.Error()})
+					"Unhandled error writing to socket",
+					util.Fields{"error": err.Error()})
 			}
 		}
 	}

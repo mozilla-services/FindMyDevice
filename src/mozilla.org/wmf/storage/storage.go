@@ -32,7 +32,7 @@ type Position struct {
 	Longitude float64
 	Altitude  float64
 	Time      int64
-    Lockable  bool
+	Lockable  bool
 }
 
 type Device struct {
@@ -60,45 +60,44 @@ type Users map[string]string
 
 /* Relative:
 
-   table userToDeviceMap:
-       userId   UUID index
-       deviceId UUID
+	table userToDeviceMap:
+		userId   UUID index
+		deviceId UUID
 
-   table pendingCommands:
-       deviceId UUID index
-       time     timeStamp
-       cmd      string
+	table pendingCommands:
+		deviceId UUID index
+		time     timeStamp
+		cmd      string
 
-   table deviceInfo:
-       deviceId       UUID index
-       name           string
-       lockable       boolean
-       loggedin       boolean
-       lastExchange   time
-       hawkSecret     string
-       pushUrl        string
-       pendingCommand string
-       accepts        string
+	table deviceInfo:
+		deviceId       UUID index
+		name           string
+		lockable       boolean
+		loggedin       boolean
+		lastExchange   time
+		hawkSecret     string
+		pushUrl        string
+		pendingCommand string
+		accepts        string
 
-   table position:
-       positionId UUID index
-       deviceId   UUID index
-       expry      interval index
-       time       timeStamp
-       latitude   float
-       longitude  float
-       altitude   float
+	table position:
+		positionId UUID index
+		deviceId   UUID index
+		expry      interval index
+		time       timeStamp
+		latitude   float
+		longitude  float
+		altitude   float
 */
 /* key:
-   deviceId {positions:[{lat:float, lon: float, alt: float, time:int},...],
-             lockable: bool
-             lastExchange: int
-             secret: string
-             pending: string
-            }
+	deviceId {positions:[{lat:float, lon: float, alt: float, time:int},...],
+			 lockable: bool
+			 lastExchange: int
+			 secret: string
+			 pending: string
+			}
 
-   user [deviceId:name,...]
-
+	user [deviceId:name,...]
 */
 // Using Relative for now, because backups.
 
@@ -164,7 +163,7 @@ func (self *Storage) Init() (err error) {
 		"create or replace function update_time() returns trigger as $$ begin new.lastexchange = now(); return new; end; $$ language 'plpgsql';",
 		"drop trigger if exists update_le on deviceinfo;",
 		"create trigger update_le before update on deviceinfo for each row execute procedure update_time();",
-        "set time zone utc;",
+		"set time zone utc;",
 	}
 
 	dbh := self.db
@@ -211,7 +210,7 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 				dev.Lockable,
 				dev.Accepts,
 				dev.PushUrl,
-                dev.Secret,
+				dev.Secret,
 			); err != nil {
 				self.logger.Error(self.logCat, "Could not update device",
 					util.Fields{"error": err.Error(),
@@ -363,7 +362,7 @@ func (self *Storage) GetPending(devId string) (cmd string, err error) {
 		statement = "delete from pendingCommands where id = $1"
 		dbh.Exec(statement, id)
 	}
-    self.Touch(devId)
+	self.Touch(devId)
 	return cmd, nil
 }
 
@@ -492,23 +491,23 @@ func (self *Storage) Touch(devId string) (err error) {
 }
 
 func (self *Storage) DeleteDevice(devId string) (err error) {
-    dbh := self.db
+	dbh := self.db
 
-    var tables = []string{"pendingcommands", "position", "usertodevice",
-        "deviceinfo"}
+	var tables = []string{"pendingcommands", "position", "usertodevice",
+		"deviceinfo"}
 
-    for t := range tables {
-        // BURN THE WITCH!
-        table := tables[t]
-        _, err = dbh.Exec("delete from $1 where deviceid=$2;", table, devId)
-        if err != nil {
-            self.logger.Error(self.logCat,
-                "Could not nuke data from table",
-                util.Fields{"error": err.Error(),
-                    "device": devId,
-                    "table": table})
-            return err
-        }
-    }
-    return nil
+	for t := range tables {
+		// BURN THE WITCH!
+		table := tables[t]
+		_, err = dbh.Exec("delete from $1 where deviceid=$2;", table, devId)
+		if err != nil {
+			self.logger.Error(self.logCat,
+				"Could not nuke data from table",
+				util.Fields{"error": err.Error(),
+					"device": devId,
+					"table": table})
+			return err
+		}
+	}
+	return nil
 }
