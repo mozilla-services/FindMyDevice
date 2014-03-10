@@ -5,15 +5,14 @@
 package wmf
 
 import (
-    "mozilla.org/util"
+	"mozilla.org/util"
 
-    "io"
-    "io/ioutil"
-    "strconv"
-    "net/http"
-    "encoding/json"
-    "strings"
-
+	"io"
+	"io/ioutil"
+	"strconv"
+	"net/http"
+	"encoding/json"
+	"strings"
 )
 
 //filters
@@ -89,5 +88,3 @@ func setSessionInfo(resp http.ResponseWriter, session *sessionInfo) (err error) 
 	}
 	return err
 }
-
-

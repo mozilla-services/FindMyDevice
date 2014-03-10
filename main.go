@@ -1,6 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
-  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 package main
 
 import (
@@ -56,8 +57,8 @@ func main() {
 		}
 	}
 
-    //TODO: Build out the partner cert pool if need be.
-    // certpoo
+	//TODO: Build out the partner cert pool if need be.
+	// certpoo
 
 	if opts.Profile != "" {
 		log.Printf("Creating profile %s...\n", opts.Profile)

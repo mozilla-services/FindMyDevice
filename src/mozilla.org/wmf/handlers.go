@@ -163,19 +163,19 @@ func (self *Handler) updatePage(devId string, args map[string]interface{}, logPo
 			location.Time = int64(arg.(float64))
 		case "ha":
 			locked = isTrue(arg)
-            location.Lockable = !locked
+			location.Lockable = !locked
 			if err = self.store.SetDeviceLockable(devId, !locked); err != nil {
 				return err
 			}
 		}
 	}
-    if logPosition {
-    	if err = self.store.SetDeviceLocation(devId, location); err != nil {
-	    	return err
-    	}
-	    // because go sql locking.
-    	self.store.GcPosition(devId)
-    }
+	if logPosition {
+		if err = self.store.SetDeviceLocation(devId, location); err != nil {
+			return err
+		}
+		// because go sql locking.
+		self.store.GcPosition(devId)
+	}
 	if client, ok := Clients[devId]; ok {
 		js, _ := json.Marshal(location)
 		client.Write(js)
@@ -272,7 +272,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		} else {
 			pushUrl = buffer["pushurl"].(string)
 		}
-        //ALWAYS generate a new secret on registration!
+		//ALWAYS generate a new secret on registration!
 		secret = GenNonce(16)
 		if _, ok = buffer["deviceid"]; !ok {
 			deviceid, err = util.GenUUID4()
@@ -447,11 +447,11 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			switch c {
 			case "l", "r", "m", "e":
 				err = self.store.Touch(deviceId)
-                self.updatePage(deviceId, args.(map[string]interface{}), false)
-            case "h":
-                argl := make(reply_t)
-                argl[string(cmd)] = isTrue(args)
-                self.updatePage(deviceId, argl, false)
+				self.updatePage(deviceId, args.(map[string]interface{}), false)
+			case "h":
+				argl := make(reply_t)
+				argl[string(cmd)] = isTrue(args)
+				self.updatePage(deviceId, argl, false)
 			case "t":
 				// track
 				err = self.updatePage(deviceId, args.(map[string]interface{}), true)
@@ -505,7 +505,7 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 	var err error
 	var lbody int
 
-    rep := make(reply_t)
+	rep := make(reply_t)
 
 	self.logCat = "handler:Queue"
 	resp.Header().Set("Content-Type", "application/json")
@@ -590,8 +590,8 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 				self.logger.Warn(self.logCat, "Agent does not accept command",
 					util.Fields{"unacceptable": c,
 						"acceptable": devRec.Accepts})
-                rep["error"] = 422
-                rep["cmd"] = cmd
+				rep["error"] = 422
+				rep["cmd"] = cmd
 				continue
 			}
 			rargs := args.(map[string]interface{})
@@ -668,7 +668,7 @@ func (self *Handler) Queue(resp http.ResponseWriter, req *http.Request) {
 			}
 		}
 	}
-    repl,_ := json.Marshal(rep)
+	repl,_ := json.Marshal(rep)
 	resp.Write(repl)
 }
 
