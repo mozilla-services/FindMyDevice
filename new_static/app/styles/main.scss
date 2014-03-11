@@ -21,9 +21,9 @@ a {
 
   header {
     background: #f4f4f4;
-    height: 50px;
+    height: 47px;
     left: 0;
-    padding: 0 20px;
+    padding: 0 34px;
     position: absolute;
     top: 0;
     width: 100%;
@@ -31,8 +31,12 @@ a {
 
     h1 {
       color: #8a8b97;
-      font-size: 22px;
+      font-size: 27px;
       font-weight: normal;
+      height: 32px;
+      margin-top: -16px;
+      position: absolute;
+      top: 50%;
     }
   }
 
@@ -40,12 +44,44 @@ a {
     background: #242426;
     color: #f2f1ec;
     bottom: 0;
+    height: 39px;
     left: 0;
-    padding: 4px;
     position: absolute;
-    text-align: center;
     width: 100%;
     z-index: 1000;
+
+    .button {
+      display: block;
+      float: left;
+      height: 39px;
+      width: 33%;
+
+      a {
+        background: url(../images/icon-sound-white.png) no-repeat 50% 50%;
+        display: block;
+        font-size: 13px;
+        height: 39px;
+        text-indent: -1000em;
+        width: 100%;
+        line-height: 1em;
+
+        &:active {
+          background-color: #6f7181;
+        }
+      }
+
+      &.play-sound a {
+        background-image: url(../images/icon-sound-white.png);
+      }
+
+      &.lost-mode a {
+        background-image: url(../images/icon-lock-white.png);
+      }
+
+      &.erase a {
+        background-image: url(../images/icon-erase-white.png);
+      }
+    }
   }
 
 }
@@ -58,15 +94,50 @@ a {
   bottom: 30px;
 }
 
+/* Desktop */
+
 @media only screen and (min-width: 768px) {
   #stage {
     footer {
       background: #e7e7e7;
       bottom: auto;
       color: #333;
-      padding-left: 20px;
+      height: 47px;
+      padding-left: 26px; // 34px - 8px for button padding
       text-align: left;
-      top: 50px;
+      top: 47px;
+
+      .button {
+        height: 47px;
+        width: auto;
+
+        a {
+          background: url(../images/icon-sound.png) no-repeat left 50%;
+          display: inline-block;
+          font-size: 13px;
+          height: 47px;
+          padding: 15px 12px 0 40px;
+          text-indent: 0;
+          width: auto;
+
+          &:hover {
+            background-color: #d9d9d9;
+          }
+        }
+
+        &.play-sound a {
+          background-image: url(../images/icon-sound.png);
+        }
+
+        &.lost-mode a {
+          background-image: url(../images/icon-lock.png);
+          margin: 0;
+        }
+
+        &.erase a {
+          background-image: url(../images/icon-erase.png);
+        }
+      }
     }
   }
 
