@@ -40,6 +40,10 @@ module.exports = function (grunt) {
                 files: ['test/spec/{,*/}*.coffee'],
                 tasks: ['coffee:test']
             },
+            sass: {
+                files: ['<%= yeoman.app %>/styles/{,*/}*.scss'],
+                tasks: ['sass:dev']
+            },
             livereload: {
                 options: {
                     livereload: LIVERELOAD_PORT
@@ -270,6 +274,18 @@ module.exports = function (grunt) {
                     ]
                 }
             }
+        },
+        sass: {                                 // Task
+            dist: {                             // Target
+                files: {                        // Dictionary of files
+                    '.tmp/styles/main.css': '<%= yeoman.app %>/styles/main.scss'     // 'destination': 'source'
+                }
+            },
+            dev: {                              // Another target
+                files: {
+                    '.tmp/styles/main.css': '<%= yeoman.app %>/styles/main.scss'
+                }
+            }
         }
     });
 
@@ -296,6 +312,7 @@ module.exports = function (grunt) {
         grunt.task.run([
             'clean:server',
             'coffee:dist',
+            'sass:dev',
             'connect:livereload',
             'open:server',
             'watch'
@@ -323,6 +340,7 @@ module.exports = function (grunt) {
     grunt.registerTask('build', [
         'clean:dist',
         'coffee',
+        'sass',
         'useminPrepare',
         'requirejs',
         'imagemin',

@@ -1,3 +1,12 @@
+/* Border box all the things */
+*, *:before, *:after {
+  box-sizing: border-box;
+}
+
+html, body, input, select {
+  font-family: 'TypoPRO Fira Sans', sans-serif;
+}
+
 html, body, #stage, #stage > div, #map {
   height: 100%;
   width: 100%;
@@ -64,5 +73,9 @@ a {
 
   .leaflet-top {
     top: 75px;
+  }
+
+  .leaflet-bottom {
+    bottom: 0;
   }
 }
