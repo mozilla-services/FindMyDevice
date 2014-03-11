@@ -10,7 +10,8 @@
     "modernizr": "~2.6.2",
     "mustache": "~0.8.1",
     "requirejs-mustache": "*",
-    "normalize-css": "~3.0.0"
+    "normalize-css": "~3.0.0",
+    "typopro": "~1.0.0"
   },
   "devDependencies": {}
 }

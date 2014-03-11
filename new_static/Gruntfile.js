@@ -254,6 +254,7 @@ module.exports = function (grunt) {
                         '.htaccess',
                         'images/{,*/}*.{webp,gif}',
                         'styles/fonts/{,*/}*.*',
+                        'bower_components/typopro/web/TypoPRO-FiraSans/{,*/}*.*'
                     ]
                 }]
             }
