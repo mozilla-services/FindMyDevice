@@ -18,39 +18,36 @@ a {
 
 #stage {
   position: relative;
-}
 
-#stage header {
-  background: #f4f4f4;
-  height: 50px;
-  left: 0;
-  padding: 0 20px;
-  position: absolute;
-  top: 0;
-  width: 100%;
-  z-index: 1000;
-}
+  header {
+    background: #f4f4f4;
+    height: 50px;
+    left: 0;
+    padding: 0 20px;
+    position: absolute;
+    top: 0;
+    width: 100%;
+    z-index: 1000;
 
-#stage header h1 {
-  color: #8a8b97;
-  font-size: 22px;
-  font-weight: normal;
-}
+    h1 {
+      color: #8a8b97;
+      font-size: 22px;
+      font-weight: normal;
+    }
+  }
 
-#stage footer {
-  background: #242426;
-  color: #f2f1ec;
-  bottom: 0;
-  left: 0;
-  padding: 4px;
-  position: absolute;
-  text-align: center;
-  width: 100%;
-  z-index: 1000;
-}
+  footer {
+    background: #242426;
+    color: #f2f1ec;
+    bottom: 0;
+    left: 0;
+    padding: 4px;
+    position: absolute;
+    text-align: center;
+    width: 100%;
+    z-index: 1000;
+  }
 
-#stage footer span {
-  padding-right: 10px;
 }
 
 .leaflet-top {
@@ -62,13 +59,15 @@ a {
 }
 
 @media only screen and (min-width: 768px) {
-  #stage footer {
-    background: #e7e7e7;
-    bottom: auto;
-    color: #333;
-    padding-left: 20px;
-    text-align: left;
-    top: 50px;
+  #stage {
+    footer {
+      background: #e7e7e7;
+      bottom: auto;
+      color: #333;
+      padding-left: 20px;
+      text-align: left;
+      top: 50px;
+    }
   }
 
   .leaflet-top {
