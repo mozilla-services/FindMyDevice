@@ -28,7 +28,11 @@ define([
     },
 
     afterInsert: function() {
-      L.mapbox.map('map', 'nchapman.hejm93ej');
+      // Setup the map
+      var map = L.mapbox.map('map', 'nchapman.hejm93ej', { zoomControl: false });
+
+      // Position zoom controls
+      new L.Control.Zoom({ position: 'topright' }).addTo(map);
     }
   });
 
