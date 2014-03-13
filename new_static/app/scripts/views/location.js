@@ -2,8 +2,10 @@
 
 define([
   'views/base',
-  'stache!templates/location'
-], function (BaseView, LocationTemplate) {
+  'stache!templates/location',
+  'views/play_sound',
+  'lib/modal_manager'
+], function (BaseView, LocationTemplate, PlaySoundView, ModalManager) {
   'use strict';
 
   var LocationView = BaseView.extend({
@@ -16,7 +18,7 @@ define([
     },
 
     playSound: function(event) {
-      alert("PLAYING THE SOUND");
+      ModalManager.push(new PlaySoundView());
     },
 
     lostMode: function(event) {
