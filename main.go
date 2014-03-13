@@ -1,4 +1,5 @@
 package main
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -66,18 +67,19 @@ func main() {
 		}
 	}
 
-    // Partner cert pool contains the various self-signed certs that
-    // partners may require to access their servers (for Proprietary
-    // wake mechanisms like UDP)
-    // This would be where you collect the certs and store them into
-    // the config map as something like:
-    // config["partnerCertPool"] = self.loadCerts()
+	// Partner cert pool contains the various self-signed certs that
+	// partners may require to access their servers (for Proprietary
+	// wake mechanisms like UDP)
+	// This would be where you collect the certs and store them into
+	// the config map as something like:
+	// config["partnerCertPool"] = self.loadCerts()
 
 	if opts.Profile != "" {
 		log.Printf("Creating profile %s...\n", opts.Profile)
 		f, err := os.Create(opts.Profile)
 		if err != nil {
-			log.Fatal("Profile creation failed:\n%s\n", err.Error())
+			log.Fatal(fmt.Sprintf("Profile creation failed:\n%s\n",
+				err.Error()))
 			return
 		}
 		defer func() {
@@ -90,7 +92,7 @@ func main() {
 		defer func() {
 			profFile, err := os.Create(opts.MemProfile)
 			if err != nil {
-				log.Fatal("Memory Profile creation failed:\n%s\n", err.Error())
+				log.Fatal(fmt.Sprintf("Memory Profile creation failed:\n%s\n", err.Error()))
 				return
 			}
 			pprof.WriteHeapProfile(profFile)
