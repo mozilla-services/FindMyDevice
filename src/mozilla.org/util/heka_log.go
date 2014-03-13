@@ -19,6 +19,7 @@ import (
 	"time"
 )
 
+// This is a localized Heka client wrapper
 type HekaLogger struct {
 	client   client.Client
 	encoder  client.Encoder
@@ -50,11 +51,11 @@ type Fields map[string]string
 func NewHekaLogger(conf JsMap) *HekaLogger {
 	//Preflight
 	var ok bool
-	var encoder client.Encoder = nil
-	var sender client.Sender = nil
-	var logname string = ""
+	var encoder client.Encoder
+	var sender client.Sender
+	var logname string
 	var err error
-	var tracer bool = false
+	var tracer = false
 	var filter int64
 
 	pid := int32(os.Getpid())

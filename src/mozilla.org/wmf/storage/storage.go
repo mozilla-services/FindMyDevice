@@ -5,29 +5,32 @@
 package storage
 
 import (
-	"database/sql"
-	_ "github.com/lib/pq"
 	"mozilla.org/util"
 
+	"database/sql"
 	"errors"
 	"fmt"
+	_ "github.com/lib/pq"
 	"strconv"
 	"strings"
 	"time"
 )
 
-var DatabaseError = errors.New("Database Error")
+var ErrDatabase = errors.New("Database Error")
+var ErrUnknownDevice = errors.New("Unknown device")
 
+// Storage abstration
 type Storage struct {
 	config   util.JsMap
 	logger   *util.HekaLogger
-    metrics  *util.Metrics
+	metrics  *util.Metrics
 	dsn      string
 	logCat   string
 	defExpry int64
 	db       *sql.DB
 }
 
+// Device position
 type Position struct {
 	Latitude  float64
 	Longitude float64
@@ -36,6 +39,7 @@ type Position struct {
 	Lockable  bool
 }
 
+// Device information
 type Device struct {
 	ID                string // device Id
 	User              string // userID
@@ -55,9 +59,8 @@ type DeviceList struct {
 	Name string
 }
 
+// Generic structure useful for JSON
 type Unstructured map[string]interface{}
-
-type Users map[string]string
 
 /* Relative:
 
@@ -98,9 +101,7 @@ type Users map[string]string
    user [deviceId:name,...]
 
 */
-// Using Relative for now, because backups.
 
-var ErrUnknownDevice = errors.New("Unknown device")
 
 // Get a time string that makes psql happy.
 func dbNow() (ret string) {
@@ -312,10 +313,10 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 	statement := "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time limit 10;"
 	rows, err := dbh.Query(statement, devId)
 	if err == nil {
-		var time int32 = 0
-		var latitude float32 = 0.0
-		var longitude float32 = 0.0
-		var altitude float32 = 0.0
+		var time int32
+		var latitude float32
+		var longitude float32
+		var altitude float32
 
 		for rows.Next() {
 			err = rows.Scan(&time, &latitude, &longitude, &altitude)
@@ -345,7 +346,7 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 // Get pending commands.
 func (self *Storage) GetPending(devId string) (cmd string, err error) {
 	dbh := self.db
-    var created int32
+	var created int32
 
 	statement := "select id, cmd, time from pendingCommands where deviceId = $1 order by time limit 1;"
 	rows, err := dbh.Query(statement, devId)
@@ -358,8 +359,8 @@ func (self *Storage) GetPending(devId string) (cmd string, err error) {
 					"deviceId": devId})
 			return "", err
 		}
-        lifespan := time.Now().Unix() - int64(created)
-        self.metrics.Timer("cmd.pending", lifespan)
+		lifespan := time.Now().Unix() - int64(created)
+		self.metrics.Timer("cmd.pending", lifespan)
 		statement = "delete from pendingCommands where id = $1"
 		dbh.Exec(statement, id)
 	}
@@ -369,7 +370,6 @@ func (self *Storage) GetPending(devId string) (cmd string, err error) {
 
 // Get all known devices for this user.
 func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err error) {
-	//TODO: get list of devices
 	var data []DeviceList
 
 	dbh := self.db
@@ -420,7 +420,6 @@ func (self *Storage) StoreCommand(devId, command string) (err error) {
 
 // Shorthand function to set the lock state for a device.
 func (self *Storage) SetDeviceLockable(devId string, state bool) (err error) {
-	// TODO: update the device record
 	dbh := self.db
 
 	statement := "update deviceInfo set lockable = $1, lastexchange = now()  where deviceId =$2"
@@ -437,7 +436,6 @@ func (self *Storage) SetDeviceLockable(devId string, state bool) (err error) {
 
 // Add the location information to the known set for a device.
 func (self *Storage) SetDeviceLocation(devId string, position Position) (err error) {
-	// TODO: set the current device position
 	dbh := self.db
 
 	statement := "insert into position (deviceId, time, latitude, longitude, altitude) values ($1, $2, $3, $4, $5);"

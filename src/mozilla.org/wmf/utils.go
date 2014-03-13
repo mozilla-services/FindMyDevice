@@ -1,8 +1,8 @@
+package wmf
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-package wmf
 
 import (
 	"mozilla.org/util"
@@ -64,9 +64,9 @@ func isTrue(val interface{}) bool {
 	}
 }
 
+// There's no built in min function.
+// awesome.
 func minInt(x, y int) int {
-	// There's no built in min function.
-	// awesome.
 	if x < y {
 		return x
 	}

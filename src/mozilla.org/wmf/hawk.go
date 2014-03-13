@@ -1,8 +1,8 @@
+package wmf
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-package wmf
 
 import (
 	"crypto/hmac"
@@ -18,12 +18,11 @@ import (
 	"time"
 )
 
-// minimal HAWK for now (e.g. no bewit because IAGNI)
-
 var ErrNoAuth = errors.New("No Authorization Header")
 var ErrNotHawkAuth = errors.New("Not a Hawk Authorization Header")
 var ErrInvalidSignature = errors.New("Header does not match signature")
 
+// minimal HAWK for now (e.g. no bewit because IAGNI)
 type Hawk struct {
 	logger    *util.HekaLogger
 	config    util.JsMap

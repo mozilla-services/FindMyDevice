@@ -1,8 +1,8 @@
+package wmf
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-package wmf
 
 import (
 	"code.google.com/p/go.net/websocket"
@@ -30,6 +30,7 @@ import (
 	"time"
 )
 
+// base handler for REST and Socket calls.
 type Handler struct {
 	config  util.JsMap
 	logger  *util.HekaLogger
@@ -41,25 +42,23 @@ type Handler struct {
 	hawk    *Hawk
 }
 
+// Map of clientIDs to socket handlers
 type ClientMap map[string]*WWS
 
 var muClient sync.Mutex
 var Clients = make(ClientMap)
 
-type reply_t map[string]interface{}
+// Generic reply structure (useful for JSON responses)
+type replyType map[string]interface{}
 
+// Each session contains a UserID and a DeviceID
 type sessionInfo struct {
 	UserId   string
 	DeviceId string
 }
 
-type ui_cmd struct {
-	c    string
-	args map[string]interface{}
-}
-
-var InvalidReplyErr = errors.New("Invalid Command Response")
-var AuthorizationErr = errors.New("Needs Authorization")
+var ErrInvalidReply = errors.New("Invalid Command Response")
+var ErrAuthorization = errors.New("Needs Authorization")
 
 //Handler private functions
 
@@ -72,47 +71,47 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 		fmt.Printf("assertion: %s\n", assertion)
 		if len(assertion) == 0 {
 			return "user1", "user@example.com", nil
-		} else {
-			// Time to UberFake! THIS IS VERY DANGEROUS!
-			self.logger.Warn(self.logCat, "!!! Using Assertion Without Validation !!!", nil)
-			bits := strings.Split(assertion, ".")
-			// get the interesting bit
-			int_bit := bits[1]
-			// pad to byte boundry
-			int_bit = int_bit + "===="[:len(int_bit)%4]
-			decoded, err := base64.StdEncoding.DecodeString(int_bit)
-			if err != nil {
-				self.logger.Error(self.logCat, "Could not decode assertion",
-					util.Fields{"error": err.Error()})
-				return "", "", err
-			} else {
-				asrt := make(reply_t)
-				err = json.Unmarshal(decoded, &asrt)
-				if err != nil {
-					self.logger.Error(self.logCat, "Could not unmarshal",
-						util.Fields{"error": err.Error()})
-					return "", "", err
-				}
-				email = asrt["principal"].(map[string]interface{})["email"].(string)
-				hasher := sha256.New()
-				hasher.Write([]byte(email))
-				userid = hex.EncodeToString(hasher.Sum(nil))
-			}
-			self.logger.Debug(self.logCat, "Extracted credentials",
-				util.Fields{"userId": userid, "email": email})
-			return userid, email, nil
 		}
+		// Time to UberFake! THIS IS VERY DANGEROUS!
+		self.logger.Warn(self.logCat, "!!! Using Assertion Without Validation !!!", nil)
+		bits := strings.Split(assertion, ".")
+		// get the interesting bit
+		intBit := bits[1]
+		// pad to byte boundry
+		intBit = intBit + "===="[:len(intBit)%4]
+		decoded, err := base64.StdEncoding.DecodeString(intBit)
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not decode assertion",
+				util.Fields{"error": err.Error()})
+			return "", "", err
+		}
+		asrt := make(replyType)
+		err = json.Unmarshal(decoded, &asrt)
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not unmarshal",
+				util.Fields{"error": err.Error()})
+			return "", "", err
+		}
+		email = asrt["principal"].(map[string]interface{})["email"].(string)
+		hasher := sha256.New()
+		hasher.Write([]byte(email))
+		userid = hex.EncodeToString(hasher.Sum(nil))
+		self.logger.Debug(self.logCat, "Extracted credentials",
+			util.Fields{"userId": userid, "email": email})
+		return userid, email, nil
 	}
-	ver_url := util.MzGet(self.config, "persona.validater_url", "https://verifier.login.persona.org/verify")
+
+	// Better verify for realz
+	validatorURL := util.MzGet(self.config, "persona.validater_url", "https://verifier.login.persona.org/verify")
 	audience := util.MzGet(self.config, "persona.audience",
 		"http://localhost:8080")
 	body, err := json.Marshal(util.Fields{"assertion": assertion, "audience": audience})
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not marshal assertion",
 			util.Fields{"error": err.Error()})
-		return "", "", AuthorizationErr
+		return "", "", ErrAuthorization
 	}
-	req, err := http.NewRequest("POST", ver_url, bytes.NewReader(body))
+	req, err := http.NewRequest("POST", validatorURL, bytes.NewReader(body))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not POST assertion",
 			util.Fields{"error": err.Error()})
@@ -120,16 +119,13 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 	req.Header.Add("Content-Type", "application/json")
 	cli := http.Client{}
 	res, err := cli.Do(req)
-	/*
-	   res, err := http.PostForm(ver_url, url.Values{
-	   "assertion": {assertion},
-	   "audience":  {audience}})
-	*/
 	if err != nil {
 		self.logger.Error(self.logCat, "Persona verification failed",
 			util.Fields{"error": err.Error()})
-		return "", "", AuthorizationErr
+		return "", "", ErrAuthorization
 	}
+
+	// Handle the verifier response
 	buffer, err := parseBody(res.Body)
 	if isOk, ok := buffer["status"]; !ok || isOk != "okay" {
 		var errStr string
@@ -141,13 +137,16 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 		self.logger.Error(self.logCat, "Persona Auth Failed",
 			util.Fields{"error": errStr,
 				"buffer": fmt.Sprintf("%+v", buffer)})
-		return "", "", AuthorizationErr
+		return "", "", ErrAuthorization
 	}
+
+	// extract the email
 	if email, ok = buffer["email"].(string); !ok {
 		self.logger.Error(self.logCat, "No email found in assertion",
 			util.Fields{"assertion": fmt.Sprintf("%+v", buffer)})
-		return "", "", AuthorizationErr
+		return "", "", ErrAuthorization
 	}
+	// and the userid, generating one if need be.
 	if userid, ok = buffer["userid"].(string); !ok {
 		hasher := sha256.New()
 		hasher.Write([]byte(email))
@@ -158,23 +157,21 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 
 // get the user id from the session, or the assertion.
 func (self *Handler) getUser(req *http.Request) (userid string, user string, err error) {
-	//TODO: accept Auth before cookie?
-
 	useridc, err := req.Cookie("user")
 	if err == http.ErrNoCookie {
 		var auth string
 		if auth = req.FormValue("assertion"); auth == "" {
-			return "", "", AuthorizationErr
+			return "", "", ErrAuthorization
 		}
 		fmt.Printf("assertion: %s\n", auth)
 		userid, user, err = self.verifyAssertion(auth)
 		if err != nil {
-			return "", "", AuthorizationErr
+			return "", "", ErrAuthorization
 		}
 	} else {
 
 		if err != nil {
-			return "", "", AuthorizationErr
+			return "", "", ErrAuthorization
 		}
 		userid = useridc.Value
 	}
@@ -238,17 +235,16 @@ func (self *Handler) updatePage(devId string, args map[string]interface{}, logPo
 }
 
 // log the cmd reply from the device.
-func (self *Handler) logReply(devId, cmd string, args reply_t) (err error) {
+func (self *Handler) logReply(devId, cmd string, args replyType) (err error) {
 	// verify state and store it
 	if v, ok := args["ok"]; !ok {
-		return InvalidReplyErr
+		return ErrInvalidReply
 	} else {
 		if !isTrue(v) {
 			if e, ok := args["error"]; ok {
 				return errors.New(e.(string))
-			} else {
-				return errors.New("Unknown error")
 			}
+			return errors.New("Unknown error")
 		}
 		// log the state? (Device is currently cmd-ing)?
 		err = self.store.Touch(devId)
@@ -256,6 +252,7 @@ func (self *Handler) logReply(devId, cmd string, args reply_t) (err error) {
 	return err
 }
 
+// Check that a given string intval is within a range.
 func (self *Handler) rangeCheck(s string, min, max int64) string {
 	val, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
@@ -284,11 +281,10 @@ func NewHandler(config util.JsMap, logger *util.HekaLogger, store *storage.Stora
 		store:   store}
 }
 
+// Register a new device
 func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
-	/*register a new device
-	 */
 
-	var buffer util.JsMap = util.JsMap{}
+	var buffer = util.JsMap{}
 	var userid string
 	var user string
 	var pushUrl string
@@ -296,7 +292,6 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var secret string
 	var accepts string
 	var lockable bool
-	var ok bool
 
 	self.logCat = "handler:Register"
 
@@ -317,33 +312,33 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			user = strings.SplitN(user, "@", 2)[0]
 		}
 
-		if _, ok = buffer["pushurl"]; !ok {
+		if val, ok := buffer["pushurl"]; !ok {
 			self.logger.Error(self.logCat, "Missing SimplePush url", nil)
 			http.Error(resp, "Bad Data", 400)
 			return
 		} else {
-			pushUrl = buffer["pushurl"].(string)
+			pushUrl = val.(string)
 		}
 		//ALWAYS generate a new secret on registration!
 		secret = GenNonce(16)
-		if _, ok = buffer["deviceid"]; !ok {
+		if val, ok := buffer["deviceid"]; !ok {
 			deviceid, err = util.GenUUID4()
 		} else {
-			deviceid = buffer["deviceid"].(string)
+			deviceid = val.(string)
 		}
-		if _, ok = buffer["has_passcode"]; !ok {
+		if val, ok := buffer["has_passcode"]; !ok {
 			lockable = true
 		} else {
-			lockable, err = strconv.ParseBool(buffer["has_passcode"].(string))
+			lockable, err = strconv.ParseBool(val.(string))
 			if err != nil {
 				lockable = false
 			}
 		}
-		if k, ok := buffer["accepts"]; ok {
+		if val, ok := buffer["accepts"]; ok {
 			// collapse the array to a string
-			if l := len(k.([]interface{})); l > 0 {
+			if l := len(val.([]interface{})); l > 0 {
 				acc := make([]byte, l)
-				for n, ke := range k.([]interface{}) {
+				for n, ke := range val.([]interface{}) {
 					acc[n] = ke.(string)[0]
 				}
 				accepts = strings.ToLower(string(acc))
@@ -385,9 +380,8 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	return
 }
 
+// Handle the Cmd response from the device and pass next command if available.
 func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
-	/* Log response and Pass the latest command off to the device.
-	 */
 	var err error
 	var l int
 
@@ -474,7 +468,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			"length": fmt.Sprintf("%d", l),
 		})
 	if l > 0 {
-		reply := make(reply_t)
+		reply := make(replyType)
 		merr := json.Unmarshal(body, &reply)
 		//	merr := json.Unmarshal(body, &reply)
 		if merr != nil {
@@ -501,7 +495,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				err = self.store.Touch(deviceId)
 				self.updatePage(deviceId, args.(map[string]interface{}), false)
 			case "h":
-				argl := make(reply_t)
+				argl := make(replyType)
 				argl[string(cmd)] = isTrue(args)
 				self.updatePage(deviceId, argl, false)
 			case "t":
@@ -532,7 +526,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	// reply with pending commands
 	//
 	cmd, err := self.store.GetPending(deviceId)
-	var output []byte = []byte(cmd)
+	var output = []byte(cmd)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send commands",
 			util.Fields{"error": err.Error()})
@@ -551,7 +545,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(output)
 }
 
-func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *reply_t) (status int, err error) {
+// Queue the command from the Web Front End for the device.
+func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyType) (status int, err error) {
 	status = http.StatusOK
 
 	deviceId := devRec.ID
@@ -605,7 +600,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *reply_
 				0, max)
 		}
 	case "e":
-		rargs = reply_t{}
+		rargs = replyType{}
 	default:
 		return http.StatusBadRequest, errors.New("Invalid Command")
 	}
@@ -649,7 +644,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	var err error
 	var lbody int
 
-	rep := make(reply_t)
+	rep := make(replyType)
 
 	self.logCat = "handler:Queue"
 	resp.Header().Set("Content-Type", "application/json")
@@ -718,7 +713,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 			"length": fmt.Sprintf("%d", lbody),
 		})
 	if lbody > 0 {
-		reply := make(reply_t)
+		reply := make(replyType)
 		merr := json.Unmarshal(body, &reply)
 		//	merr := json.Unmarshal(body, &reply)
 		if merr != nil {
@@ -731,7 +726,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		}
 
 		for cmd, args := range reply {
-			rargs := reply_t(args.(map[string]interface{}))
+			rargs := replyType(args.(map[string]interface{}))
 			status, err := self.Queue(devRec, cmd, &rargs, &rep)
 			if err != nil {
 				self.logger.Error(self.logCat, "Error processing command",
@@ -831,7 +826,6 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	// render the page from the template
 	tmpl, err := template.New("index.html").ParseFiles("static/index.html")
 	if err != nil {
-		// TODO: display error
 		self.logger.Error(self.logCat, "Could not display index page",
 			util.Fields{"error": err.Error(),
 				"user": data.UserId})
@@ -854,9 +848,8 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	return
 }
 
+// Show the state of the user's devices.
 func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
-	/* Show the state of the user's devices.
-	 */
 	// get session info
 	self.logCat = self.logCat + ":State"
 	sessionInfo, err := self.getSessionInfo(req)
@@ -878,11 +871,10 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// Show the status of the program (For Load Balancers)
 func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
-	/* Show program status
-	 */
 	self.logCat = "handler:Status"
-	reply := reply_t{
+	reply := replyType{
 		"status":     "ok",
 		"goroutines": runtime.NumGoroutine(),
 		"version":    req.URL.Path[len("/status/"):],
@@ -891,6 +883,7 @@ func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(rep)
 }
 
+// Handle requests for static content (should be an NGINX rule)
 func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
 	/* This should be handled by something like an nginx rule
 	 */
@@ -900,6 +893,7 @@ func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// Display the current metrics as a JSON snapshot
 func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 	snapshot := self.metrics.Snapshot()
 
@@ -917,12 +911,14 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(reply)
 }
 
+// Add a new trackable client.
 func addClient(id string, sock *WWS) {
 	defer muClient.Unlock()
 	muClient.Lock()
 	Clients[id] = sock
 }
 
+// remove a trackable client
 func rmClient(id string) {
 	defer muClient.Unlock()
 	muClient.Lock()
@@ -931,6 +927,7 @@ func rmClient(id string) {
 	}
 }
 
+// Handle Websocket processing.
 func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	self.devId = getDevFromUrl(ws.Request().URL)
 	devRec, err := self.store.GetDeviceInfo(self.devId)
