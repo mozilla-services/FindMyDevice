@@ -1,9 +1,13 @@
 'use strict';
+
+var path = require('path');
+
 var LIVERELOAD_PORT = 35729;
 var SERVER_PORT = 9000;
 var lrSnippet = require('connect-livereload')({port: LIVERELOAD_PORT});
+
 var mountFolder = function (connect, dir) {
-    return connect.static(require('path').resolve(dir));
+    return connect.static(path.resolve(dir));
 };
 
 // # Globbing
@@ -16,6 +20,7 @@ var mountFolder = function (connect, dir) {
 module.exports = function (grunt) {
     // show elapsed time at the end
     require('time-grunt')(grunt);
+
     // load all grunt tasks
     require('load-grunt-tasks')(grunt);
 
@@ -182,7 +187,7 @@ module.exports = function (grunt) {
                     // http://requirejs.org/docs/errors.html#sourcemapcomments
                     preserveLicenseComments: false,
                     useStrict: true,
-                    wrap: true,
+                    wrap: true
                     //stubModules: ['text', 'stache']
                     //uglify2: {} // https://github.com/mishoo/UglifyJS2
                 }
@@ -271,7 +276,7 @@ module.exports = function (grunt) {
                         '<%= yeoman.dist %>/scripts/{,*/}*.js',
                         '<%= yeoman.dist %>/styles/{,*/}*.css',
                         '<%= yeoman.dist %>/images/{,*/}*.{png,jpg,jpeg,gif,webp}',
-                        '/styles/fonts/{,*/}*.*',
+                        '/styles/fonts/{,*/}*.*'
                     ]
                 }
             }
@@ -290,7 +295,7 @@ module.exports = function (grunt) {
         }
     });
 
-    grunt.registerTask('server', function () {
+    grunt.registerTask('server', 'The `server` task has been deprecated. Use `grunt serve` to start a server.', function (target) {
         grunt.log.warn('The `server` task has been deprecated. Use `grunt serve` to start a server.');
         grunt.task.run(['serve:' + target]);
     });
