@@ -11,6 +11,12 @@
   "homepage": "https://github.com/jrconlin/wmf",
   "bugs": "https://github.com/jrconlin/wmf/issues/",
   "license": "MPL 2.0",
+  "scripts": {
+    "postinstall": "bower install",
+    "start": "grunt",
+    "test": "grunt test",
+    "contributors": "git shortlog -s | cut -c8- | sort -f > CONTRIBUTORS"
+  },
   "dependencies": {},
   "devDependencies": {
     "connect-livereload": "0.3.2",
