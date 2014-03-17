@@ -75,6 +75,11 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 		// Time to UberFake! THIS IS VERY DANGEROUS!
 		self.logger.Warn(self.logCat, "!!! Using Assertion Without Validation !!!", nil)
 		bits := strings.Split(assertion, ".")
+        if len(bits) < 2 {
+            self.logger.Error(self.logCat, "Invalid assertion",
+                util.Fields{"assertion": assertion})
+            return "", "", err
+        }
 		// get the interesting bit
 		intBit := bits[1]
 		// pad to byte boundry

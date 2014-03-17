@@ -21,13 +21,13 @@ var ErrUnknownDevice = errors.New("Unknown device")
 
 // Storage abstration
 type Storage struct {
-	config   util.JsMap
-	logger   *util.HekaLogger
-	metrics  *util.Metrics
-	dsn      string
-	logCat   string
-	defExpry int64
-	db       *sql.DB
+	config       util.JsMap
+	logger       *util.HekaLogger
+	metrics      *util.Metrics
+	dsn          string
+	logCat       string
+	defExpry     int64
+	db           *sql.DB
 }
 
 // Device position
@@ -102,7 +102,6 @@ type Unstructured map[string]interface{}
 
 */
 
-
 // Get a time string that makes psql happy.
 func dbNow() (ret string) {
 	r, _ := time.Now().UTC().MarshalText()
@@ -135,6 +134,7 @@ func Open(config util.JsMap, logger *util.HekaLogger, metrics *util.Metrics) (st
 		logger:   logger,
 		logCat:   logCat,
 		defExpry: defExpry,
+		metrics:  metrics,
 		dsn:      dsn,
 		db:       db}
 	if err = store.Init(); err != nil {
@@ -177,6 +177,8 @@ func (self *Storage) Init() (err error) {
 			return err
 		}
 	}
+
+	self.datePatterns = []string{"2006-01-02 15:04:05 -0700 +0000"}
 
 	return nil
 }
@@ -346,20 +348,23 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 // Get pending commands.
 func (self *Storage) GetPending(devId string) (cmd string, err error) {
 	dbh := self.db
-	var created int32
+	var createt = time.Time{}
+	var created int64
 
 	statement := "select id, cmd, time from pendingCommands where deviceId = $1 order by time limit 1;"
 	rows, err := dbh.Query(statement, devId)
 	if rows.Next() {
 		var id string
-		err = rows.Scan(&id, &cmd, &created)
+		err = rows.Scan(&id, &cmd, &createt)
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not read pending command",
 				util.Fields{"error": err.Error(),
 					"deviceId": devId})
 			return "", err
 		}
-		lifespan := time.Now().Unix() - int64(created)
+		// Convert the date string to an int64
+		created = createt.Unix()
+		lifespan := time.Now().Unix() - created
 		self.metrics.Timer("cmd.pending", lifespan)
 		statement = "delete from pendingCommands where id = $1"
 		dbh.Exec(statement, id)

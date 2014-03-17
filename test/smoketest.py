@@ -107,7 +107,7 @@ def registerNew(config):
         scheme=config.get("main", "scheme"),
         host=config.get("main", "host"))
     # divy up based on scheme.
-    regObj = {"assert": "test",
+    regObj = {"assert": "",
               "pushurl": "http://example.com",
               "deviceid": "test1"}
     reply = send(trg, regObj, {})
@@ -135,6 +135,7 @@ def send(urlStr, data, cred, method="POST"):
                                             ts=ts, nonce=nonce, mac=mac)
         #print "Header: %s\n" % (header)
         headers["Authorization"] = header
+    import pdb;pdb.set_trace()
     print "Sending %s\n" % (url.path)
     http.request(method, url.path, datas, headers)
     response = http.getresponse()

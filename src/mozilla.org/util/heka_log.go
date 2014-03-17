@@ -132,7 +132,7 @@ func (self HekaLogger) Log(level int32, mtype, payload string, fields Fields) (e
 			caller = Fields{
 				"file": file,
 				// defaults don't appear to work.: file,
-				"line": strconv.FormatInt(int64(line), 0),
+				"line": strconv.FormatInt(int64(line), 10),
 				"name": funk.Name()}
 		}
 	}
