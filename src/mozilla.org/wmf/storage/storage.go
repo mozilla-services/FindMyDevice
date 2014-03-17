@@ -178,8 +178,6 @@ func (self *Storage) Init() (err error) {
 		}
 	}
 
-	self.datePatterns = []string{"2006-01-02 15:04:05 -0700 +0000"}
-
 	return nil
 }
 
