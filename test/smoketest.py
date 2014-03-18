@@ -1,5 +1,17 @@
 #!/usr/bin/python
 
+"""
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+"""
+
+
+"""
+This is a simple test to ensure minimal API operations for the server
+"""
+
+
 from pprint import pprint
 from string import Template
 import ConfigParser
@@ -17,6 +29,8 @@ import urlparse
 
 
 def genHash(body, ctype="application/json"):
+    """ Generate a HAWK hash from the body of the sent message
+    """
     if len(body) == 0:
         return ""
     marshalStr = "%s\n%s\n%s\n" % (
@@ -30,6 +44,8 @@ def genHash(body, ctype="application/json"):
 
 def genHawkSignature(method, url, bodyHash, extra, secret,
                      now=None, nonce=None, ctype="application/json"):
+    """ Generate a HAWK signature from the content to be sent
+    """
     path = url.path
     host = url.hostname
     port = url.port
@@ -56,6 +72,8 @@ def genHawkSignature(method, url, bodyHash, extra, secret,
 
 
 def parseHawkHeader(header):
+    """ Parse the HAWK auth header elements
+    """
     result = {}
     if header[:4].lower != "hawk":
         return None
@@ -67,6 +85,8 @@ def parseHawkHeader(header):
 
 
 def checkHawk(method, url, extra, secret, header):
+    """ Validate the HAWK header against the body
+    """
     hawk = parseHawkHeader(header)
     ts, n, mac = genHawkSignature(method, url, extra, hawk["hash"], secret,
                                   hawk["ts"], hawk["nonce"])
@@ -75,10 +95,14 @@ def checkHawk(method, url, extra, secret, header):
 
 
 def geoWalk():
+    """ Return a randomish location within a mile or so of a location.
+    """
     return (random.randint(0, 999) * 0.000001)
 
 
 def newLocation():
+    """ Create a new, fake location
+    """
     utc = int(time.time())
     lat = 37.3883 + geoWalk()
     lon = -122.0615 + geoWalk()
@@ -86,6 +110,8 @@ def newLocation():
 
 
 def getConfig(argv):
+    """ Read in the config file
+    """
     configFile = "config.ini"
     try:
         opts, args = getopt.getopt(argv, "c:", ["config="])
@@ -102,6 +128,8 @@ def getConfig(argv):
 
 
 def registerNew(config):
+    """ Register a new fake device
+    """
     tmpl = config.get("urls", "reg")
     trg = Template(tmpl).safe_substitute(
         scheme=config.get("main", "scheme"),
@@ -117,6 +145,8 @@ def registerNew(config):
 
 
 def send(urlStr, data, cred, method="POST"):
+    """ Generic function that wraps data and sends it to the server
+    """
     url = urlparse.urlparse(urlStr)
     http = httplib.HTTPConnection(url.netloc)
     headers = {"Content-Type": "application/json"}
@@ -135,12 +165,9 @@ def send(urlStr, data, cred, method="POST"):
                                             ts=ts, nonce=nonce, mac=mac)
         #print "Header: %s\n" % (header)
         headers["Authorization"] = header
-    import pdb;pdb.set_trace()
-    print "Sending %s\n" % (url.path)
     http.request(method, url.path, datas, headers)
     response = http.getresponse()
     if response.status != 200:
-        # TODO do stuff.
         import pdb; pdb.set_trace()
         print "Crap."
         return None
@@ -153,12 +180,19 @@ def send(urlStr, data, cred, method="POST"):
 
 
 def processCmd(config, cmd, cred):
+    """ Process the command like a client.
+        Or a cat. Which it kinda does now.
+    """
+    #TODO: you can insert various responses to commands here
+    # or just eat them like I'm doing right now.
     print "Command Recv'd..."
     pprint(cmd)
     print "\n============\n\n"
 
 
 def sendCmd(config, cred, cmd):
+    """ Shorthand method to send a command to the server.
+    """
     print "Sending Cmd %s\n" % json.dumps(cmd)
     tmpl = config.get("urls", "cmd")
     trg = Template(tmpl).safe_substitute(
@@ -186,8 +220,10 @@ def main(argv):
     while cmd is not None:
         print "Processing commands...\n"
         cmd = processCmd(config, cmd, cred)
+    # Send a fake statement saying that the client has no passcode.
     sendCmd(config, cred, {'has_passcode': False})
 #    sendCmd(config, cred, {'l': {'ok': True}, 'has_passcode': True})
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])
