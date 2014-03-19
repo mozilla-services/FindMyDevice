@@ -1,5 +1,17 @@
 #!/usr/bin/python
 
+"""
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+"""
+
+
+"""
+This is a simple test to ensure minimal API operations for the server
+"""
+
+
 from pprint import pprint
 from string import Template
 import ConfigParser
@@ -7,16 +19,19 @@ import base64
 import getopt
 import hashlib
 import hmac
-import httplib
 import json
 import os
 import random
+import requests
 import sys
 import time
 import urlparse
+import pdb
 
 
 def genHash(body, ctype="application/json"):
+    """ Generate a HAWK hash from the body of the sent message
+    """
     if len(body) == 0:
         return ""
     marshalStr = "%s\n%s\n%s\n" % (
@@ -28,8 +43,11 @@ def genHash(body, ctype="application/json"):
     return bhash
 
 
-def genHawkSignature(method, url, bodyHash, extra, secret,
+def genHawkSignature(method, urlStr, bodyHash, extra, secret,
                      now=None, nonce=None, ctype="application/json"):
+    """ Generate a HAWK signature from the content to be sent
+    """
+    url = urlparse.urlparse(urlStr)
     path = url.path
     host = url.hostname
     port = url.port
@@ -41,51 +59,69 @@ def genHawkSignature(method, url, bodyHash, extra, secret,
         "hawk.1.header",
         now,
         nonce,
-        method,
+        method.upper(),
         path,
-        host,
+        host.lower(),
         port,
         bodyHash,
         extra)
-    #print "Marshal Str: <<%s>>\nSecret: <<%s>>\n" % (marshalStr, secret)
+    print "Marshal Str: <<%s>>\nSecret: <<%s>>\n" % (marshalStr, secret)
     mac = hmac.new(secret.encode("utf-8"),
                    marshalStr.encode("utf-8"),
                    digestmod=hashlib.sha256).digest()
-    #print "mac: <<" + ','.join([str(ord(elem)) for elem in mac]) + ">>\n"
+    print "mac: <<" + ','.join([str(ord(elem)) for elem in mac]) + ">>\n"
     return now, nonce, base64.b64encode(mac)
 
 
 def parseHawkHeader(header):
+    """ Parse the HAWK auth header elements
+    """
     result = {}
-    if header[:4].lower != "hawk":
+    if header[:4].lower() != "hawk":
         return None
     elements = header[5:].split(", ")
     for elem in elements:
         bits = elem.split("=")
-        result[bits[0]] = bits[1]
+        result[bits[0]] = bits[1].replace('"', '')
     return result
 
 
-def checkHawk(method, url, extra, secret, header):
-    hawk = parseHawkHeader(header)
-    ts, n, mac = genHawkSignature(method, url, extra, hawk["hash"], secret,
-                                  hawk["ts"], hawk["nonce"])
+def checkHawk(response, secret):
+    """ Validate the HAWK header against the body
+    """
+    hawk = parseHawkHeader(response.headers.get("authorization"))
+    ct = response.headers.get('content-type')
+    bodyhash = genHash(response.text, ct)
+    _, _, mac = genHawkSignature(response.request.method,
+                                 response.request.url,
+                                 bodyhash,
+                                 hawk.get("ext"),
+                                 secret,
+                                 hawk["ts"],
+                                 hawk["nonce"],
+                                 ct)
     # remove "white space
     return mac.replace('=', '') == hawk["mac"].replace('=', '')
 
 
 def geoWalk():
-    return (random.randint(0, 999) * 0.00001)
+    """ Return a randomish location within a mile or so of a location.
+    """
+    return (random.randint(0, 999) * 0.000001)
 
 
 def newLocation():
+    """ Create a new, fake location
+    """
     utc = int(time.time())
-    lat = 37 + geoWalk()
-    lon = -122 + geoWalk()
+    lat = 37.3883 + geoWalk()
+    lon = -122.0615 + geoWalk()
     return {"t": {"la": lat, "lo": lon, "ti": utc, "ha": True}}
 
 
 def getConfig(argv):
+    """ Read in the config file
+    """
     configFile = "config.ini"
     try:
         opts, args = getopt.getopt(argv, "c:", ["config="])
@@ -96,34 +132,39 @@ def getConfig(argv):
         if o in ("-c", "--config"):
             configFile = a
     config = ConfigParser.ConfigParser()
+    print "Reading... %s\n" % configFile
     config.read(configFile)
     return config
 
 
 def registerNew(config):
+    """ Register a new fake device
+    """
     tmpl = config.get("urls", "reg")
     trg = Template(tmpl).safe_substitute(
         scheme=config.get("main", "scheme"),
         host=config.get("main", "host"))
     # divy up based on scheme.
-    regObj = {"assert": "test",
+    regObj = {"assert": "",
               "pushurl": "http://example.com",
               "deviceid": "test1"}
     reply = send(trg, regObj, {})
     pprint(reply)
-    cred = reply
+    cred = reply.json()
+    pprint(cred)
     return sendCmd(config, cred, newLocation()), cred
 
 
 def send(urlStr, data, cred, method="POST"):
-    url = urlparse.urlparse(urlStr)
-    http = httplib.HTTPConnection(url.netloc)
-    headers = {"Content-Type": "application/json"}
+    """ Generic function that wraps data and sends it to the server
+    """
+    session = requests.Session()
+    headers = {"content-type": "application/json"}
     datas = json.dumps(data)
     if cred.get("secret") is not None:
         # generate HAWK auth header
         bodyHash = genHash(datas, "application/json")
-        ts, nonce, mac = genHawkSignature(method, url, bodyHash, "",
+        ts, nonce, mac = genHawkSignature(method, urlStr, bodyHash, "",
                                           cred.get("secret"))
         header = Template('Hawk id="$id", ts="$ts", ' +
                           'nonce="$nonce", ext="$extra", ' +
@@ -134,27 +175,38 @@ def send(urlStr, data, cred, method="POST"):
                                             ts=ts, nonce=nonce, mac=mac)
         #print "Header: %s\n" % (header)
         headers["Authorization"] = header
-    print "Sending %s\n" % (url.path)
-    http.request(method, url.path, datas, headers)
-    response = http.getresponse()
-    if response.status != 200:
-        # TODO do stuff.
-        import pdb; pdb.set_trace()
-    rbody = response.read()
-    if len(rbody) > 0:
-        body = json.loads(rbody)
-        pprint(body)
-        return body
-    return None
+
+    req = requests.Request(method,
+                           urlStr,
+                           data=json.dumps(data),
+                           headers=headers)
+    prepped = req.prepare()
+    response = session.send(prepped, timeout=2)
+    if response.status_code != requests.codes.ok:
+        pdb.set_trace()
+        print "Response Not OK"
+        requests.Response.raise_for_status()
+    if response.headers.get("Authorization") is not None:
+        if checkHawk(response, cred.get("secret")) is False:
+            pdb.set_trace()
+            print "HAWK Header failed"
+    return response
 
 
 def processCmd(config, cmd, cred):
+    """ Process the command like a client.
+        Or a cat. Which it kinda does now.
+    """
+    #TODO: you can insert various responses to commands here
+    # or just eat them like I'm doing right now.
     print "Command Recv'd..."
     pprint(cmd)
     print "\n============\n\n"
 
 
 def sendCmd(config, cred, cmd):
+    """ Shorthand method to send a command to the server.
+    """
     print "Sending Cmd %s\n" % json.dumps(cmd)
     tmpl = config.get("urls", "cmd")
     trg = Template(tmpl).safe_substitute(
@@ -162,7 +214,6 @@ def sendCmd(config, cred, cmd):
         host=config.get("main", "host"),
         id=cred.get("deviceid", "test1"))
     return send(trg, cmd, cred)
-    print "\n============\n\n"
 
 
 def main(argv):
@@ -180,10 +231,14 @@ def main(argv):
     print "Registering client... \n"
     cmd, cred = registerNew(config)
     while cmd is not None:
+        # Burn through the command queue.
         print "Processing commands...\n"
         cmd = processCmd(config, cmd, cred)
-    sendCmd(config, cred, {'has_passcode': False})
+    # Send a fake statement saying that the client has no passcode.
+    response = sendCmd(config, cred, {'has_passcode': False})
+    print(response.text)
 #    sendCmd(config, cred, {'l': {'ok': True}, 'has_passcode': True})
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])

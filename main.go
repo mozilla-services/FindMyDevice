@@ -1,8 +1,8 @@
+package main
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-package main
 
 import (
 	"code.google.com/p/go.net/websocket"
@@ -10,8 +10,8 @@ import (
 	"mozilla.org/util"
 	"mozilla.org/wmf"
 	"mozilla.org/wmf/storage"
-// Only add the following for devel.
-//	_ "net/http/pprof"
+	// Only add the following for devel.
+	//	_ "net/http/pprof"
 
 	"fmt"
 	"log"
@@ -32,13 +32,14 @@ var opts struct {
 }
 
 var (
-	logger *util.HekaLogger
-	store  *storage.Storage
+	logger  *util.HekaLogger
+	store   *storage.Storage
+	metrics *util.Metrics
 )
 
 const (
+	// VERSION is the version number for system.
 	VERSION = "0.1"
-	SIGUSR1 = syscall.SIGUSR1
 )
 
 func main() {
@@ -51,20 +52,34 @@ func main() {
 	}
 	config := util.MzGetConfig(opts.ConfigFile)
 	config["VERSION"] = VERSION
+
+	// Rest Config
+	errChan := make(chan error)
+	host := util.MzGet(config, "host", "localhost")
+	port := util.MzGet(config, "port", "8080")
+
 	if util.MzGetFlag(config, "aws.get_hostname") {
 		if hostname, err := util.GetAWSPublicHostname(); err == nil {
 			config["ws_hostname"] = hostname
 		}
+		if port != "80" {
+			config["ws_hostname"] = config["ws_hostname"].(string) + ":" + port
+		}
 	}
 
-	//TODO: Build out the partner cert pool if need be.
-	// certpoo
+	// Partner cert pool contains the various self-signed certs that
+	// partners may require to access their servers (for Proprietary
+	// wake mechanisms like UDP)
+	// This would be where you collect the certs and store them into
+	// the config map as something like:
+	// config["partnerCertPool"] = self.loadCerts()
 
 	if opts.Profile != "" {
 		log.Printf("Creating profile %s...\n", opts.Profile)
 		f, err := os.Create(opts.Profile)
 		if err != nil {
-			log.Fatal("Profile creation failed:\n%s\n", err.Error())
+			log.Fatal(fmt.Sprintf("Profile creation failed:\n%s\n",
+				err.Error()))
 			return
 		}
 		defer func() {
@@ -77,7 +92,7 @@ func main() {
 		defer func() {
 			profFile, err := os.Create(opts.MemProfile)
 			if err != nil {
-				log.Fatal("Memory Profile creation failed:\n%s\n", err.Error())
+				log.Fatal(fmt.Sprintf("Memory Profile creation failed:\n%s\n", err.Error()))
 				return
 			}
 			pprof.WriteHeapProfile(profFile)
@@ -87,24 +102,22 @@ func main() {
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	logger := util.NewHekaLogger(config)
-	store, err := storage.Open(config, logger)
+	metrics := util.NewMetrics(util.MzGet(config,
+		"metrics.prefix",
+		"wmf"), logger, config)
+	store, err := storage.Open(config, logger, metrics)
 	if err != nil {
-		logger.Error("main", "FAIL", nil)
+		logger.Error("main", "Unable to connect to database. Have you configured it yet?", nil)
 		return
 	}
-	handlers := wmf.NewHandler(config, logger, store)
+	handlers := wmf.NewHandler(config, logger, store, metrics)
 
 	// Signal handler
 	sigChan := make(chan os.Signal)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, SIGUSR1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
 
-	// Rest Config
-	errChan := make(chan error)
-	host := util.MzGet(config, "host", "localhost")
-	port := util.MzGet(config, "port", "8080")
-
-	var RESTMux *http.ServeMux = http.DefaultServeMux
-	var WSMux *http.ServeMux = http.DefaultServeMux
+	var RESTMux = http.DefaultServeMux
+	var WSMux = http.DefaultServeMux
 	var verRoot = strings.SplitN(VERSION, ".", 2)[0]
 
 	// REST calls
@@ -115,7 +128,7 @@ func main() {
 		handlers.Cmd)
 	// Web UI calls
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/queue/", verRoot),
-		handlers.Queue)
+		handlers.RestQueue)
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/state/", verRoot),
 		handlers.State)
 	RESTMux.HandleFunc("/static/",

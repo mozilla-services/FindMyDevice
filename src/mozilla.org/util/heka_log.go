@@ -19,6 +19,7 @@ import (
 	"time"
 )
 
+// This is a localized Heka client wrapper
 type HekaLogger struct {
 	client   client.Client
 	encoder  client.Encoder
@@ -50,11 +51,11 @@ type Fields map[string]string
 func NewHekaLogger(conf JsMap) *HekaLogger {
 	//Preflight
 	var ok bool
-	var encoder client.Encoder = nil
-	var sender client.Sender = nil
-	var logname string = ""
+	var encoder client.Encoder
+	var sender client.Sender
+	var logname string
 	var err error
-	var tracer bool = false
+	var tracer = false
 	var filter int64
 
 	pid := int32(os.Getpid())
@@ -66,7 +67,7 @@ func NewHekaLogger(conf JsMap) *HekaLogger {
 		conf["heka.server_addr"] = "127.0.0.1:5565"
 	}
 	if _, ok = conf["heka.logger_name"]; !ok {
-		conf["heka.logger_name"] = "simplepush"
+		conf["heka.logger_name"] = "wmf"
 	}
 	if _, ok = conf["heka.current_host"]; !ok {
 		conf["heka.current_host"], _ = os.Hostname()
@@ -131,7 +132,7 @@ func (self HekaLogger) Log(level int32, mtype, payload string, fields Fields) (e
 			caller = Fields{
 				"file": file,
 				// defaults don't appear to work.: file,
-				"line": strconv.FormatInt(int64(line), 0),
+				"line": strconv.FormatInt(int64(line), 10),
 				"name": funk.Name()}
 		}
 	}
@@ -147,7 +148,7 @@ func (self HekaLogger) Log(level int32, mtype, payload string, fields Fields) (e
 			dump += " {" + strings.Join(fld, ", ") + "}"
 		}
 		if len(caller) > 0 {
-			dump += fmt.Sprintf(" [%s:%d %s]", caller["file"],
+			dump += fmt.Sprintf(" [%s:%s %s]", caller["file"],
 				caller["line"], caller["name"])
 		}
 		log.Printf(dump)
@@ -180,12 +181,12 @@ func (self HekaLogger) Log(level int32, mtype, payload string, fields Fields) (e
 		}
 		err = self.encoder.EncodeMessageStream(msg, &stream)
 		if err != nil {
-			log.Fatal("ERROR: Could not encode log message (%s)", err)
+			log.Fatal(fmt.Sprintf("ERROR: Could not encode log message (%s)", err))
 			return err
 		}
 		err = self.sender.SendMessage(stream)
 		if err != nil {
-			log.Fatal("ERROR: Could not send message (%s)", err)
+			log.Fatal(fmt.Sprintf("ERROR: Could not send message (%s)", err))
 			return err
 		}
 	}

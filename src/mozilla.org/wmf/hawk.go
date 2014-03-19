@@ -1,8 +1,8 @@
+package wmf
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-package wmf
 
 import (
 	"crypto/hmac"
@@ -18,12 +18,11 @@ import (
 	"time"
 )
 
-// minimal HAWK for now (e.g. no bewit because IAGNI)
-
 var ErrNoAuth = errors.New("No Authorization Header")
 var ErrNotHawkAuth = errors.New("Not a Hawk Authorization Header")
 var ErrInvalidSignature = errors.New("Header does not match signature")
 
+// minimal HAWK for now (e.g. no bewit because IAGNI)
 type Hawk struct {
 	logger    *util.HekaLogger
 	config    util.JsMap
@@ -55,13 +54,15 @@ func (self *Hawk) AsHeader(req *http.Request, id, body, extra, secret string) st
 	if self.Signature == "" {
 		self.GenerateSignature(req, extra, body, secret)
 	}
-	return fmt.Sprintf("Hawk id=\"%s\", ts=\"%s\", nonce=\"%s\" ext=\"%s\", hash=\"%s\" mac=\"%s\"",
+	rep := fmt.Sprintf("Hawk id=\"%s\", ts=\"%s\", nonce=\"%s\", ext=\"%s\", hash=\"%s\", mac=\"%s\"",
 		id,
 		self.Time,
 		self.Nonce,
 		self.Extra,
 		self.Hash,
 		self.Signature)
+	fmt.Printf("### header: %s\n", rep)
+	return rep
 }
 
 // get the full path + fragment from the request
@@ -164,14 +165,15 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 		self.Hash,
 		extra)
 
-	if util.MzGetFlag(self.config, "hawk.show_hash") {
-		self.logger.Debug("hawk", "Marshal",
-			util.Fields{"marshalStr": marshalStr,
-				"secret": secret})
-	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(marshalStr))
 	self.Signature = base64.StdEncoding.EncodeToString(mac.Sum(nil))
+	if util.MzGetFlag(self.config, "hawk.show_hash") {
+		self.logger.Debug("hawk", "#### Marshal",
+			util.Fields{"marshalStr": marshalStr,
+				"secret": secret,
+				"mac":    self.Signature})
+	}
 	return err
 }
 

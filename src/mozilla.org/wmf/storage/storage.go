@@ -5,28 +5,32 @@
 package storage
 
 import (
-	"database/sql"
-	_ "github.com/lib/pq"
 	"mozilla.org/util"
 
+	"database/sql"
 	"errors"
 	"fmt"
+	_ "github.com/lib/pq"
 	"strconv"
-	"strings"
+	//	"strings"
 	"time"
 )
 
-var DatabaseError = errors.New("Database Error")
+var ErrDatabase = errors.New("Database Error")
+var ErrUnknownDevice = errors.New("Unknown device")
 
+// Storage abstration
 type Storage struct {
 	config   util.JsMap
 	logger   *util.HekaLogger
+	metrics  *util.Metrics
 	dsn      string
 	logCat   string
 	defExpry int64
 	db       *sql.DB
 }
 
+// Device position
 type Position struct {
 	Latitude  float64
 	Longitude float64
@@ -35,6 +39,7 @@ type Position struct {
 	Lockable  bool
 }
 
+// Device information
 type Device struct {
 	ID                string // device Id
 	User              string // userID
@@ -54,40 +59,36 @@ type DeviceList struct {
 	Name string
 }
 
+// Generic structure useful for JSON
 type Unstructured map[string]interface{}
-
-type Users map[string]string
 
 /* Relative:
 
-	table userToDeviceMap:
-		userId   UUID index
-		deviceId UUID
+   table userToDeviceMap:
+       userId   UUID index
+       deviceId UUID
 
-	table pendingCommands:
-		deviceId UUID index
-		time     timeStamp
-		cmd      string
+   table pendingCommands:
+       deviceId UUID index
+       time     timeStamp
+       cmd      string
 
-	table deviceInfo:
-		deviceId       UUID index
-		name           string
-		lockable       boolean
-		loggedin       boolean
-		lastExchange   time
-		hawkSecret     string
-		pushUrl        string
-		pendingCommand string
-		accepts        string
+   table deviceInfo:
+       deviceId       UUID index
+       name           string
+       lockable       boolean
+       lastExchange   time
+       hawkSecret     string
+       pushUrl        string
+       accepts        string
 
-	table position:
-		positionId UUID index
-		deviceId   UUID index
-		expry      interval index
-		time       timeStamp
-		latitude   float
-		longitude  float
-		altitude   float
+   table position:
+       positionId UUID index
+       deviceId   UUID index
+       time       timeStamp
+       latitude   float
+       longitude  float
+       altitude   float
 */
 /* key:
 	deviceId {positions:[{lat:float, lon: float, alt: float, time:int},...],
@@ -99,9 +100,6 @@ type Users map[string]string
 
 	user [deviceId:name,...]
 */
-// Using Relative for now, because backups.
-
-var ErrUnknownDevice = errors.New("Unknown device")
 
 // Get a time string that makes psql happy.
 func dbNow() (ret string) {
@@ -110,7 +108,7 @@ func dbNow() (ret string) {
 }
 
 // Open the database.
-func Open(config util.JsMap, logger *util.HekaLogger) (store *Storage, err error) {
+func Open(config util.JsMap, logger *util.HekaLogger, metrics *util.Metrics) (store *Storage, err error) {
 	dsn := fmt.Sprintf("user=%s password=%s host=%s dbname=%s sslmode=%s",
 		util.MzGet(config, "db.user", "user"),
 		util.MzGet(config, "db.password", "password"),
@@ -135,6 +133,7 @@ func Open(config util.JsMap, logger *util.HekaLogger) (store *Storage, err error
 		logger:   logger,
 		logCat:   logCat,
 		defExpry: defExpry,
+		metrics:  metrics,
 		dsn:      dsn,
 		db:       db}
 	if err = store.Init(); err != nil {
@@ -158,7 +157,7 @@ func (self *Storage) Init() (err error) {
 		"create table if not exists pendingCommands (id bigserial, deviceId varchar, time timestamp, cmd varchar);",
 		"create index on pendingCommands (deviceId);",
 
-		"create table if not exists position (id bigserial, deviceId varchar, expry interval, time  timestamp, latitude real, longitude real, altitude real);",
+		"create table if not exists position (id bigserial, deviceId varchar, time  timestamp, latitude real, longitude real, altitude real);",
 		"create index on position (deviceId);",
 		"create or replace function update_time() returns trigger as $$ begin new.lastexchange = now(); return new; end; $$ language 'plpgsql';",
 		"drop trigger if exists update_le on deviceinfo;",
@@ -184,17 +183,30 @@ func (self *Storage) Init() (err error) {
 // Register a new device to a given userID.
 func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, err error) {
 	// value check?
+	dbh := self.db
 	statement := "insert into deviceInfo (deviceId, lockable, loggedin, lastExchange, hawkSecret, accepts, pushUrl) values ($1, $2, $3, $4, $5, $6, $7);"
 	if dev.ID == "" {
 		dev.ID, _ = util.GenUUID4()
 	}
-	dbh := self.db
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not insert device",
-			util.Fields{"error": err.Error()})
+	// Purge old registration records.
+	// While it's probably faster to use dbh.Exec, I've noticed some odd
+	// potential race conditions popping up. I've switched to Query because
+	// I believe it waits for the command to exec before returning.
+	if _, err = dbh.Query("delete from deviceInfo where deviceId = $1;", dev.ID); err != nil {
+		self.logger.Error(self.logCat,
+			"Could not purge old deviceinfo record",
+			util.Fields{"error": err.Error(),
+				"deviceId": dev.ID})
 		return "", err
 	}
-	if _, err = dbh.Exec(statement,
+	if _, err = dbh.Query("delete from userToDeviceMap where deviceId = $1;", dev.ID); err != nil {
+		self.logger.Error(self.logCat,
+			"Could not purge old usertodevicemap record",
+			util.Fields{"error": err.Error(),
+				"deviceId": dev.ID})
+		return "", err
+	}
+	if _, err = dbh.Query(statement,
 		string(dev.ID),
 		dev.Lockable,
 		dev.LoggedIn,
@@ -202,53 +214,22 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 		dev.Secret,
 		dev.Accepts,
 		dev.PushUrl); err != nil {
-		if strings.Contains(err.Error(), "duplicate key value") {
-			fmt.Printf("#### Updating... \n")
-			statement = "update deviceinfo set lockable=$2, accepts=$3, pushUrl=$4, hawkSecret=$5 where deviceId=$1"
-			if _, err = dbh.Exec(statement,
-				string(dev.ID),
-				dev.Lockable,
-				dev.Accepts,
-				dev.PushUrl,
-				dev.Secret,
-			); err != nil {
-				self.logger.Error(self.logCat, "Could not update device",
-					util.Fields{"error": err.Error(),
-						"device": fmt.Sprintf("%+v", dev)})
-				return "", err
-			}
-			statement = "update usertodevicemap set name = $1 where deviceId=$2 and userId=$3"
-			if _, err = dbh.Exec(statement,
-				string(dev.Name),
-				string(dev.ID),
-				userid,
-			); err != nil {
-				self.logger.Error(self.logCat,
-					"Could not update device name",
-					util.Fields{"error": err.Error(),
-						"device": fmt.Sprintf("%+v", dev),
-						"userid": userid})
-				return "", err
-			}
-		} else {
-			self.logger.Error(self.logCat, "Could not create device",
-				util.Fields{"error": err.Error(),
-					"device": fmt.Sprintf("%+v", dev)})
+		self.logger.Error(self.logCat, "Could not create device",
+			util.Fields{"error": err.Error(),
+				"device": fmt.Sprintf("%+v", dev)})
+		return "", err
+	}
+	if _, err = dbh.Query("insert into userToDeviceMap (userId, deviceId, name) values ($1, $2, $3);", userid, dev.ID, dev.Name); err != nil {
+		switch {
+		default:
+			self.logger.Error(self.logCat,
+				"Could not map device to user",
+				util.Fields{
+					"uid":      userid,
+					"deviceId": dev.ID,
+					"name":     dev.Name,
+					"error":    err.Error()})
 			return "", err
-		}
-	} else {
-		if _, err = dbh.Exec("insert into userToDeviceMap (userId, deviceId, name) values ($1, $2, $3);", userid, dev.ID, dev.Name); err != nil {
-			switch {
-			default:
-				self.logger.Error(self.logCat,
-					"Could not map device to user",
-					util.Fields{
-						"uid":      userid,
-						"deviceId": dev.ID,
-						"name":     dev.Name,
-						"error":    err.Error()})
-				return "", err
-			}
 		}
 	}
 	return dev.ID, nil
@@ -314,10 +295,10 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 	statement := "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time limit 10;"
 	rows, err := dbh.Query(statement, devId)
 	if err == nil {
-		var time int32 = 0
-		var latitude float32 = 0.0
-		var longitude float32 = 0.0
-		var altitude float32 = 0.0
+		var time int32
+		var latitude float32
+		var longitude float32
+		var altitude float32
 
 		for rows.Next() {
 			err = rows.Scan(&time, &latitude, &longitude, &altitude)
@@ -347,18 +328,24 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 // Get pending commands.
 func (self *Storage) GetPending(devId string) (cmd string, err error) {
 	dbh := self.db
+	var createt = time.Time{}
+	var created int64
 
-	statement := "select id, cmd from pendingCommands where deviceId = $1 order by time limit 1;"
+	statement := "select id, cmd, time from pendingCommands where deviceId = $1 order by time limit 1;"
 	rows, err := dbh.Query(statement, devId)
 	if rows.Next() {
 		var id string
-		err = rows.Scan(&id, &cmd)
+		err = rows.Scan(&id, &cmd, &createt)
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not read pending command",
 				util.Fields{"error": err.Error(),
 					"deviceId": devId})
 			return "", err
 		}
+		// Convert the date string to an int64
+		created = createt.Unix()
+		lifespan := time.Now().Unix() - created
+		self.metrics.Timer("cmd.pending", lifespan)
 		statement = "delete from pendingCommands where id = $1"
 		dbh.Exec(statement, id)
 	}
@@ -368,7 +355,6 @@ func (self *Storage) GetPending(devId string) (cmd string, err error) {
 
 // Get all known devices for this user.
 func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err error) {
-	//TODO: get list of devices
 	var data []DeviceList
 
 	dbh := self.db
@@ -406,7 +392,7 @@ func (self *Storage) StoreCommand(devId, command string) (err error) {
 			util.Fields{"error": err.Error()})
 		return err
 	}
-	self.logger.Info(self.logCat, "Storing Command",
+	self.logger.Debug(self.logCat, "Storing Command",
 		util.Fields{"deviceId": devId, "command": command})
 
 	if _, err = dbh.Exec(statement, devId, dbNow(), command); err != nil {
@@ -419,7 +405,6 @@ func (self *Storage) StoreCommand(devId, command string) (err error) {
 
 // Shorthand function to set the lock state for a device.
 func (self *Storage) SetDeviceLockable(devId string, state bool) (err error) {
-	// TODO: update the device record
 	dbh := self.db
 
 	statement := "update deviceInfo set lockable = $1, lastexchange = now()  where deviceId =$2"
@@ -436,7 +421,6 @@ func (self *Storage) SetDeviceLockable(devId string, state bool) (err error) {
 
 // Add the location information to the known set for a device.
 func (self *Storage) SetDeviceLocation(devId string, position Position) (err error) {
-	// TODO: set the current device position
 	dbh := self.db
 
 	statement := "insert into position (deviceId, time, latitude, longitude, altitude) values ($1, $2, $3, $4, $5);"
@@ -505,7 +489,7 @@ func (self *Storage) DeleteDevice(devId string) (err error) {
 				"Could not nuke data from table",
 				util.Fields{"error": err.Error(),
 					"device": devId,
-					"table": table})
+					"table":  table})
 			return err
 		}
 	}

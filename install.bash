@@ -1,5 +1,9 @@
 #! /bin/bash
 echo "Installing required go libraries..."
+if ( "$GOPATH" == "" ); then
+    echo Setting GOPATH to current directory.
+    GOPATH=`pwd`
+fi
 git submodule update --init
 for req in `grep -v "^#" go-prod.deps`; do
     echo -n "   $req..."

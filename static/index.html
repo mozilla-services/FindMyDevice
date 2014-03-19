@@ -283,11 +283,11 @@ window.addEventListener("load",
                 var id ="{{.MapKey}}";
                 map = L.mapbox.map(mapDiv, id);
                 var locations = document.getElementsByClassName("position");
-                var iloc = locations.length - 1 ;
+                var iloc = locations.length;
                 if (iloc > 0) {
                     var loc
                     // FYI: if map.hasLayer(marker) {map.removeLayer(marker) }
-                    for (var i = 0;i<=iloc; i++) {
+                    for (var i = 0;i<=iloc-1; i++) {
                         loc = locations[i];
                         marker = newMarker(parseFloat(loc.dataset.latitude),
                                 parseFloat(loc.dataset.longitude),
@@ -295,13 +295,13 @@ window.addEventListener("load",
                         marker.addTo(map);
                         markers.push(marker);
                     }
-                    map.setView([parseFloat(locations[iloc].dataset.latitude),
-                                parseFloat(locations[iloc].dataset.longitude)], 12);
+                    map.setView([parseFloat(locations[iloc-1].dataset.latitude),
+                                parseFloat(locations[iloc-1].dataset.longitude)], 12);
                 } else {
                     map.setView([0,0], 4);
                 }
 {{ if .Device }}
-                var socket = new WebSocket("ws://{{.Host.Hostname}}/0/ws/{{.Device.ID}}");
+var socket = new WebSocket("ws://{{.Host.Hostname}}/0/ws/{{.Device.ID}}");
                 // socket.onopen = function(){ console.debug("Socket open..."); }
                 socket.onmessage = function(msg) {
                     try {

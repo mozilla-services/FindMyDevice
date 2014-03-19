@@ -1,8 +1,9 @@
+package util
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package util
 
 // taken from http://www.ashishbanerjee.com/home/go/go-generate-uuid
 
@@ -12,9 +13,9 @@ import (
 	"strings"
 )
 
+// Generate a non-hyphenated UUID4 string.
+// (this makes for smaller URLs)
 func GenUUID4() (string, error) {
-	// Generate a non-hyphenated UUID4 string.
-	// (this makes for smaller URLs)
 	uuid := make([]byte, 16)
 	n, err := rand.Read(uuid)
 	if n != len(uuid) || err != nil {
@@ -27,8 +28,8 @@ func GenUUID4() (string, error) {
 	return hex.EncodeToString(uuid), nil
 }
 
+// scan a UUID and return it as byte array
 func ScanUUID(uuids string) ([]byte, error) {
-	// scan a UUID and return it as byte array
 	trimmed := strings.TrimSpace(strings.Replace(uuids, "-", "", -1))
 	return hex.DecodeString(trimmed)
 }

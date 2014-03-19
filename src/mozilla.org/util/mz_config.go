@@ -1,8 +1,7 @@
+package util
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-package util
 
 import (
 	"bufio"
@@ -47,6 +46,8 @@ func MzGetConfig(filename string) JsMap {
 	return config
 }
 
+// get a string value from the Interface Map, defaulting to def if
+// not found
 func MzGet(ma JsMap, key string, def string) string {
 	if val, ok := ma[key].(string); ok {
 		return val
@@ -54,6 +55,7 @@ func MzGet(ma JsMap, key string, def string) string {
 	return def
 }
 
+// get a boolean from the Interface map, defaulting for "false"
 func MzGetFlag(ma JsMap, key string) (flag bool) {
 	defer func() {
 		if r := recover(); r != nil {
