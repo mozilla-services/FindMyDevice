@@ -19,13 +19,14 @@ import base64
 import getopt
 import hashlib
 import hmac
-import httplib
 import json
 import os
 import random
+import requests
 import sys
 import time
 import urlparse
+import pdb
 
 
 def genHash(body, ctype="application/json"):
@@ -42,10 +43,11 @@ def genHash(body, ctype="application/json"):
     return bhash
 
 
-def genHawkSignature(method, url, bodyHash, extra, secret,
+def genHawkSignature(method, urlStr, bodyHash, extra, secret,
                      now=None, nonce=None, ctype="application/json"):
     """ Generate a HAWK signature from the content to be sent
     """
+    url = urlparse.urlparse(urlStr)
     path = url.path
     host = url.hostname
     port = url.port
@@ -57,17 +59,17 @@ def genHawkSignature(method, url, bodyHash, extra, secret,
         "hawk.1.header",
         now,
         nonce,
-        method,
+        method.upper(),
         path,
-        host,
+        host.lower(),
         port,
         bodyHash,
         extra)
-    #print "Marshal Str: <<%s>>\nSecret: <<%s>>\n" % (marshalStr, secret)
+    print "Marshal Str: <<%s>>\nSecret: <<%s>>\n" % (marshalStr, secret)
     mac = hmac.new(secret.encode("utf-8"),
                    marshalStr.encode("utf-8"),
                    digestmod=hashlib.sha256).digest()
-    #print "mac: <<" + ','.join([str(ord(elem)) for elem in mac]) + ">>\n"
+    print "mac: <<" + ','.join([str(ord(elem)) for elem in mac]) + ">>\n"
     return now, nonce, base64.b64encode(mac)
 
 
@@ -75,21 +77,29 @@ def parseHawkHeader(header):
     """ Parse the HAWK auth header elements
     """
     result = {}
-    if header[:4].lower != "hawk":
+    if header[:4].lower() != "hawk":
         return None
     elements = header[5:].split(", ")
     for elem in elements:
         bits = elem.split("=")
-        result[bits[0]] = bits[1]
+        result[bits[0]] = bits[1].replace('"', '')
     return result
 
 
-def checkHawk(method, url, extra, secret, header):
+def checkHawk(response, secret):
     """ Validate the HAWK header against the body
     """
-    hawk = parseHawkHeader(header)
-    ts, n, mac = genHawkSignature(method, url, extra, hawk["hash"], secret,
-                                  hawk["ts"], hawk["nonce"])
+    hawk = parseHawkHeader(response.headers.get("authorization"))
+    ct = response.headers.get('content-type')
+    bodyhash = genHash(response.text, ct)
+    _, _, mac = genHawkSignature(response.request.method,
+                                 response.request.url,
+                                 bodyhash,
+                                 hawk.get("ext"),
+                                 secret,
+                                 hawk["ts"],
+                                 hawk["nonce"],
+                                 ct)
     # remove "white space
     return mac.replace('=', '') == hawk["mac"].replace('=', '')
 
@@ -140,21 +150,21 @@ def registerNew(config):
               "deviceid": "test1"}
     reply = send(trg, regObj, {})
     pprint(reply)
-    cred = reply
+    cred = reply.json()
+    pprint(cred)
     return sendCmd(config, cred, newLocation()), cred
 
 
 def send(urlStr, data, cred, method="POST"):
     """ Generic function that wraps data and sends it to the server
     """
-    url = urlparse.urlparse(urlStr)
-    http = httplib.HTTPConnection(url.netloc)
-    headers = {"Content-Type": "application/json"}
+    session = requests.Session()
+    headers = {"content-type": "application/json"}
     datas = json.dumps(data)
     if cred.get("secret") is not None:
         # generate HAWK auth header
         bodyHash = genHash(datas, "application/json")
-        ts, nonce, mac = genHawkSignature(method, url, bodyHash, "",
+        ts, nonce, mac = genHawkSignature(method, urlStr, bodyHash, "",
                                           cred.get("secret"))
         header = Template('Hawk id="$id", ts="$ts", ' +
                           'nonce="$nonce", ext="$extra", ' +
@@ -165,18 +175,22 @@ def send(urlStr, data, cred, method="POST"):
                                             ts=ts, nonce=nonce, mac=mac)
         #print "Header: %s\n" % (header)
         headers["Authorization"] = header
-    http.request(method, url.path, datas, headers)
-    response = http.getresponse()
-    if response.status != 200:
-        import pdb; pdb.set_trace()
-        print "Crap."
-        return None
-    rbody = response.read()
-    if len(rbody) > 0:
-        body = json.loads(rbody)
-        pprint(body)
-        return body
-    return None
+
+    req = requests.Request(method,
+                           urlStr,
+                           data=json.dumps(data),
+                           headers=headers)
+    prepped = req.prepare()
+    response = session.send(prepped, timeout=2)
+    if response.status_code != requests.codes.ok:
+        pdb.set_trace()
+        print "Response Not OK"
+        requests.Response.raise_for_status()
+    if response.headers.get("Authorization") is not None:
+        if checkHawk(response, cred.get("secret")) is False:
+            pdb.set_trace()
+            print "HAWK Header failed"
+    return response
 
 
 def processCmd(config, cmd, cred):
@@ -200,7 +214,6 @@ def sendCmd(config, cred, cmd):
         host=config.get("main", "host"),
         id=cred.get("deviceid", "test1"))
     return send(trg, cmd, cred)
-    print "\n============\n\n"
 
 
 def main(argv):
@@ -218,10 +231,12 @@ def main(argv):
     print "Registering client... \n"
     cmd, cred = registerNew(config)
     while cmd is not None:
+        # Burn through the command queue.
         print "Processing commands...\n"
         cmd = processCmd(config, cmd, cred)
     # Send a fake statement saying that the client has no passcode.
-    sendCmd(config, cred, {'has_passcode': False})
+    response = sendCmd(config, cred, {'has_passcode': False})
+    print(response.text)
 #    sendCmd(config, cred, {'l': {'ok': True}, 'has_passcode': True})
 
 

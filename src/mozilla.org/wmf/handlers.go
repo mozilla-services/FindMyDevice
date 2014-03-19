@@ -68,18 +68,17 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 	var ok bool
 	if util.MzGetFlag(self.config, "auth.disabled") {
 		self.logger.Debug(self.logCat, "### Skipping validation...", nil)
-		fmt.Printf("assertion: %s\n", assertion)
 		if len(assertion) == 0 {
 			return "user1", "user@example.com", nil
 		}
 		// Time to UberFake! THIS IS VERY DANGEROUS!
 		self.logger.Warn(self.logCat, "!!! Using Assertion Without Validation !!!", nil)
 		bits := strings.Split(assertion, ".")
-        if len(bits) < 2 {
-            self.logger.Error(self.logCat, "Invalid assertion",
-                util.Fields{"assertion": assertion})
-            return "", "", err
-        }
+		if len(bits) < 2 {
+			self.logger.Error(self.logCat, "Invalid assertion",
+				util.Fields{"assertion": assertion})
+			return "", "", err
+		}
 		// get the interesting bit
 		intBit := bits[1]
 		// pad to byte boundry
@@ -168,7 +167,6 @@ func (self *Handler) getUser(req *http.Request) (userid string, user string, err
 		if auth = req.FormValue("assertion"); auth == "" {
 			return "", "", ErrAuthorization
 		}
-		fmt.Printf("assertion: %s\n", auth)
 		userid, user, err = self.verifyAssertion(auth)
 		if err != nil {
 			return "", "", ErrAuthorization
@@ -379,9 +377,10 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 	self.metrics.Increment("device.registration")
-	resp.Write([]byte(fmt.Sprintf("{\"deviceid\":\"%s\", \"secret\":\"%s\"}",
+	reply := fmt.Sprintf("{\"deviceid\":\"%s\", \"secret\":\"%s\"}",
 		self.devId,
-		secret)))
+		secret)
+	resp.Write([]byte(reply))
 	return
 }
 
@@ -540,6 +539,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	if output == nil || len(output) < 2 {
 		output = []byte("{}")
 	}
+	self.hawk.Signature = ""
 	authHeader := self.hawk.AsHeader(req, devRec.User, string(output),
 		"", devRec.Secret)
 	resp.Header().Add("Authorization", authHeader)

@@ -54,13 +54,15 @@ func (self *Hawk) AsHeader(req *http.Request, id, body, extra, secret string) st
 	if self.Signature == "" {
 		self.GenerateSignature(req, extra, body, secret)
 	}
-	return fmt.Sprintf("Hawk id=\"%s\", ts=\"%s\", nonce=\"%s\" ext=\"%s\", hash=\"%s\" mac=\"%s\"",
+	rep := fmt.Sprintf("Hawk id=\"%s\", ts=\"%s\", nonce=\"%s\", ext=\"%s\", hash=\"%s\", mac=\"%s\"",
 		id,
 		self.Time,
 		self.Nonce,
 		self.Extra,
 		self.Hash,
 		self.Signature)
+	fmt.Printf("### header: %s\n", rep)
+	return rep
 }
 
 // get the full path + fragment from the request
@@ -163,14 +165,15 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 		self.Hash,
 		extra)
 
-	if util.MzGetFlag(self.config, "hawk.show_hash") {
-		self.logger.Debug("hawk", "Marshal",
-			util.Fields{"marshalStr": marshalStr,
-				"secret": secret})
-	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(marshalStr))
 	self.Signature = base64.StdEncoding.EncodeToString(mac.Sum(nil))
+	if util.MzGetFlag(self.config, "hawk.show_hash") {
+		self.logger.Debug("hawk", "#### Marshal",
+			util.Fields{"marshalStr": marshalStr,
+				"secret": secret,
+				"mac":    self.Signature})
+	}
 	return err
 }
 

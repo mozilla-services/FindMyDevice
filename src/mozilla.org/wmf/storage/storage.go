@@ -12,7 +12,7 @@ import (
 	"fmt"
 	_ "github.com/lib/pq"
 	"strconv"
-	"strings"
+	//	"strings"
 	"time"
 )
 
@@ -21,13 +21,13 @@ var ErrUnknownDevice = errors.New("Unknown device")
 
 // Storage abstration
 type Storage struct {
-	config       util.JsMap
-	logger       *util.HekaLogger
-	metrics      *util.Metrics
-	dsn          string
-	logCat       string
-	defExpry     int64
-	db           *sql.DB
+	config   util.JsMap
+	logger   *util.HekaLogger
+	metrics  *util.Metrics
+	dsn      string
+	logCat   string
+	defExpry int64
+	db       *sql.DB
 }
 
 // Device position
@@ -184,17 +184,30 @@ func (self *Storage) Init() (err error) {
 // Register a new device to a given userID.
 func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, err error) {
 	// value check?
+	dbh := self.db
 	statement := "insert into deviceInfo (deviceId, lockable, loggedin, lastExchange, hawkSecret, accepts, pushUrl) values ($1, $2, $3, $4, $5, $6, $7);"
 	if dev.ID == "" {
 		dev.ID, _ = util.GenUUID4()
 	}
-	dbh := self.db
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not insert device",
-			util.Fields{"error": err.Error()})
+	// Purge old registration records.
+	// While it's probably faster to use dbh.Exec, I've noticed some odd
+	// potential race conditions popping up. I've switched to Query because
+	// I believe it waits for the command to exec before returning.
+	if _, err = dbh.Query("delete from deviceInfo where deviceId = $1;", dev.ID); err != nil {
+		self.logger.Error(self.logCat,
+			"Could not purge old deviceinfo record",
+			util.Fields{"error": err.Error(),
+				"deviceId": dev.ID})
 		return "", err
 	}
-	if _, err = dbh.Exec(statement,
+	if _, err = dbh.Query("delete from userToDeviceMap where deviceId = $1;", dev.ID); err != nil {
+		self.logger.Error(self.logCat,
+			"Could not purge old usertodevicemap record",
+			util.Fields{"error": err.Error(),
+				"deviceId": dev.ID})
+		return "", err
+	}
+	if _, err = dbh.Query(statement,
 		string(dev.ID),
 		dev.Lockable,
 		dev.LoggedIn,
@@ -202,52 +215,22 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 		dev.Secret,
 		dev.Accepts,
 		dev.PushUrl); err != nil {
-		if strings.Contains(err.Error(), "duplicate key value") {
-			statement = "update deviceinfo set lockable=$2, accepts=$3, pushUrl=$4, hawkSecret=$5 where deviceId=$1"
-			if _, err = dbh.Exec(statement,
-				string(dev.ID),
-				dev.Lockable,
-				dev.Accepts,
-				dev.PushUrl,
-				dev.Secret,
-			); err != nil {
-				self.logger.Error(self.logCat, "Could not update device",
-					util.Fields{"error": err.Error(),
-						"device": fmt.Sprintf("%+v", dev)})
-				return "", err
-			}
-			statement = "update usertodevicemap set name = $1 where deviceId=$2 and userId=$3"
-			if _, err = dbh.Exec(statement,
-				string(dev.Name),
-				string(dev.ID),
-				userid,
-			); err != nil {
-				self.logger.Error(self.logCat,
-					"Could not update device name",
-					util.Fields{"error": err.Error(),
-						"device": fmt.Sprintf("%+v", dev),
-						"userid": userid})
-				return "", err
-			}
-		} else {
-			self.logger.Error(self.logCat, "Could not create device",
-				util.Fields{"error": err.Error(),
-					"device": fmt.Sprintf("%+v", dev)})
+		self.logger.Error(self.logCat, "Could not create device",
+			util.Fields{"error": err.Error(),
+				"device": fmt.Sprintf("%+v", dev)})
+		return "", err
+	}
+	if _, err = dbh.Query("insert into userToDeviceMap (userId, deviceId, name) values ($1, $2, $3);", userid, dev.ID, dev.Name); err != nil {
+		switch {
+		default:
+			self.logger.Error(self.logCat,
+				"Could not map device to user",
+				util.Fields{
+					"uid":      userid,
+					"deviceId": dev.ID,
+					"name":     dev.Name,
+					"error":    err.Error()})
 			return "", err
-		}
-	} else {
-		if _, err = dbh.Exec("insert into userToDeviceMap (userId, deviceId, name) values ($1, $2, $3);", userid, dev.ID, dev.Name); err != nil {
-			switch {
-			default:
-				self.logger.Error(self.logCat,
-					"Could not map device to user",
-					util.Fields{
-						"uid":      userid,
-						"deviceId": dev.ID,
-						"name":     dev.Name,
-						"error":    err.Error()})
-				return "", err
-			}
 		}
 	}
 	return dev.ID, nil
