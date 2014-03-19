@@ -91,14 +91,14 @@ type Unstructured map[string]interface{}
        altitude   float
 */
 /* key:
-	deviceId {positions:[{lat:float, lon: float, alt: float, time:int},...],
-			 lockable: bool
-			 lastExchange: int
-			 secret: string
-			 pending: string
-			}
+deviceId {positions:[{lat:float, lon: float, alt: float, time:int},...],
+		 lockable: bool
+		 lastExchange: int
+		 secret: string
+		 pending: string
+		}
 
-	user [deviceId:name,...]
+user [deviceId:name,...]
 */
 
 // Get a time string that makes psql happy.
