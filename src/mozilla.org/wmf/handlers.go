@@ -530,7 +530,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 						"device":  deviceId,
 						"args":    fmt.Sprintf("%v", args)})
 				http.Error(resp,
-					"Server Error",
+					"\"Server Error\"",
 					http.StatusServiceUnavailable)
 				return
 			}
@@ -544,7 +544,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send commands",
 			util.Fields{"error": err.Error()})
-		http.Error(resp, "Server Error", http.StatusServiceUnavailable)
+		http.Error(resp, "\"Server Error\"", http.StatusServiceUnavailable)
 	}
 	if output == nil || len(output) < 2 {
 		output = []byte("{}")
@@ -617,7 +617,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	case "e":
 		rargs = replyType{}
 	default:
-		return http.StatusBadRequest, errors.New("Invalid Command")
+		return http.StatusBadRequest, errors.New("\"Invalid Command\"")
 	}
 	fixed, err := json.Marshal(storage.Unstructured{c: rargs})
 	if err != nil {
@@ -627,7 +627,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				"command": string(cmd),
 				"device":  deviceId,
 				"args":    fmt.Sprintf("%v", rargs)})
-		return http.StatusServiceUnavailable, errors.New("Server Error")
+		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 	err = self.store.StoreCommand(deviceId, string(fixed))
 	if err != nil {
@@ -637,7 +637,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				"command": string(cmd),
 				"device":  deviceId,
 				"args":    fmt.Sprintf("%v", args)})
-		return http.StatusServiceUnavailable, errors.New("Server Error")
+		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 	// trigger the push
 	self.metrics.Increment("cmd.store." + c)
@@ -647,7 +647,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		self.logger.Error(self.logCat, "Could not send Push",
 			util.Fields{"error": err.Error(),
 				"pushUrl": devRec.PushUrl})
-		return http.StatusServiceUnavailable, errors.New("Server Error")
+		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 	return
 }

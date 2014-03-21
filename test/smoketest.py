@@ -203,7 +203,7 @@ def processCmd(config, cred, cmd):
     """
     #TODO: you can insert various responses to commands here
     # or just eat them like I'm doing right now.
-    print "Command Recv'd: %s" % cmd.text
+    print "Command Recv'd: %s" % cmd
     reply = {}
     obj = cmd.json()
     if obj != {}:
@@ -266,8 +266,9 @@ def main(argv):
         cmd = processCmd(config, cred, cmd)
 
     # Send a fake statement saying that the client has no passcode.
-    response = processCmd(config, cred, {'has_passcode': False})
-    print(response.text)
+    response = sendCmd(config, cred, {'has_passcode': False})
+    if response is not None:
+        print(response.text)
 #    sendCmd(config, cred, {'l': {'ok': True}, 'has_passcode': True})
 
 
