@@ -189,24 +189,21 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 		dev.ID, _ = util.GenUUID4()
 	}
 	// Purge old registration records.
-	// While it's probably faster to use dbh.Exec, I've noticed some odd
-	// potential race conditions popping up. I've switched to Query because
-	// I believe it waits for the command to exec before returning.
-	if _, err = dbh.Query("delete from deviceInfo where deviceId = $1;", dev.ID); err != nil {
+	if _, err = dbh.Exec("delete from deviceInfo where deviceId = $1;", dev.ID); err != nil {
 		self.logger.Error(self.logCat,
 			"Could not purge old deviceinfo record",
 			util.Fields{"error": err.Error(),
 				"deviceId": dev.ID})
 		return "", err
 	}
-	if _, err = dbh.Query("delete from userToDeviceMap where deviceId = $1;", dev.ID); err != nil {
+	if _, err = dbh.Exec("delete from userToDeviceMap where deviceId = $1;", dev.ID); err != nil {
 		self.logger.Error(self.logCat,
 			"Could not purge old usertodevicemap record",
 			util.Fields{"error": err.Error(),
 				"deviceId": dev.ID})
 		return "", err
 	}
-	if _, err = dbh.Query(statement,
+	if _, err = dbh.Exec(statement,
 		string(dev.ID),
 		dev.Lockable,
 		dev.LoggedIn,
@@ -219,7 +216,7 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 				"device": fmt.Sprintf("%+v", dev)})
 		return "", err
 	}
-	if _, err = dbh.Query("insert into userToDeviceMap (userId, deviceId, name) values ($1, $2, $3);", userid, dev.ID, dev.Name); err != nil {
+	if _, err = dbh.Exec("insert into userToDeviceMap (userId, deviceId, name) values ($1, $2, $3);", userid, dev.ID, dev.Name); err != nil {
 		switch {
 		default:
 			self.logger.Error(self.logCat,

@@ -72,7 +72,9 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 			return "user1", "user@example.com", nil
 		}
 		// Time to UberFake! THIS IS VERY DANGEROUS!
-		self.logger.Warn(self.logCat, "!!! Using Assertion Without Validation !!!", nil)
+		self.logger.Warn(self.logCat,
+			"!!! Using Assertion Without Validation !!!",
+			nil)
 		bits := strings.Split(assertion, ".")
 		if len(bits) < 2 {
 			self.logger.Error(self.logCat, "Invalid assertion",
@@ -106,12 +108,18 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 	}
 
 	// Better verify for realz
-	validatorURL := util.MzGet(self.config, "persona.validater_url", "https://verifier.login.persona.org/verify")
-	audience := util.MzGet(self.config, "persona.audience",
+	validatorURL := util.MzGet(self.config,
+		"persona.validater_url",
+		"https://verifier.login.persona.org/verify")
+	audience := util.MzGet(self.config,
+		"persona.audience",
 		"http://localhost:8080")
-	body, err := json.Marshal(util.Fields{"assertion": assertion, "audience": audience})
+	body, err := json.Marshal(
+		util.Fields{"assertion": assertion,
+			"audience": audience})
 	if err != nil {
-		self.logger.Error(self.logCat, "Could not marshal assertion",
+		self.logger.Error(self.logCat,
+			"Could not marshal assertion",
 			util.Fields{"error": err.Error()})
 		return "", "", ErrAuthorization
 	}
@@ -256,21 +264,21 @@ func (self *Handler) logReply(devId, cmd string, args replyType) (err error) {
 }
 
 // Check that a given string intval is within a range.
-func (self *Handler) rangeCheck(s string, min, max int64) string {
+func (self *Handler) rangeCheck(s string, min, max int64) int64 {
 	val, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		self.logger.Warn(self.logCat, "Unparsable range value, returning 0",
 			util.Fields{"error": err.Error(),
 				"string": s})
-		return "0"
+		return 0
 	}
 	if val < min {
-		return strconv.FormatInt(min, 10)
+		return min
 	}
 	if val > max {
-		return strconv.FormatInt(max, 10)
+		return max
 	}
-	return s
+	return val
 }
 
 //Handler Public Functions
@@ -497,14 +505,16 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			switch c {
 			case "l", "r", "m", "e":
 				err = self.store.Touch(deviceId)
-				self.updatePage(deviceId, args.(map[string]interface{}), false)
+				self.updatePage(deviceId,
+					args.(map[string]interface{}), false)
 			case "h":
 				argl := make(replyType)
 				argl[string(cmd)] = isTrue(args)
 				self.updatePage(deviceId, argl, false)
 			case "t":
 				// track
-				err = self.updatePage(deviceId, args.(map[string]interface{}), true)
+				err = self.updatePage(deviceId,
+					args.(map[string]interface{}), true)
 				// store tracking info.
 			case "q":
 				// User has quit, nuke what we know.
@@ -539,7 +549,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	if output == nil || len(output) < 2 {
 		output = []byte("{}")
 	}
-	self.hawk.Signature = ""
+	self.hawk.Clear()
 	authHeader := self.hawk.AsHeader(req, devRec.User, string(output),
 		"", devRec.Secret)
 	resp.Header().Add("Authorization", authHeader)
@@ -579,9 +589,8 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				max = 9999
 			}
 			vs := v.(string)
-			rargs["c"] = strings.Map(digitsOnly,
-				vs[:minInt(4, len(vs))])
-			rargs["c"] = self.rangeCheck(rargs["c"].(string),
+			rargs["c"] = self.rangeCheck(
+				strings.Map(digitsOnly, vs[:minInt(4, len(vs))]),
 				0,
 				max)
 		}
@@ -600,9 +609,10 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				max = 10500
 			}
 			vs := v.(string)
-			rargs["d"] = strings.Map(digitsOnly, vs)
-			rargs["d"] = self.rangeCheck(rargs["d"].(string),
-				0, max)
+			rargs["d"] = self.rangeCheck(
+				strings.Map(digitsOnly, vs),
+				0,
+				max)
 		}
 	case "e":
 		rargs = replyType{}
@@ -675,7 +685,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 
 	devRec, err := self.store.GetDeviceInfo(deviceId)
 	if devRec.User != userId {
-		self.logger.Error(self.logCat, "Unauthorized userid", nil)
+		self.logger.Error(self.logCat, "Unauthorized device", nil)
 		http.SetCookie(resp, &http.Cookie{Name: "user", MaxAge: -1})
 		http.Error(resp, "Unauthorized", 401)
 		return

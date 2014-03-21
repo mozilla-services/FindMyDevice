@@ -49,6 +49,14 @@ func GenNonce(l int) string {
 	return base64.StdEncoding.EncodeToString(ret)
 }
 
+// Clear the stickier bits
+func (self *Hawk) Clear() {
+    self.Hash = ""
+    self.Signature = ""
+    self.Nonce = ""
+    self.Time = ""
+}
+
 // Return a Hawk Authorization header
 func (self *Hawk) AsHeader(req *http.Request, id, body, extra, secret string) string {
 	if self.Signature == "" {

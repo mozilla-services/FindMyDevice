@@ -65,11 +65,12 @@ def genHawkSignature(method, urlStr, bodyHash, extra, secret,
         port,
         bodyHash,
         extra)
-    print "Marshal Str: <<%s>>\nSecret: <<%s>>\n" % (marshalStr, secret)
+    #print "Marshal Str: <<%s>>\nSecret: <<%s>>\n" % (marshalStr, secret)
     mac = hmac.new(secret.encode("utf-8"),
                    marshalStr.encode("utf-8"),
                    digestmod=hashlib.sha256).digest()
-    print "mac: <<" + ','.join([str(ord(elem)) for elem in mac]) + ">>\n"
+    # print "mac: <<" + ','.join([str(ord(elem)) for elem in mac]) + ">>\n"
+    #print "mac: " + base64.b64encode(mac) + "\n"
     return now, nonce, base64.b64encode(mac)
 
 
@@ -144,13 +145,16 @@ def registerNew(config):
     trg = Template(tmpl).safe_substitute(
         scheme=config.get("main", "scheme"),
         host=config.get("main", "host"))
+    assertion = config.get("main", "assertion")
+    if assertion is None:
+        assertion = ""
     # divy up based on scheme.
-    regObj = {"assert": "",
+    regObj = {"assert": assertion,
               "pushurl": "http://example.com",
               "deviceid": "test1"}
     reply = send(trg, regObj, {})
-    pprint(reply)
     cred = reply.json()
+    print "Credentials: "
     pprint(cred)
     return sendCmd(config, cred, newLocation()), cred
 
@@ -193,21 +197,47 @@ def send(urlStr, data, cred, method="POST"):
     return response
 
 
-def processCmd(config, cmd, cred):
+def processCmd(config, cred, cmd):
     """ Process the command like a client.
         Or a cat. Which it kinda does now.
     """
     #TODO: you can insert various responses to commands here
     # or just eat them like I'm doing right now.
-    print "Command Recv'd..."
-    pprint(cmd)
+    print "Command Recv'd: %s" % cmd.text
+    reply = {}
+    obj = cmd.json()
+    if obj != {}:
+        if 'r' in obj:
+            print "Ringing for %s seconds" % obj['r']['d']
+            reply = {"r": {"ok": True}}
+        elif 'l' in obj:
+            print "Locking device with code %s" % obj['l']['c']
+            if 'm' in obj['l']:
+                print "with message \"%s\"" % obj['l']['m']
+            reply = {"l": {"ok": True}}
+        elif 'e' in obj:
+            print "Erasing device..."
+            reply = {"e": {"ok": True}}
+        elif 't' in obj:
+            print "Tracking device for %s seconds" % obj['t']['d']
+            reply = {"t": {"ok": True}}
+        else:
+            print "Unknown command"
+            pprint(obj)
+            return
+    # ack the command
+    if reply != {}:
+        return sendCmd(config, cred, reply)
     print "\n============\n\n"
+    return None
 
 
 def sendCmd(config, cred, cmd):
     """ Shorthand method to send a command to the server.
     """
     print "Sending Cmd %s\n" % json.dumps(cmd)
+    if cmd == {}:
+        return
     tmpl = config.get("urls", "cmd")
     trg = Template(tmpl).safe_substitute(
         scheme=config.get("main", "scheme"),
@@ -233,9 +263,10 @@ def main(argv):
     while cmd is not None:
         # Burn through the command queue.
         print "Processing commands...\n"
-        cmd = processCmd(config, cmd, cred)
+        cmd = processCmd(config, cred, cmd)
+
     # Send a fake statement saying that the client has no passcode.
-    response = sendCmd(config, cred, {'has_passcode': False})
+    response = processCmd(config, cred, {'has_passcode': False})
     print(response.text)
 #    sendCmd(config, cred, {'l': {'ok': True}, 'has_passcode': True})
 
