@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"mozilla.org/util"
 	"mozilla.org/wmf/storage"
 	"net/http"
