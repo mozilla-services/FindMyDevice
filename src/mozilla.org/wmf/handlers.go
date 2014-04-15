@@ -32,9 +32,8 @@ import (
 
 // base handler for REST and Socket calls.
 type Handler struct {
-	config  util.JsMap
+	config  *util.MzConfig
 	logger  *util.HekaLogger
-	store   *storage.Storage
 	metrics *util.Metrics
 	devId   string
 	logCat  string
@@ -66,20 +65,20 @@ var ErrAuthorization = errors.New("Needs Authorization")
 // part of Handler for config & logging reasons
 func (self *Handler) verifyAssertion(assertion string) (userid, email string, err error) {
 	var ok bool
-	if util.MzGetFlag(self.config, "auth.disabled") {
-		self.logger.Debug(self.logCat, "### Skipping validation...", nil)
+	if self.config.GetFlag("auth.disabled") {
+		self.logger.Warn(self.logCat, "!!! Skipping validation...", nil)
 		if len(assertion) == 0 {
 			return "user1", "user@example.com", nil
 		}
 		// Time to UberFake! THIS IS VERY DANGEROUS!
 		self.logger.Warn(self.logCat,
-			"!!! Using Assertion Without Validation !!!",
+			"!!! Using Assertion Without Validation",
 			nil)
 		bits := strings.Split(assertion, ".")
 		if len(bits) < 2 {
 			self.logger.Error(self.logCat, "Invalid assertion",
 				util.Fields{"assertion": assertion})
-			return "", "", err
+			return "", "", errors.New("Invalid assertion")
 		}
 		// get the interesting bit
 		intBit := bits[1]
@@ -108,11 +107,9 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 	}
 
 	// Better verify for realz
-	validatorURL := util.MzGet(self.config,
-		"persona.validater_url",
+	validatorURL := self.config.Get("persona.validater_url",
 		"https://verifier.login.persona.org/verify")
-	audience := util.MzGet(self.config,
-		"persona.audience",
+	audience := self.config.Get("persona.audience",
 		"http://localhost:8080")
 	body, err := json.Marshal(
 		util.Fields{"assertion": assertion,
@@ -210,8 +207,16 @@ func (self *Handler) updatePage(devId string, args map[string]interface{}, logPo
 	var location storage.Position
 	var locked bool
 
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		return err
+	}
+	defer store.Close()
+
 	for key, arg := range args {
-		if len(key) == 0 {
+		if len(key) < 2 {
 			continue
 		}
 		switch k := strings.ToLower(key[:2]); k {
@@ -226,17 +231,17 @@ func (self *Handler) updatePage(devId string, args map[string]interface{}, logPo
 		case "ha":
 			locked = isTrue(arg)
 			location.Lockable = !locked
-			if err = self.store.SetDeviceLockable(devId, !locked); err != nil {
+			if err = store.SetDeviceLockable(devId, !locked); err != nil {
 				return err
 			}
 		}
 	}
 	if logPosition {
-		if err = self.store.SetDeviceLocation(devId, location); err != nil {
+		if err = store.SetDeviceLocation(devId, location); err != nil {
 			return err
 		}
 		// because go sql locking.
-		self.store.GcPosition(devId)
+		store.GcPosition(devId)
 	}
 	if client, ok := Clients[devId]; ok {
 		js, _ := json.Marshal(location)
@@ -248,6 +253,7 @@ func (self *Handler) updatePage(devId string, args map[string]interface{}, logPo
 // log the cmd reply from the device.
 func (self *Handler) logReply(devId, cmd string, args replyType) (err error) {
 	// verify state and store it
+
 	if v, ok := args["ok"]; !ok {
 		return ErrInvalidReply
 	} else {
@@ -258,7 +264,14 @@ func (self *Handler) logReply(devId, cmd string, args replyType) (err error) {
 			return errors.New("Unknown error")
 		}
 		// log the state? (Device is currently cmd-ing)?
-		err = self.store.Touch(devId)
+		store, err := storage.Open(self.config, self.logger, self.metrics)
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not open database",
+				util.Fields{"error": err.Error()})
+			return err
+		}
+		defer store.Close()
+		err = store.Touch(devId)
 	}
 	return err
 }
@@ -283,13 +296,23 @@ func (self *Handler) rangeCheck(s string, min, max int64) int64 {
 
 //Handler Public Functions
 
-func NewHandler(config util.JsMap, logger *util.HekaLogger, store *storage.Storage, metrics *util.Metrics) *Handler {
+func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics) *Handler {
+	store, err := storage.Open(config, logger, metrics)
+	if err != nil {
+		logger.Error("Handler", "Could not open database",
+			util.Fields{"error": err.Error()})
+		return nil
+	}
+	defer store.Close()
+
+	// Initialize the data store once. This creates tables and
+	// applies required changes.
+	store.Init()
+
 	return &Handler{config: config,
 		logger:  logger,
 		logCat:  "handler",
-		hawk:    &Hawk{logger: logger, config: config},
-		metrics: metrics,
-		store:   store}
+		metrics: metrics}
 }
 
 // Register a new device
@@ -303,10 +326,20 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var secret string
 	var accepts string
 	var lockable bool
+	var err error
 
 	self.logCat = "handler:Register"
 
-	buffer, err := parseBody(req.Body)
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	defer store.Close()
+
+	buffer, err = parseBody(req.Body)
 	if err != nil {
 		http.Error(resp, "No body", http.StatusBadRequest)
 	} else {
@@ -316,14 +349,14 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			return
 		} else {
 			userid, user, err = self.verifyAssertion(assertion)
-			if err != nil {
+			if err != nil || userid == "" {
 				http.Error(resp, "Unauthorized", 401)
 			}
 			self.logger.Debug(self.logCat, "Got user "+userid, nil)
 			user = strings.SplitN(user, "@", 2)[0]
 		}
 
-		if val, ok := buffer["pushurl"]; !ok {
+		if val, ok := buffer["pushurl"]; !ok || val == nil || len(val.(string)) == 0 {
 			self.logger.Error(self.logCat, "Missing SimplePush url", nil)
 			http.Error(resp, "Bad Data", 400)
 			return
@@ -361,7 +394,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 		// create the new device record
 		var devId string
-		if devId, err = self.store.RegisterDevice(
+		if devId, err = store.RegisterDevice(
 			userid,
 			storage.Device{
 				ID:       deviceid,
@@ -398,6 +431,15 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	var l int
 
 	self.logCat = "handler:Cmd"
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	defer store.Close()
+
 	resp.Header().Set("Content-Type", "application/json")
 	deviceId := getDevFromUrl(req.URL)
 	if deviceId == "" {
@@ -406,7 +448,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	devRec, err := self.store.GetDeviceInfo(deviceId)
+	devRec, err := store.GetDeviceInfo(deviceId)
 	if err != nil {
 		switch err {
 		case storage.ErrUnknownDevice:
@@ -435,7 +477,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	//validate the Hawk header
-	if util.MzGetFlag(self.config, "hawk.disabled") == false {
+	if self.config.GetFlag("hawk.disabled") == false {
 		// Remote Hawk
 		rhawk := Hawk{logger: self.logger}
 		// Local Hawk
@@ -479,7 +521,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			"cmd":    string(body),
 			"length": fmt.Sprintf("%d", l),
 		})
-	if l > 0 {
+	// Ignore effectively null commands (e.g. "" or {})
+	if l > 2 {
 		reply := make(replyType)
 		merr := json.Unmarshal(body, &reply)
 		//	merr := json.Unmarshal(body, &reply)
@@ -504,7 +547,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			self.metrics.Increment("cmd.received." + string(c))
 			switch c {
 			case "l", "r", "m", "e":
-				err = self.store.Touch(deviceId)
+				err = store.Touch(deviceId)
 				self.updatePage(deviceId,
 					args.(map[string]interface{}), false)
 			case "h":
@@ -518,8 +561,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				// store tracking info.
 			case "q":
 				// User has quit, nuke what we know.
-				if util.MzGetFlag(self.config, "cmd.q.allow") {
-					err = self.store.DeleteDevice(deviceId)
+				if self.config.GetFlag("cmd.q.allow") {
+					err = store.DeleteDevice(deviceId)
 				}
 			}
 			if err != nil {
@@ -539,7 +582,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 
 	// reply with pending commands
 	//
-	cmd, err := self.store.GetPending(deviceId)
+	cmd, err := store.GetPending(deviceId)
 	var output = []byte(cmd)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send commands",
@@ -549,8 +592,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	if output == nil || len(output) < 2 {
 		output = []byte("{}")
 	}
-	self.hawk.Clear()
-	authHeader := self.hawk.AsHeader(req, devRec.User, string(output),
+	hawk := Hawk{config: self.config, logger: self.logger}
+	authHeader := hawk.AsHeader(req, devRec.ID, string(output),
 		"", devRec.Secret)
 	resp.Header().Add("Authorization", authHeader)
 	// total cheat to get the command without parsing the cmd data.
@@ -564,11 +607,14 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyType) (status int, err error) {
 	status = http.StatusOK
 
+	self.logCat = "handler:Queue"
 	deviceId := devRec.ID
 	// sanitize values.
 	var v interface{}
 	var ok bool
 	c := strings.ToLower(string(cmd[0]))
+	self.logger.Debug(self.logCat, "Processing UI Command",
+		util.Fields{"cmd": cmd})
 	if !strings.Contains(devRec.Accepts, c) {
 		// skip unacceptable command
 		self.logger.Warn(self.logCat, "Agent does not accept command",
@@ -582,9 +628,8 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	switch c {
 	case "l":
 		if v, ok = rargs["c"]; ok {
-			max, err := strconv.ParseInt(util.MzGet(self.config,
-				"cmd.c.max",
-				"9999"), 10, 64)
+			max, err := strconv.ParseInt(self.config.Get("cmd.c.max", "9999"),
+				10, 64)
 			if err != nil {
 				max = 9999
 			}
@@ -601,14 +646,21 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		}
 	case "r", "t":
 		if v, ok = rargs["d"]; ok {
+			vs := ""
 			max, err := strconv.ParseInt(
-				util.MzGet(self.config,
-					"cmd."+c+".max",
+				self.config.Get("cmd."+c+".max",
 					"10500"), 10, 64)
 			if err != nil {
 				max = 10500
 			}
-			vs := v.(string)
+			switch v.(type) {
+			case string:
+				vs = v.(string)
+			case float64:
+				vs = strconv.FormatFloat(v.(float64), 'f', 0, 64)
+			default:
+				vs = fmt.Sprintf("%s", v)
+			}
 			rargs["d"] = self.rangeCheck(
 				strings.Map(digitsOnly, vs),
 				0,
@@ -617,6 +669,10 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	case "e":
 		rargs = replyType{}
 	default:
+		self.logger.Warn(self.logCat, "Invalid Command",
+			util.Fields{"command": string(cmd),
+				"device": deviceId,
+				"args":   fmt.Sprintf("%v", rargs)})
 		return http.StatusBadRequest, errors.New("\"Invalid Command\"")
 	}
 	fixed, err := json.Marshal(storage.Unstructured{c: rargs})
@@ -629,7 +685,16 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				"args":    fmt.Sprintf("%v", rargs)})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
-	err = self.store.StoreCommand(deviceId, string(fixed))
+
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
+	}
+	defer store.Close()
+
+	err = store.StoreCommand(deviceId, string(fixed))
 	if err != nil {
 		// Log the error
 		self.logger.Error(self.logCat, "Error storing command",
@@ -642,7 +707,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	// trigger the push
 	self.metrics.Increment("cmd.store." + c)
 	self.metrics.Increment("push.send")
-	err = SendPush(devRec, &self.config)
+	err = SendPush(devRec, self.config)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send Push",
 			util.Fields{"error": err.Error(),
@@ -662,6 +727,16 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	rep := make(replyType)
 
 	self.logCat = "handler:Queue"
+
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	defer store.Close()
+
 	resp.Header().Set("Content-Type", "application/json")
 	deviceId := getDevFromUrl(req.URL)
 	if deviceId == "" {
@@ -683,9 +758,24 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	devRec, err := self.store.GetDeviceInfo(deviceId)
+	devRec, err := store.GetDeviceInfo(deviceId)
+	if err != nil || devRec == nil {
+		fields := util.Fields{"deviceId": deviceId}
+		if err != nil {
+			fields["error"] = err.Error()
+		}
+		if devRec != nil {
+			fields["devRec"] = devRec.ID
+		}
+		self.logger.Error(self.logCat, "Could not get userid", fields)
+		http.SetCookie(resp, &http.Cookie{Name: "user", MaxAge: -1})
+		http.Error(resp, "Unauthorized", 401)
+		return
+	}
 	if devRec.User != userId {
-		self.logger.Error(self.logCat, "Unauthorized device", nil)
+		self.logger.Error(self.logCat, "Unauthorized device",
+			util.Fields{"devrec": devRec.User,
+				"userid": userId})
 		http.SetCookie(resp, &http.Cookie{Name: "user", MaxAge: -1})
 		http.Error(resp, "Unauthorized", 401)
 		return
@@ -764,6 +854,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	/* Handle a user login to the web UI
 	 */
 
+	self.logCat = "handler:Index"
 	// This should be handled by an nginx rule.
 	if strings.Contains(req.URL.Path, "/static/") {
 		if strings.Contains(req.URL.Path, "..") {
@@ -775,7 +866,6 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		}
 		return
 	}
-	self.logCat = "handler:Index"
 	var data struct {
 		ProductName string
 		UserId      string
@@ -787,15 +877,23 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 
 	var err error
 
-	// Get this from the config file?
-	data.ProductName = util.MzGet(self.config, "productname", "Find My Device")
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	defer store.Close()
 
-	data.MapKey = util.MzGet(self.config, "mapbox.key", "")
+	// Get this from the config file?
+	data.ProductName = self.config.Get("productname", "Find My Device")
+
+	data.MapKey = self.config.Get("mapbox.key", "")
 
 	// host information (for websocket callback)
 	data.Host = make(map[string]string)
-	data.Host["Hostname"] = util.MzGet(self.config,
-		"ws_hostname", "localhost")
+	data.Host["Hostname"] = self.config.Get("ws_hostname", "localhost")
 
 	// get the cached session info (if present)
 	// will also resolve assertions and other bits to get user and dev info.
@@ -804,7 +902,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		// we have user info, use it.
 		data.UserId = sessionInfo.UserId
 		if sessionInfo.DeviceId == "" {
-			data.DeviceList, err = self.store.GetDevicesForUser(data.UserId)
+			data.DeviceList, err = store.GetDevicesForUser(data.UserId)
 			if err != nil {
 				self.logger.Error(self.logCat, "Could not get user devices",
 					util.Fields{"error": err.Error(),
@@ -816,7 +914,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 			}
 		}
 		if sessionInfo.DeviceId != "" {
-			data.Device, err = self.store.GetDeviceInfo(sessionInfo.DeviceId)
+			data.Device, err = store.GetDeviceInfo(sessionInfo.DeviceId)
 			if err != nil {
 				self.logger.Error(self.logCat, "Could not get device info",
 					util.Fields{"error": err.Error(),
@@ -826,7 +924,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 				}
 				return
 			}
-			data.Device.PreviousPositions, err = self.store.GetPositions(sessionInfo.DeviceId)
+			data.Device.PreviousPositions, err = store.GetPositions(sessionInfo.DeviceId)
 			if err != nil {
 				self.logger.Error(self.logCat,
 					"Could not get device's position information",
@@ -866,13 +964,23 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 // Show the state of the user's devices.
 func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	// get session info
-	self.logCat = self.logCat + ":State"
+	self.logCat = "handler:State"
+
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	defer store.Close()
+
 	sessionInfo, err := self.getSessionInfo(req)
 	if err != nil {
 		http.Error(resp, err.Error(), 500)
 		return
 	}
-	devInfo, err := self.store.GetDeviceInfo(sessionInfo.DeviceId)
+	devInfo, err := store.GetDeviceInfo(sessionInfo.DeviceId)
 	if err != nil {
 		http.Error(resp, err.Error(), 500)
 		return
@@ -944,8 +1052,17 @@ func rmClient(id string) {
 
 // Handle Websocket processing.
 func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
+	self.logCat = "handler:Socket"
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		return
+	}
+	defer store.Close()
+
 	self.devId = getDevFromUrl(ws.Request().URL)
-	devRec, err := self.store.GetDeviceInfo(self.devId)
+	devRec, err := store.GetDeviceInfo(self.devId)
 	if err != nil {
 		self.logger.Error(self.logCat, "Invalid Device for socket",
 			util.Fields{"error": err.Error(),

@@ -25,7 +25,7 @@ var ErrInvalidSignature = errors.New("Header does not match signature")
 // minimal HAWK for now (e.g. no bewit because IAGNI)
 type Hawk struct {
 	logger    *util.HekaLogger
-	config    util.JsMap
+	config    *util.MzConfig
 	header    string
 	Id        string
 	Time      string
@@ -55,6 +55,8 @@ func (self *Hawk) Clear() {
     self.Signature = ""
     self.Nonce = ""
     self.Time = ""
+    self.Path = ""
+    self.Port = ""
 }
 
 // Return a Hawk Authorization header
@@ -69,7 +71,7 @@ func (self *Hawk) AsHeader(req *http.Request, id, body, extra, secret string) st
 		self.Extra,
 		self.Hash,
 		self.Signature)
-	fmt.Printf("### header: %s\n", rep)
+	//fmt.Printf("### header: %s\n", rep)
 	return rep
 }
 
@@ -93,7 +95,7 @@ func (self *Hawk) getHostPort(req *http.Request) (host, port string) {
 	if len(elements) == 2 {
 		port = elements[1]
 	}
-	if port == "" || util.MzGetFlag(self.config, "override_port") {
+	if port == "" || self.config.GetFlag("override_port") {
 		switch {
 		// because nginx proxies, don't take the :port at face value
 		//case len(elements) > 1:
@@ -125,7 +127,7 @@ func (self *Hawk) genHash(req *http.Request, body string) (hash string) {
 		nbody)
 	sha := sha256.Sum256([]byte(marshalStr))
 	hash = base64.StdEncoding.EncodeToString([]byte(sha[:32]))
-	if util.MzGetFlag(self.config, "hawk.show_hash") {
+	if self.config.GetFlag("hawk.show_hash") {
 		self.logger.Debug("hawk", "genHash",
 			util.Fields{"marshalStr": marshalStr,
 				"hash": hash})
@@ -176,7 +178,7 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(marshalStr))
 	self.Signature = base64.StdEncoding.EncodeToString(mac.Sum(nil))
-	if util.MzGetFlag(self.config, "hawk.show_hash") {
+	if self.config.GetFlag("hawk.show_hash") {
 		self.logger.Debug("hawk", "#### Marshal",
 			util.Fields{"marshalStr": marshalStr,
 				"secret": secret,

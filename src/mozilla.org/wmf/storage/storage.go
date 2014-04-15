@@ -21,7 +21,7 @@ var ErrUnknownDevice = errors.New("Unknown device")
 
 // Storage abstration
 type Storage struct {
-	config   util.JsMap
+	config   *util.MzConfig
 	logger   *util.HekaLogger
 	metrics  *util.Metrics
 	dsn      string
@@ -108,15 +108,15 @@ func dbNow() (ret string) {
 }
 
 // Open the database.
-func Open(config util.JsMap, logger *util.HekaLogger, metrics *util.Metrics) (store *Storage, err error) {
+func Open(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics) (store *Storage, err error) {
 	dsn := fmt.Sprintf("user=%s password=%s host=%s dbname=%s sslmode=%s",
-		util.MzGet(config, "db.user", "user"),
-		util.MzGet(config, "db.password", "password"),
-		util.MzGet(config, "db.host", "localhost"),
-		util.MzGet(config, "db.db", "wmf"),
-		util.MzGet(config, "db.sslmode", "disable"))
+		config.Get("db.user", "user"),
+		config.Get("db.password", "password"),
+		config.Get("db.host", "localhost"),
+		config.Get("db.db", "wmf"),
+		config.Get("db.sslmode", "disable"))
 	logCat := "storage"
-	defExpry, err := strconv.ParseInt(util.MzGet(config, "db.default_expry", "1500"), 0, 64)
+	defExpry, err := strconv.ParseInt(config.Get("db.default_expry", "1500"), 0, 64)
 	if err != nil {
 		defExpry = 1500
 	}
@@ -136,9 +136,9 @@ func Open(config util.JsMap, logger *util.HekaLogger, metrics *util.Metrics) (st
 		metrics:  metrics,
 		dsn:      dsn,
 		db:       db}
-	if err = store.Init(); err != nil {
-		return nil, err
-	}
+	//	if err = store.Init(); err != nil {
+	//		return nil, err
+	//	}
 	return store, nil
 }
 
@@ -491,4 +491,8 @@ func (self *Storage) DeleteDevice(devId string) (err error) {
 		}
 	}
 	return nil
+}
+
+func (self *Storage) Close() {
+	self.db.Close()
 }

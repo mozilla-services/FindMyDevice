@@ -14,11 +14,10 @@ import (
 	"net/http"
 )
 
-func SendPush(devRec *storage.Device, config *util.JsMap) error {
+func SendPush(devRec *storage.Device, config *util.MzConfig) error {
 	// wow, so very tempted to make sure this matches the known push server.
 	bbody := []byte{}
 	body := bytes.NewReader(bbody)
-	fmt.Printf("### sending to %s\n", devRec.PushUrl)
 	/* If your server is not trustfully signed, the following will fail.
 	   If partners are unable/unwilling to trustfully sign servers,
 	   it is possible to skip validation by using
@@ -39,6 +38,8 @@ func SendPush(devRec *storage.Device, config *util.JsMap) error {
 	}
 	cli := http.Client{Transport: tr}
 	resp, err := cli.Do(req)
+	// Close the body, otherwise Memory leak!
+	defer resp.Body.Close()
 	if err != nil {
 		return err
 	}

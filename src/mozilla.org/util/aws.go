@@ -1,7 +1,8 @@
-package util
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+package util
 
 import (
 	"io/ioutil"
@@ -9,8 +10,10 @@ import (
 	"net/url"
 )
 
-// GetAWSPublicHostname gets the public hostname from the AWS meta server
-//   May revisit this at some point to make this call more generic.
+/* Get the public AWS hostname for this machine.
+ * TODO: Make this a generic utility for getting public info from
+ * the aws meta server?
+ */
 func GetAWSPublicHostname() (hostname string, err error) {
 	req := &http.Request{Method: "GET",
 		URL: &url.URL{

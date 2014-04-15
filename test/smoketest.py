@@ -242,7 +242,7 @@ def sendCmd(config, cred, cmd):
     trg = Template(tmpl).safe_substitute(
         scheme=config.get("main", "scheme"),
         host=config.get("main", "host"),
-        id=cred.get("deviceid", "test1"))
+        devid=cred.get("deviceid", "test1"))
     return send(trg, cmd, cred)
 
 
