@@ -446,10 +446,9 @@ func (self *Storage) GcPosition(devId string) (err error) {
 	// because I didn't have enough reasons to drink.
 	// Delete old records (except the latest one) so we always have
 	// at least one position record.
-	statement := fmt.Sprintf("delete from position where id in (select id from (select id, row_number() over (order by time desc) RowNumber from position where time < (now() - interval '%d seconds') ) tt where RowNumber > 1);",
-		self.defExpry)
+	statement := "delete from position where id in (select id from (select id, row_number() over (order by time desc) RowNumber from position where time < (now() - interval '? seconds') ) tt where RowNumber > 1);"
 	st, err := dbh.Prepare(statement)
-	_, err = st.Exec()
+	_, err = st.Exec(self.defExpry)
 	st.Close()
 	if err != nil {
 		self.logger.Error(self.logCat, "Error gc'ing positions",

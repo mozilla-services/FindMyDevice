@@ -57,7 +57,7 @@ this is a pretty crappy device picker. Obviously, it should be better.
                 <div class="locked">Device has a lock code</div>
                 <div class="unlocked">Device dos not have a lock code</div>
             </div>
-            <div >Last contact: <span id="lastExchange" class="date" data-time="{{$device.LastExchange}}"</span></div>
+            <div >Last contact: <span id="lastExchange" class="date" data-time="{{$device.LastExchange}}"></span></div>
             <ol class="positions">
                 <!-- Positions are from oldest to newest because map icons
                  are appended to the list. Kind of annoying.
@@ -197,7 +197,6 @@ window.addEventListener("load",
                 onlogout: function(e){
                 str = document.cookie;
                 if ((str.length > 0) && str.indexOf("user")>=0) {
-                    alert("logging off...");
                     document.cookie="user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
                     document.location = "/";
                     }

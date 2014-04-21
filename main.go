@@ -6,6 +6,7 @@ package main
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"github.com/gorilla/context"
 	flags "github.com/jessevdk/go-flags"
 	"mozilla.org/util"
 	"mozilla.org/wmf"
@@ -152,7 +153,7 @@ func main() {
 		util.Fields{"host": host, "port": port})
 
 	go func() {
-		errChan <- http.ListenAndServe(host+":"+port, nil)
+		errChan <- http.ListenAndServe(host+":"+port, context.ClearHandler(http.DefaultServeMux))
 	}()
 
 	select {
