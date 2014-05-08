@@ -1,10 +1,12 @@
+/*global define*/
+
 define(
   [
-    "underscore",
-    "backbone"
+    'underscore',
+    'backbone'
   ],
   function(_, Backbone) {
-    "use strict";
+    'use strict';
 
     /**
     * Base class for views that provides common rendering, model presentation, DOM assignment,
@@ -95,9 +97,9 @@ define(
       * @param {Backbone.View} itemView view for rendering each item in the collection
       * @param {String} selector jQuery selector to insert the collected elements
       */
-      renderCollection: function(itemView, selector) {
+      renderCollection: function(ItemView, selector) {
         var els = this.collection.collect(function(item) {
-          return this.trackSubview(new itemView({ model: item })).render().el;
+          return this.trackSubview(new ItemView({ model: item })).render().el;
         }.bind(this));
 
         this.$(selector).append(els);
@@ -153,7 +155,7 @@ define(
       * @method destroySubviews
       */
       destroySubviews: function() {
-        _.invoke(this.subviews, "destroy");
+        _.invoke(this.subviews, 'destroy');
 
         this.subviews = [];
       }

@@ -37,7 +37,7 @@ define([
 
     _show: function() {
       var view = _.last(this._views);
-      var el = view ? view.render().el : null
+      var el = view ? view.render().el : null;
 
       $('#modal').html(el).show();
     },
@@ -45,7 +45,7 @@ define([
     _hide: function() {
       $('#modal').html('').hide();
     }
-  }
+  };
 
   return ModalManager;
 });

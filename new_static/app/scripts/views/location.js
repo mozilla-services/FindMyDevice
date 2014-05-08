@@ -1,4 +1,4 @@
-/*global define*/
+/*global define,alert*/
 
 define([
   'views/base',
@@ -22,11 +22,11 @@ define([
     },
 
     lostMode: function(event) {
-      alert("LOSING THE DEVICE");
+      alert('LOSING THE DEVICE');
     },
 
     erase: function(event) {
-      alert("ERASING THE DEVICE");
+      alert('ERASING THE DEVICE');
     },
 
     afterInsert: function() {

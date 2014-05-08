@@ -17,7 +17,7 @@ define([
       },
 
       setStage: function(view) {
-        $("#stage").html(view.render().el);
+        $('#stage').html(view.render().el);
 
         view.afterInsert();
       }
