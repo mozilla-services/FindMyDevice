@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "author": "Mozilla (https://mozilla.org/)",
   "description": "",
-  "keywords": [""],
+  "keywords": [
+    ""
+  ],
   "repository": {
     "type": "git",
     "url": "git@github.com:jrconlin/wmf.git"
@@ -17,7 +19,9 @@
     "test": "grunt test",
     "contributors": "git shortlog -s | cut -c8- | sort -f > CONTRIBUTORS"
   },
-  "dependencies": {},
+  "dependencies": {
+    "grunt-jscs-checker": "^0.4.3"
+  },
   "devDependencies": {
     "connect-livereload": "0.3.2",
     "grunt": "0.4.4",

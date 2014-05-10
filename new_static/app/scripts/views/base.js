@@ -94,7 +94,7 @@ define(
       * Renders local collection using the provided view and inserts into the provided selector.
       *
       * @method renderCollection
-      * @param {Backbone.View} itemView view for rendering each item in the collection
+      * @param {Backbone.View} ItemView view for rendering each item in the collection
       * @param {String} selector jQuery selector to insert the collected elements
       */
       renderCollection: function(ItemView, selector) {

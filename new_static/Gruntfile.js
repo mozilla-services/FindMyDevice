@@ -136,13 +136,19 @@ module.exports = function (grunt) {
                 '<%= yeoman.test %>/spec/{,*/}*.js'
             ]
         },
+        jscs: {
+          options: {
+            config: '.jscsrc'
+          },
+          all: '<%= jshint.all %>'
+        },
         jasmine: {
-            all:{
-                src : '/scripts/{,*/}*.js',
+            all: {
+                src: '/scripts/{,*/}*.js',
                 options: {
                     keepRunner: true,
-                    specs : '<%= yeoman.test %>/spec/**/*.js',
-                    vendor : [
+                    specs: '<%= yeoman.test %>/spec/**/*.js',
+                    vendor: [
                         '<%= yeoman.app %>/bower_components/jquery/jquery.js',
                         '<%= yeoman.app %>/bower_components/underscore/underscore.js',
                         '<%= yeoman.app %>/bower_components/backbone/backbone.js',
@@ -339,7 +345,7 @@ module.exports = function (grunt) {
                 'watch:test'
             ];
 
-        if(!isConnected) {
+        if (!isConnected) {
             return grunt.task.run(testTasks);
         } else {
             // already connected so not going to connect again, remove the connect:test task
