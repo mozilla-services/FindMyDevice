@@ -1,13 +1,28 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@import "variables";
+
 /* Border box all the things */
-*, *:before, *:after {
+*,
+*:before,
+*:after {
   box-sizing: border-box;
 }
 
-html, body, input, select {
-  font-family: 'TypoPRO Fira Sans', sans-serif;
+html,
+body,
+input,
+select {
+  font-family: $default-font-family;
 }
 
-html, body, #stage, #stage > div, #map {
+html,
+body,
+#stage,
+#stage > div,
+#map {
   height: 100%;
   width: 100%;
 }
@@ -20,7 +35,7 @@ a {
   position: relative;
 
   header {
-    background: #f4f4f4;
+    background: $header-background-color;
     height: 47px;
     left: 0;
     padding: 0 34px;
@@ -30,7 +45,7 @@ a {
     z-index: 1000;
 
     h1 {
-      color: #8a8b97;
+      color: $heading-text-color;
       font-size: 27px;
       font-weight: normal;
       height: 32px;
@@ -41,9 +56,9 @@ a {
   }
 
   footer {
-    background: #242426;
-    color: #f2f1ec;
+    background: $footer-background-color;
     bottom: 0;
+    color: $footer-text-color;
     height: 39px;
     left: 0;
     position: absolute;
@@ -57,36 +72,36 @@ a {
       width: 33%;
 
       a {
-        background: url(../images/icon-sound-white.png) no-repeat 50% 50%;
+        background: image-url('icon-sound-white.png') no-repeat 50% 50%;
         display: block;
         font-size: 13px;
         height: 39px;
+        line-height: 1em;
         text-indent: -1000em;
         width: 100%;
-        line-height: 1em;
 
         &:active {
-          background-color: #6f7181;
+          background-color: $footer-link-active-background-color;
         }
       }
 
       &.play-sound a {
-        background-image: url(../images/icon-sound-white.png);
+        background-image: image-url('icon-sound-white.png');
       }
 
       &.lost-mode a {
-        background-image: url(../images/icon-lock-white.png);
+        background-image: image-url('icon-lock-white.png');
       }
 
       &.erase a {
-        background-image: url(../images/icon-erase-white.png);
+        background-image: image-url('icon-erase-white.png');
       }
     }
   }
 }
 
 #modal {
-  background: #fff;
+  background: $modal-background-color;
   display: none;
   height: 100%;
   left: 0;
@@ -104,58 +119,4 @@ a {
   bottom: 30px;
 }
 
-/* Desktop */
-
-@media only screen and (min-width: 768px) {
-  #stage {
-    footer {
-      background: #e7e7e7;
-      bottom: auto;
-      color: #333;
-      height: 47px;
-      padding-left: 26px; // 34px - 8px for button padding
-      text-align: left;
-      top: 47px;
-
-      .button {
-        height: 47px;
-        width: auto;
-
-        a {
-          background: url(../images/icon-sound.png) no-repeat left 50%;
-          display: inline-block;
-          font-size: 13px;
-          height: 47px;
-          padding: 15px 12px 0 40px;
-          text-indent: 0;
-          width: auto;
-
-          &:hover {
-            background-color: #d9d9d9;
-          }
-        }
-
-        &.play-sound a {
-          background-image: url(../images/icon-sound.png);
-        }
-
-        &.lost-mode a {
-          background-image: url(../images/icon-lock.png);
-          margin: 0;
-        }
-
-        &.erase a {
-          background-image: url(../images/icon-erase.png);
-        }
-      }
-    }
-  }
-
-  .leaflet-top {
-    top: 95px;
-  }
-
-  .leaflet-bottom {
-    bottom: 0;
-  }
-}
+@import "media_queries";
