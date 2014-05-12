@@ -39,14 +39,6 @@ module.exports = function (grunt) {
                 nospawn: true,
                 livereload: true
             },
-            coffee: {
-                files: ['<%= yeoman.app %>/scripts/{,*/}*.coffee'],
-                tasks: ['coffee:dist']
-            },
-            coffeeTest: {
-                files: ['<%= yeoman.test %>/spec/{,*/}*.coffee'],
-                tasks: ['coffee:test']
-            },
             sass: {
                 files: ['<%= yeoman.app %>/styles/{,*/}*.scss'],
                 tasks: ['sass:dev']
@@ -149,28 +141,6 @@ module.exports = function (grunt) {
                         '<%= yeoman.app %>/scripts/templates.js'
                     ]
                 }
-            }
-        },
-        coffee: {
-            dist: {
-                files: [{
-                    // rather than compiling multiple files here you should
-                    // require them into your main .coffee file
-                    expand: true,
-                    cwd: '<%= yeoman.app %>/scripts',
-                    src: '{,*/}*.coffee',
-                    dest: '<%= yeoman.tmp %>/scripts',
-                    ext: '.js'
-                }]
-            },
-            test: {
-                files: [{
-                    expand: true,
-                    cwd: '<%= yeoman.test %>/spec',
-                    src: '{,*/}*.coffee',
-                    dest: '<%= yeoman.tmp %>/spec',
-                    ext: '.js'
-                }]
             }
         },
         requirejs: {
@@ -313,7 +283,6 @@ module.exports = function (grunt) {
         if (target === 'test') {
             return grunt.task.run([
                 'clean:server',
-                'coffee',
                 'connect:test',
                 'open:test',
                 'watch:livereload'
@@ -322,7 +291,6 @@ module.exports = function (grunt) {
 
         grunt.task.run([
             'clean:server',
-            'coffee:dist',
             'sass:dev',
             'connect:livereload',
             'open:server',
@@ -334,9 +302,7 @@ module.exports = function (grunt) {
         isConnected = Boolean(isConnected);
         var testTasks = [
                 'clean:server',
-                'coffee',
-                'jasmine',
-                'watch:test'
+                'jasmine'
             ];
 
         if(!isConnected) {
@@ -350,7 +316,6 @@ module.exports = function (grunt) {
 
     grunt.registerTask('build', [
         'clean:dist',
-        'coffee',
         'sass',
         'useminPrepare',
         'requirejs',
