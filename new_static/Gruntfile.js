@@ -257,6 +257,9 @@ module.exports = function (grunt) {
             }
         },
         sass: {                                 // Task
+            options: {
+                imagePath: '../images'
+            },
             dist: {                             // Target
                 files: {                        // Dictionary of files
                     '<%= yeoman.tmp %>/styles/main.css': '<%= yeoman.app %>/styles/main.scss'     // 'destination': 'source'
