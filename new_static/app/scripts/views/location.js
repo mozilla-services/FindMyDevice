@@ -1,4 +1,8 @@
-/*global define,alert*/
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/*global define, alert, L */
 
 define([
   'views/base',
@@ -17,19 +21,19 @@ define([
       'click span.erase': 'erase'
     },
 
-    playSound: function(event) {
+    playSound: function (event) {
       ModalManager.push(new PlaySoundView());
     },
 
-    lostMode: function(event) {
+    lostMode: function (event) {
       alert('LOSING THE DEVICE');
     },
 
-    erase: function(event) {
+    erase: function (event) {
       alert('ERASING THE DEVICE');
     },
 
-    afterInsert: function() {
+    afterInsert: function () {
       // Setup the map
       var map = L.mapbox.map('map', 'nchapman.hejm93ej', { zoomControl: false });
 
