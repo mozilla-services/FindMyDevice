@@ -1,0 +1,122 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@import "variables";
+
+/* Border box all the things */
+*,
+*:before,
+*:after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+input,
+select {
+  font-family: $default-font-family;
+}
+
+html,
+body,
+#stage,
+#stage > div,
+#map {
+  height: 100%;
+  width: 100%;
+}
+
+a {
+  cursor: pointer;
+}
+
+#stage {
+  position: relative;
+
+  header {
+    background: $header-background-color;
+    height: 47px;
+    left: 0;
+    padding: 0 34px;
+    position: absolute;
+    top: 0;
+    width: 100%;
+    z-index: 1000;
+
+    h1 {
+      color: $heading-text-color;
+      font-size: 27px;
+      font-weight: normal;
+      height: 32px;
+      margin-top: -16px;
+      position: absolute;
+      top: 50%;
+    }
+  }
+
+  footer {
+    background: $footer-background-color;
+    bottom: 0;
+    color: $footer-text-color;
+    height: 39px;
+    left: 0;
+    position: absolute;
+    width: 100%;
+    z-index: 1000;
+
+    .button {
+      display: block;
+      float: left;
+      height: 39px;
+      width: 33%;
+
+      a {
+        background: image-url('icon-sound-white.png') no-repeat 50% 50%;
+        display: block;
+        font-size: 13px;
+        height: 39px;
+        line-height: 1em;
+        text-indent: -1000em;
+        width: 100%;
+
+        &:active {
+          background-color: $footer-link-active-background-color;
+        }
+      }
+
+      &.play-sound a {
+        background-image: image-url('icon-sound-white.png');
+      }
+
+      &.lost-mode a {
+        background-image: image-url('icon-lock-white.png');
+      }
+
+      &.erase a {
+        background-image: image-url('icon-erase-white.png');
+      }
+    }
+  }
+}
+
+#modal {
+  background: $modal-background-color;
+  display: none;
+  height: 100%;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  z-index: 1000;
+}
+
+.leaflet-top {
+  top: 45px;
+}
+
+.leaflet-bottom {
+  bottom: 30px;
+}
+
+@import "media_queries";
