@@ -1,7 +1,9 @@
-node_modules
-dist
-test/temp
-.sass-cache
-app/bower_components
-.tmp
+.grunt/
+.sass-cache/
+.tmp/
+app/bower_components/
+dist/
+node_modules/
 test/bower_components/
+test/temp/
+_SpecRunner.html
