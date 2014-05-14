@@ -1,9 +1,11 @@
 {
+  "asi": false,
   "bitwise": true,
   "browser": true,
   "camelcase": true,
   "curly": true,
   "eqeqeq": true,
+  "es3": true,
   "esnext": true,
   "immed": true,
   "jquery": true,

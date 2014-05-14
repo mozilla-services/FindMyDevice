@@ -16,10 +16,10 @@ module.exports = function (grunt) {
 
   var LIVERELOAD_PORT = 35729;
   var SERVER_PORT = 9000;
-  var lrSnippet = require('connect-livereload')({port: LIVERELOAD_PORT});
 
+  var lrSnippet = require('connect-livereload')({port: LIVERELOAD_PORT});
   var mountFolder = function (connect, dir) {
-    return connect.static(path.resolve(dir));
+    return connect['static'](path.resolve(dir));
   };
 
   // show elapsed time at the end
@@ -30,10 +30,10 @@ module.exports = function (grunt) {
 
   // configurable paths
   var yeomanConfig = {
-    tmp: '.tmp',
     app: 'app',
     dist: 'dist',
-    test: 'test'
+    test: 'test',
+    tmp: '.tmp'
   };
 
   grunt.initConfig({
@@ -170,21 +170,6 @@ module.exports = function (grunt) {
       },
       all: '<%= jshint.all %>'
     },
-    jasmine: {
-      all: {
-        src: '/scripts/{,*/}*.js',
-        options: {
-          keepRunner: true,
-          specs: '<%= yeoman.test %>/spec/**/*.js',
-          vendor: [
-            '<%= yeoman.app %>/bower_components/jquery/jquery.js',
-            '<%= yeoman.app %>/bower_components/underscore/underscore.js',
-            '<%= yeoman.app %>/bower_components/backbone/backbone.js',
-            '<%= yeoman.app %>/scripts/templates.js'
-          ]
-        }
-      }
-    },
 
     // JSHINT TASK
     jshint: {
@@ -258,7 +243,7 @@ module.exports = function (grunt) {
       },
       dist: {
         files: {
-          '<%= yeoman.tmp %>/styles/main.css': '<%= yeoman.app %>/styles/main.scss'     // 'destination': 'source'
+          '<%= yeoman.tmp %>/styles/main.css': '<%= yeoman.app %>/styles/main.scss'
         }
       },
       dev: {
@@ -382,8 +367,7 @@ module.exports = function (grunt) {
   grunt.registerTask('test', function (isConnected) {
     isConnected = Boolean(isConnected);
     var testTasks = [
-      'clean:server',
-      'jasmine'
+      'clean:server'
     ];
 
     if (!isConnected) {
