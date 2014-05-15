@@ -19,7 +19,7 @@ module.exports = function (grunt) {
 
   var lrSnippet = require('connect-livereload')({port: LIVERELOAD_PORT});
   var mountFolder = function (connect, dir) {
-    return connect['static'](path.resolve(dir));
+    return connect.static(path.resolve(dir));
   };
 
   // show elapsed time at the end
@@ -302,7 +302,6 @@ module.exports = function (grunt) {
       }
     }
   });
-
 
   // BUILD TASK
   grunt.registerTask('build', [
