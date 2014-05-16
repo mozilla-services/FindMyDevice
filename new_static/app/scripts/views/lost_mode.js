@@ -16,7 +16,7 @@ define([
     template: LostModeTemplate,
 
     events: {
-      'click header a.next': 'next'
+      'click button.next': 'next'
     },
 
     next: function(event) {
