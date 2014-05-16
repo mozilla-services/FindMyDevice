@@ -13,6 +13,12 @@ define([
   var ModalManager = {
     _views: [],
 
+    open: function(view) {
+      this._destroyViews();
+
+      this.push(view);
+    },
+
     push: function(view) {
       this._views.push(view);
 
@@ -34,9 +40,15 @@ define([
     },
 
     close: function() {
-      _.invoke(this._views, 'destroy');
+      this._destroyViews();
 
       this._hide();
+    },
+
+    _destroyViews: function() {
+      _.invoke(this._views, 'destroy');
+
+      this._views = [];
     },
 
     _show: function() {
