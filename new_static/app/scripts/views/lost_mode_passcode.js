@@ -6,20 +6,26 @@
 
 define([
   'views/base',
-  'stache!templates/lost_mode_passcode'
-], function (BaseView, LostModePasscodeTemplate) {
+  'stache!templates/lost_mode_passcode',
+  'lib/modal_manager'
+], function (BaseView, LostModePasscodeTemplate, ModalManager) {
   'use strict';
 
   var LostModePasscodeView = BaseView.extend({
     template: LostModePasscodeTemplate,
 
     events: {
+      'click a.back': 'back',
       'click button.activate': 'activate'
     },
 
     initialize: function(options) {
       this.phoneNumber = options.phoneNumber;
       this.note = options.note;
+    },
+
+    back: function(event) {
+      ModalManager.pop();
     },
 
     activate: function(event) {

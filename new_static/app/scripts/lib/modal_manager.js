@@ -53,9 +53,12 @@ define([
 
     _show: function() {
       var view = _.last(this._views);
-      var el = view ? view.render().el : null;
 
-      $('#modal').html(el).show();
+      view.render();
+      // Force delegate events to fix an issue where restoring a previous view breaks event bindings
+      view.delegateEvents();
+
+      $('#modal').html(view.el).show();
     },
 
     _hide: function() {
