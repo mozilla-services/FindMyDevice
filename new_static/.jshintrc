@@ -7,6 +7,12 @@
   "eqeqeq": true,
   "es3": true,
   "esnext": true,
+  "globals": {
+    "alert": false,
+    "define": false,
+    "L": false,
+    "require": false
+  },
   "immed": true,
   "jquery": true,
   "latedef": true,
