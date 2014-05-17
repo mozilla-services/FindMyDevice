@@ -2,35 +2,35 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/*global define, alert, L */
-
 define([
   'views/base',
   'stache!templates/location',
+  'lib/modal_manager',
   'views/play_sound',
-  'lib/modal_manager'
-], function (BaseView, LocationTemplate, PlaySoundView, ModalManager) {
+  'views/lost_mode',
+  'views/erase'
+], function (BaseView, LocationTemplate, ModalManager, PlaySoundView, LostModeView, EraseView) {
   'use strict';
 
   var LocationView = BaseView.extend({
     template: LocationTemplate,
 
     events: {
-      'click span.play-sound': 'playSound',
-      'click span.lost-mode': 'lostMode',
-      'click span.erase': 'erase'
+      'click span.play-sound': 'openPlaySound',
+      'click span.lost-mode': 'openLostMode',
+      'click span.erase': 'openErase'
     },
 
-    playSound: function (event) {
-      ModalManager.push(new PlaySoundView());
+    openPlaySound: function (event) {
+      ModalManager.open(new PlaySoundView());
     },
 
-    lostMode: function (event) {
-      alert('LOSING THE DEVICE');
+    openLostMode: function (event) {
+      ModalManager.open(new LostModeView());
     },
 
-    erase: function (event) {
-      alert('ERASING THE DEVICE');
+    openErase: function (event) {
+      ModalManager.open(new EraseView());
     },
 
     afterInsert: function () {

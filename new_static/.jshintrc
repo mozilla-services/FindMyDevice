@@ -11,11 +11,16 @@
   "forin": true,
   "freeze": true,
   "funcscope": false,
+  "globals": {
+    "alert": false,
+    "define": false,
+    "L": false,
+    "require": false
+  },
   "globalstrict": false,
   "jquery": true,
   "latedef": "nofunc",
   "loopfunc": false,
-  "maxparams": 5,
   "noarg": true,
   "notypeof": false,
   "node": true,

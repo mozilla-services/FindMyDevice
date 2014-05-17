@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/*global define*/
-
 define([
   'views/base',
   'stache!templates/play_sound'
@@ -11,7 +9,15 @@ define([
   'use strict';
 
   var PlaySoundView = BaseView.extend({
-    template: PlaySoundTemplate
+    template: PlaySoundTemplate,
+
+    events: {
+      'click button.play-sound': 'playSound'
+    },
+
+    playSound: function(event) {
+      alert('ALL THE SOUNDS');
+    }
   });
 
   return PlaySoundView;

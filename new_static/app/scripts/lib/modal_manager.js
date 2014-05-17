@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/*global define*/
-
 define([
   'underscore',
   'jquery'
@@ -12,6 +10,12 @@ define([
 
   var ModalManager = {
     _views: [],
+
+    open: function(view) {
+      this._destroyViews();
+
+      this.push(view);
+    },
 
     push: function(view) {
       this._views.push(view);
@@ -34,16 +38,25 @@ define([
     },
 
     close: function() {
-      _.invoke(this._views, 'destroy');
+      this._destroyViews();
 
       this._hide();
     },
 
+    _destroyViews: function() {
+      _.invoke(this._views, 'destroy');
+
+      this._views = [];
+    },
+
     _show: function() {
       var view = _.last(this._views);
-      var el = view ? view.render().el : null;
 
-      $('#modal').html(el).show();
+      view.render();
+      // Force delegate events to fix an issue where restoring a previous view breaks event bindings
+      view.delegateEvents();
+
+      $('#modal').html(view.el).show();
     },
 
     _hide: function() {

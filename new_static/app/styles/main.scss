@@ -31,6 +31,13 @@ a {
   cursor: pointer;
 }
 
+// "To Be Determined" style for placeholder-ish things
+.tbd {
+  background: yellow;
+  color: purple;
+  font-style: italic;
+}
+
 #stage {
   position: relative;
 
@@ -102,13 +109,38 @@ a {
 
 #modal {
   background: $modal-background-color;
+  border-radius: 6px;
+  box-shadow: 0 2px 2px rgba(0,0,0,0.2);
   display: none;
-  height: 100%;
-  left: 0;
+  height: 400px;
+  left: 50%;
+  margin-left: -150px;
+  margin-top: -200px;
+  overflow: hidden;
   position: absolute;
-  top: 0;
-  width: 100%;
+  top: 50%;
+  width: 300px;
   z-index: 1000;
+
+  header {
+    background: $header-background-color;
+    padding: 5px;
+
+    h2 {
+      color: $heading-text-color;
+      font-size: 27px;
+      font-weight: normal;
+      margin: 0;
+    }
+  }
+
+  section {
+    padding: 10px;
+
+    .buttons {
+      margin-top: 10px;
+    }
+  }
 }
 
 .leaflet-top {
