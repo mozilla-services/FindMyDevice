@@ -16,9 +16,9 @@ a {
   cursor: pointer; }
 
 .tbd {
-  background: yellow;
-  color: purple;
-  font-style: italic; }
+  background: yellow !important;
+  color: purple !important;
+  font-style: italic !important; }
 
 #stage {
   position: relative; }
@@ -75,27 +75,32 @@ a {
   border-radius: 6px;
   box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
   display: none;
-  height: 400px;
-  left: 50%;
-  margin-left: -150px;
-  margin-top: -200px;
   overflow: hidden;
   position: absolute;
-  top: 50%;
   width: 300px;
   z-index: 1000; }
   #modal header {
     background: #f4f4f4;
-    padding: 5px; }
+    padding: 5px 20px; }
     #modal header h2 {
       color: #8a8b97;
       font-size: 27px;
       font-weight: normal;
       margin: 0; }
   #modal section {
-    padding: 10px; }
+    padding: 20px; }
+    #modal section p:first-child {
+      margin-top: 0; }
+    #modal section button, #modal section input, #modal section textarea {
+      width: 100%; }
     #modal section .buttons {
-      margin-top: 10px; }
+      margin-top: 20px; }
+      #modal section .buttons button {
+        border: none;
+        background: #5493da;
+        border-radius: 5px;
+        color: #fff;
+        padding: 10px; }
 
 .leaflet-top {
   top: 45px; }
@@ -137,3 +142,10 @@ a {
     top: 95px; }
   .leaflet-bottom {
     bottom: 0; } }
+
+@media only screen and (max-width: 768px) {
+  #modal {
+    height: 100%;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100%; } }

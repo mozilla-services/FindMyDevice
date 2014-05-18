@@ -34,15 +34,21 @@ define([
     },
 
     openPlaySound: function (event) {
-      ModalManager.open(new PlaySoundView());
+      event.stopPropagation();
+
+      ModalManager.open(new PlaySoundView(), $(event.target).closest('span.button'));
     },
 
     openLostMode: function (event) {
-      ModalManager.open(new LostModeView());
+      event.stopPropagation();
+
+      ModalManager.open(new LostModeView(), $(event.target).closest('span.button'));
     },
 
     openErase: function (event) {
-      ModalManager.open(new EraseView());
+      event.stopPropagation();
+
+      ModalManager.open(new EraseView(), $(event.target).closest('span.button'));
     },
 
     afterInsert: function () {

@@ -9,18 +9,26 @@ define([
   'use strict';
 
   var ModalManager = {
-    _views: [],
+    TARGET_PADDING_TOP: 5,
 
-    open: function(view) {
-      this._destroyViews();
+    initialize: function() {
+      this._views = [];
+      this.$modal = $('#modal');
 
-      this.push(view);
+      // Listen for all clicks
+      $(document).on('click', _.bind(this._closeOnClick, this));
     },
 
-    push: function(view) {
+    open: function(view, target) {
+      this._destroyViews();
+
+      this.push(view, target);
+    },
+
+    push: function(view, target) {
       this._views.push(view);
 
-      this._show();
+      this._show(target);
     },
 
     pop: function() {
@@ -49,20 +57,45 @@ define([
       this._views = [];
     },
 
-    _show: function() {
+    _show: function(target) {
       var view = _.last(this._views);
 
       view.render();
       // Force delegate events to fix an issue where restoring a previous view breaks event bindings
       view.delegateEvents();
 
-      $('#modal').html(view.el).show();
+      var position = this.$modal.position();
+
+      if (target) {
+        var $target = $(target);
+        var offset = $target.offset();
+
+        position.left = offset.left;
+        position.top = offset.top + $target.height() + this.TARGET_PADDING_TOP;
+      }
+
+      this.$modal.css({ left: position.left, top: position.top });
+
+      this.$modal.html(view.el).fadeIn();
     },
 
     _hide: function() {
-      $('#modal').html('').hide();
+      this.$modal.fadeOut();
+    },
+
+    _closeOnClick: function(event) {
+      if (this.$modal.is(':visible')) {
+        var $target = $(event.target);
+
+        // Close if target isn't modal, modal isn't the parent, and still in the dom
+        if (!$target.is('#modal') && !$target.parents('#modal').length && $target.parents('body').length) {
+          this.close();
+        }
+      }
     }
   };
+
+  ModalManager.initialize();
 
   return ModalManager;
 });
