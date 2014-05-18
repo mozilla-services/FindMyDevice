@@ -7,22 +7,16 @@ define([
 ], function (Command) {
   'use strict';
 
-  function TrackCommand(duration, period) {
-    this.duration = duration;
-    this.period = period;
-  }
+  function EraseCommand() {}
 
   // Extend Command
-  TrackCommand.prototype = new Command();
+  EraseCommand.prototype = new Command();
 
-  TrackCommand.prototype.asJSON = function() {
+  EraseCommand.prototype.asJSON = function() {
     return {
-      t: {
-        d: this.duration,
-        p: this.period
-      }
+      e: {}
     };
   };
 
-  return TrackCommand;
+  return EraseCommand;
 });

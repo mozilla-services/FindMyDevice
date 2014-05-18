@@ -7,22 +7,22 @@ define([
 ], function (Command) {
   'use strict';
 
-  function TrackCommand(duration, period) {
-    this.duration = duration;
-    this.period = period;
+  function MessageCommand(message, phoneNumber) {
+    this.message = message;
+    this.phoneNumber = phoneNumber;
   }
 
   // Extend Command
-  TrackCommand.prototype = new Command();
+  MessageCommand.prototype = new Command();
 
-  TrackCommand.prototype.asJSON = function() {
+  MessageCommand.prototype.asJSON = function() {
     return {
-      t: {
-        d: this.duration,
-        p: this.period
+      m: {
+        m: this.message,
+        n: this.phoneNumber
       }
     };
   };
 
-  return TrackCommand;
+  return MessageCommand;
 });

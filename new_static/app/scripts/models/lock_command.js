@@ -12,7 +12,7 @@ define([
     this.message = message;
   }
 
-  // Inherit from Command
+  // Extend Command
   LockCommand.prototype = new Command();
 
   LockCommand.prototype.asJSON = function() {

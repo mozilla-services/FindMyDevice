@@ -7,17 +7,19 @@ define([
 ], function (Command) {
   'use strict';
 
-  function RingCommand(duration) {
+  function RingCommand(duration, period) {
     this.duration = duration;
+    this.period = period;
   }
 
-  // Inherit from Command
+  // Extend Command
   RingCommand.prototype = new Command();
 
   RingCommand.prototype.asJSON = function() {
     return {
       r: {
-        d: this.duration
+        d: this.duration,
+        p: this.period
       }
     };
   };
