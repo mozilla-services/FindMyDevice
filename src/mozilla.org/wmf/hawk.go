@@ -1,8 +1,8 @@
+package wmf
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-package wmf
 
 import (
 	"crypto/hmac"
@@ -18,15 +18,14 @@ import (
 	"time"
 )
 
-// minimal HAWK for now (e.g. no bewit because IAGNI)
-
 var ErrNoAuth = errors.New("No Authorization Header")
 var ErrNotHawkAuth = errors.New("Not a Hawk Authorization Header")
 var ErrInvalidSignature = errors.New("Header does not match signature")
 
+// minimal HAWK for now (e.g. no bewit because IAGNI)
 type Hawk struct {
 	logger    *util.HekaLogger
-	config    util.JsMap
+	config    *util.MzConfig
 	header    string
 	Id        string
 	Time      string
@@ -50,18 +49,30 @@ func GenNonce(l int) string {
 	return base64.StdEncoding.EncodeToString(ret)
 }
 
+// Clear the stickier bits
+func (self *Hawk) Clear() {
+    self.Hash = ""
+    self.Signature = ""
+    self.Nonce = ""
+    self.Time = ""
+    self.Path = ""
+    self.Port = ""
+}
+
 // Return a Hawk Authorization header
 func (self *Hawk) AsHeader(req *http.Request, id, body, extra, secret string) string {
 	if self.Signature == "" {
 		self.GenerateSignature(req, extra, body, secret)
 	}
-	return fmt.Sprintf("Hawk id=\"%s\", ts=\"%s\", nonce=\"%s\" ext=\"%s\", hash=\"%s\" mac=\"%s\"",
+	rep := fmt.Sprintf("Hawk id=\"%s\", ts=\"%s\", nonce=\"%s\", ext=\"%s\", hash=\"%s\", mac=\"%s\"",
 		id,
 		self.Time,
 		self.Nonce,
 		self.Extra,
 		self.Hash,
 		self.Signature)
+	//fmt.Printf("### header: %s\n", rep)
+	return rep
 }
 
 // get the full path + fragment from the request
@@ -84,7 +95,7 @@ func (self *Hawk) getHostPort(req *http.Request) (host, port string) {
 	if len(elements) == 2 {
 		port = elements[1]
 	}
-	if port == "" || util.MzGetFlag(self.config, "override_port") {
+	if port == "" || self.config.GetFlag("override_port") {
 		switch {
 		// because nginx proxies, don't take the :port at face value
 		//case len(elements) > 1:
@@ -116,7 +127,7 @@ func (self *Hawk) genHash(req *http.Request, body string) (hash string) {
 		nbody)
 	sha := sha256.Sum256([]byte(marshalStr))
 	hash = base64.StdEncoding.EncodeToString([]byte(sha[:32]))
-	if util.MzGetFlag(self.config, "hawk.show_hash") {
+	if self.config.GetFlag("hawk.show_hash") {
 		self.logger.Debug("hawk", "genHash",
 			util.Fields{"marshalStr": marshalStr,
 				"hash": hash})
@@ -164,14 +175,15 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 		self.Hash,
 		extra)
 
-	if util.MzGetFlag(self.config, "hawk.show_hash") {
-		self.logger.Debug("hawk", "Marshal",
-			util.Fields{"marshalStr": marshalStr,
-				"secret": secret})
-	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(marshalStr))
 	self.Signature = base64.StdEncoding.EncodeToString(mac.Sum(nil))
+	if self.config.GetFlag("hawk.show_hash") {
+		self.logger.Debug("hawk", "#### Marshal",
+			util.Fields{"marshalStr": marshalStr,
+				"secret": secret,
+				"mac":    self.Signature})
+	}
 	return err
 }
 

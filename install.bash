@@ -14,7 +14,7 @@ set -e
 echo "Libraries installed"
 if [ ! -e config.ini ]; then
     echo "Copying sample ini file to config.ini"
-    cp config.sample.ini config.ini
+    cp config-sample.ini config.ini
 fi
 if [ ! -z "$HOST" ]; then
     echo "Setting local shard host name"

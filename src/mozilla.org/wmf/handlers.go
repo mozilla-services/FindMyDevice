@@ -1,11 +1,12 @@
+package wmf
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package wmf
-
 import (
 	"code.google.com/p/go.net/websocket"
+	"github.com/gorilla/sessions"
 	"mozilla.org/util"
 	"mozilla.org/wmf/storage"
 
@@ -16,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"log"
@@ -26,40 +28,42 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 )
 
+// base handler for REST and Socket calls.
 type Handler struct {
-	config  util.JsMap
+	config  *util.MzConfig
 	logger  *util.HekaLogger
-	store   *storage.Storage
 	metrics *util.Metrics
 	devId   string
 	logCat  string
 	accepts []string
 	hawk    *Hawk
+	session *sessions.CookieStore
 }
 
+// Map of clientIDs to socket handlers
 type ClientMap map[string]*WWS
+
+const SESSION_NAME = "user"
 
 var muClient sync.Mutex
 var Clients = make(ClientMap)
 
-type reply_t map[string]interface{}
+// Generic reply structure (useful for JSON responses)
+type replyType map[string]interface{}
 
-type sessionInfo struct {
+// Each session contains a UserID and a DeviceID
+type sessionInfoStruct struct {
 	UserId   string
 	DeviceId string
+	User     string
 }
 
-type ui_cmd struct {
-	c    string
-	args map[string]interface{}
-}
-
-var InvalidReplyErr = errors.New("Invalid Command Response")
-var AuthorizationErr = errors.New("Needs Authorization")
+var ErrInvalidReply = errors.New("Invalid Command Response")
+var ErrAuthorization = errors.New("Needs Authorization")
+var ErrNoUser = errors.New("No User")
 
 //Handler private functions
 
@@ -67,52 +71,67 @@ var AuthorizationErr = errors.New("Needs Authorization")
 // part of Handler for config & logging reasons
 func (self *Handler) verifyAssertion(assertion string) (userid, email string, err error) {
 	var ok bool
-	if util.MzGetFlag(self.config, "auth.disabled") {
-		self.logger.Debug(self.logCat, "### Skipping validation...", nil)
-		fmt.Printf("assertion: %s\n", assertion)
+	if self.config.GetFlag("auth.disabled") {
+		self.logger.Warn(self.logCat, "!!! Skipping validation...", nil)
 		if len(assertion) == 0 {
 			return "user1", "user@example.com", nil
-		} else {
-			// Time to UberFake! THIS IS VERY DANGEROUS!
-			self.logger.Warn(self.logCat, "!!! Using Assertion Without Validation !!!", nil)
-			bits := strings.Split(assertion, ".")
-			// get the interesting bit
-			int_bit := bits[1]
-			// pad to byte boundry
-			int_bit = int_bit + "===="[:len(int_bit)%4]
-			decoded, err := base64.StdEncoding.DecodeString(int_bit)
-			if err != nil {
-				self.logger.Error(self.logCat, "Could not decode assertion",
-					util.Fields{"error": err.Error()})
-				return "", "", err
-			} else {
-				asrt := make(reply_t)
-				err = json.Unmarshal(decoded, &asrt)
-				if err != nil {
-					self.logger.Error(self.logCat, "Could not unmarshal",
-						util.Fields{"error": err.Error()})
-					return "", "", err
-				}
-				email = asrt["principal"].(map[string]interface{})["email"].(string)
-				hasher := sha256.New()
-				hasher.Write([]byte(email))
-				userid = hex.EncodeToString(hasher.Sum(nil))
-			}
-			self.logger.Debug(self.logCat, "Extracted credentials",
-				util.Fields{"userId": userid, "email": email})
-			return userid, email, nil
 		}
+		// Time to UberFake! THIS IS VERY DANGEROUS!
+		self.logger.Warn(self.logCat,
+			"!!! Using Assertion Without Validation",
+			nil)
+		bits := strings.Split(assertion, ".")
+		if len(bits) < 2 {
+			self.logger.Error(self.logCat, "Invalid assertion",
+				util.Fields{"assertion": assertion})
+			return "", "", errors.New("Invalid assertion")
+		}
+		// get the interesting bit
+		intBit := bits[1]
+		// pad to byte boundry
+		intBit = intBit + "===="[:len(intBit)%4]
+		decoded, err := base64.StdEncoding.DecodeString(intBit)
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not decode assertion",
+				util.Fields{"error": err.Error()})
+			return "", "", err
+		}
+		asrt := make(replyType)
+		err = json.Unmarshal(decoded, &asrt)
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not unmarshal",
+				util.Fields{"error": err.Error()})
+			return "", "", err
+		}
+		// Normally, the UserID would be provided from FxA.
+		// since FxA is currently unavailable for desktop, we're going
+		// to need a value here, thus the insecure Id generation.
+		// Obviously:
+		// ******** DO NOT ENABLE auth.disabled FLAG IN PRODUCTION!! ******
+		email = asrt["principal"].(map[string]interface{})["email"].(string)
+		hasher := sha256.New()
+		hasher.Write([]byte(email))
+		userid = hex.EncodeToString(hasher.Sum(nil))
+		self.logger.Debug(self.logCat, "Extracted credentials",
+			util.Fields{"userId": userid, "email": email})
+		return userid, email, nil
 	}
-	ver_url := util.MzGet(self.config, "persona.validater_url", "https://verifier.login.persona.org/verify")
-	audience := util.MzGet(self.config, "persona.audience",
+
+	// Better verify for realz
+	validatorURL := self.config.Get("persona.validater_url",
+		"https://verifier.login.persona.org/verify")
+	audience := self.config.Get("persona.audience",
 		"http://localhost:8080")
-	body, err := json.Marshal(util.Fields{"assertion": assertion, "audience": audience})
+	body, err := json.Marshal(
+		util.Fields{"assertion": assertion,
+			"audience": audience})
 	if err != nil {
-		self.logger.Error(self.logCat, "Could not marshal assertion",
+		self.logger.Error(self.logCat,
+			"Could not marshal assertion",
 			util.Fields{"error": err.Error()})
-		return "", "", AuthorizationErr
+		return "", "", ErrAuthorization
 	}
-	req, err := http.NewRequest("POST", ver_url, bytes.NewReader(body))
+	req, err := http.NewRequest("POST", validatorURL, bytes.NewReader(body))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not POST assertion",
 			util.Fields{"error": err.Error()})
@@ -120,16 +139,13 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 	req.Header.Add("Content-Type", "application/json")
 	cli := http.Client{}
 	res, err := cli.Do(req)
-	/*
-	   res, err := http.PostForm(ver_url, url.Values{
-	   "assertion": {assertion},
-	   "audience":  {audience}})
-	*/
 	if err != nil {
 		self.logger.Error(self.logCat, "Persona verification failed",
 			util.Fields{"error": err.Error()})
-		return "", "", AuthorizationErr
+		return "", "", ErrAuthorization
 	}
+
+	// Handle the verifier response
 	buffer, err := parseBody(res.Body)
 	if isOk, ok := buffer["status"]; !ok || isOk != "okay" {
 		var errStr string
@@ -141,58 +157,99 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 		self.logger.Error(self.logCat, "Persona Auth Failed",
 			util.Fields{"error": errStr,
 				"buffer": fmt.Sprintf("%+v", buffer)})
-		return "", "", AuthorizationErr
+		return "", "", ErrAuthorization
 	}
+
+	// extract the email
 	if email, ok = buffer["email"].(string); !ok {
 		self.logger.Error(self.logCat, "No email found in assertion",
 			util.Fields{"assertion": fmt.Sprintf("%+v", buffer)})
-		return "", "", AuthorizationErr
+		return "", "", ErrAuthorization
 	}
-	if userid, ok = buffer["userid"].(string); !ok {
-		hasher := sha256.New()
-		hasher.Write([]byte(email))
-		userid = hex.EncodeToString(hasher.Sum(nil))
+	// and the userid, generating one if need be.
+	if _, ok = buffer["userid"].(string); !ok {
+		self.logger.Error(self.logCat, "No UserID found. Cannot identify user.", nil)
+		return "", "", ErrNoUser
 	}
 	return userid, email, nil
 }
 
+func (self *Handler) clearSession(sess *sessions.Session) (err error) {
+	if sess == nil {
+		return
+	}
+	delete(sess.Values, "userId")
+	delete(sess.Values, "deviceId")
+	delete(sess.Values, "user")
+	return
+}
+
 // get the user id from the session, or the assertion.
-func (self *Handler) getUser(req *http.Request) (userid string, user string, err error) {
-	//TODO: accept Auth before cookie?
-
-	useridc, err := req.Cookie("user")
-	if err == http.ErrNoCookie {
-		var auth string
-		if auth = req.FormValue("assertion"); auth == "" {
-			return "", "", AuthorizationErr
-		}
-		fmt.Printf("assertion: %s\n", auth)
-		userid, user, err = self.verifyAssertion(auth)
-		if err != nil {
-			return "", "", AuthorizationErr
-		}
+func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (userid string, user string, err error) {
+	session, err := self.session.Get(req, SESSION_NAME)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open session",
+			util.Fields{"error": err.Error()})
 	} else {
-
-		if err != nil {
-			return "", "", AuthorizationErr
+		var ret = false
+		if ruid, ok := session.Values["userId"]; ok {
+			switch ruid.(type) {
+			case string:
+				userid = ruid.(string)
+				ret = true
+			default:
+				userid = ""
+			}
 		}
-		userid = useridc.Value
+		if ru, ok := session.Values["user"]; ok {
+			switch ru.(type) {
+			case string:
+				user = ru.(string)
+				ret = true
+			default:
+				user = ""
+			}
+		}
+		if ret {
+			return userid, user, nil
+		}
+	}
+	// Nothing in the session,
+	var auth string
+	if auth = req.FormValue("assertion"); auth == "" {
+		return "", "", ErrAuthorization
+	}
+	userid, user, err = self.verifyAssertion(auth)
+	fmt.Printf("### assertion userid: %s\n", userid)
+	if err != nil {
+		return "", "", ErrAuthorization
+	}
+	if userid != "" {
+		self.clearSession(session)
+		session.Save(req, resp)
 	}
 	return userid, user, nil
 }
 
 // set the user info into the session
-func (self *Handler) getSessionInfo(req *http.Request) (session *sessionInfo, err error) {
-	// Get this from the session?
+func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request, session *sessions.Session) (info *sessionInfoStruct, err error) {
+	var userid string
+	var user string
+
 	dev := getDevFromUrl(req.URL)
-	userid, _, err := self.getUser(req)
-	if err != nil {
-		self.logger.Error("handler", "Could not get user",
-			util.Fields{"error": err.Error()})
-		return nil, err
+	userid, user, err = self.getUser(resp, req)
+
+	if userid == "" {
+		fields := util.Fields{}
+		if err != nil {
+			fields["error"] = err.Error()
+		}
+		self.logger.Error("handler", "Could not get user", fields)
+		return nil, ErrNoUser
 	}
-	session = &sessionInfo{
+	info = &sessionInfoStruct{
 		UserId:   userid,
+		User:     user,
 		DeviceId: dev}
 	return
 }
@@ -202,8 +259,16 @@ func (self *Handler) updatePage(devId string, args map[string]interface{}, logPo
 	var location storage.Position
 	var locked bool
 
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		return err
+	}
+	defer store.Close()
+
 	for key, arg := range args {
-		if len(key) == 0 {
+		if len(key) < 2 {
 			continue
 		}
 		switch k := strings.ToLower(key[:2]); k {
@@ -218,17 +283,17 @@ func (self *Handler) updatePage(devId string, args map[string]interface{}, logPo
 		case "ha":
 			locked = isTrue(arg)
 			location.Lockable = !locked
-			if err = self.store.SetDeviceLockable(devId, !locked); err != nil {
+			if err = store.SetDeviceLockable(devId, !locked); err != nil {
 				return err
 			}
 		}
 	}
 	if logPosition {
-		if err = self.store.SetDeviceLocation(devId, location); err != nil {
+		if err = store.SetDeviceLocation(devId, location); err != nil {
 			return err
 		}
 		// because go sql locking.
-		self.store.GcPosition(devId)
+		store.GcPosition(devId)
 	}
 	if client, ok := Clients[devId]; ok {
 		js, _ := json.Marshal(location)
@@ -238,57 +303,87 @@ func (self *Handler) updatePage(devId string, args map[string]interface{}, logPo
 }
 
 // log the cmd reply from the device.
-func (self *Handler) logReply(devId, cmd string, args reply_t) (err error) {
+func (self *Handler) logReply(devId, cmd string, args replyType) (err error) {
 	// verify state and store it
+
 	if v, ok := args["ok"]; !ok {
-		return InvalidReplyErr
+		return ErrInvalidReply
 	} else {
 		if !isTrue(v) {
 			if e, ok := args["error"]; ok {
 				return errors.New(e.(string))
-			} else {
-				return errors.New("Unknown error")
 			}
+			return errors.New("Unknown error")
 		}
 		// log the state? (Device is currently cmd-ing)?
-		err = self.store.Touch(devId)
+		store, err := storage.Open(self.config, self.logger, self.metrics)
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not open database",
+				util.Fields{"error": err.Error()})
+			return err
+		}
+		defer store.Close()
+		err = store.Touch(devId)
 	}
 	return err
 }
 
-func (self *Handler) rangeCheck(s string, min, max int64) string {
+// Check that a given string intval is within a range.
+func (self *Handler) rangeCheck(s string, min, max int64) int64 {
 	val, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		self.logger.Warn(self.logCat, "Unparsable range value, returning 0",
 			util.Fields{"error": err.Error(),
 				"string": s})
-		return "0"
+		return 0
 	}
 	if val < min {
-		return strconv.FormatInt(min, 10)
+		return min
 	}
 	if val > max {
-		return strconv.FormatInt(max, 10)
+		return max
 	}
-	return s
+	return val
 }
 
 //Handler Public Functions
 
-func NewHandler(config util.JsMap, logger *util.HekaLogger, store *storage.Storage, metrics *util.Metrics) *Handler {
+func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics) *Handler {
+	store, err := storage.Open(config, logger, metrics)
+	if err != nil {
+		logger.Error("Handler", "Could not open storage",
+			util.Fields{"error": err.Error()})
+		return nil
+	}
+	defer store.Close()
+
+	sessionSecret := config.Get("session.secret", "")
+	if sessionSecret == "" {
+		logger.Error("Handler", "No session secret defined.", nil)
+		return nil
+	}
+	session := sessions.NewCookieStore([]byte(sessionSecret))
+	if err != nil {
+		logger.Error("Handler", "Could not open session",
+			util.Fields{"error": err.Error()})
+		return nil
+	}
+
+	// Initialize the data store once. This creates tables and
+	// applies required changes.
+	store.Init()
+
 	return &Handler{config: config,
 		logger:  logger,
 		logCat:  "handler",
-		hawk:    &Hawk{logger: logger, config: config},
-		metrics: metrics,
-		store:   store}
+		session: session,
+		metrics: metrics}
 }
 
+// Register a new device
 func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
-	/*register a new device
-	 */
 
-	var buffer util.JsMap = util.JsMap{}
+	var buffer = util.JsMap{}
 	var userid string
 	var user string
 	var pushUrl string
@@ -296,11 +391,21 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var secret string
 	var accepts string
 	var lockable bool
-	var ok bool
+	var err error
 
 	self.logCat = "handler:Register"
+	resp.Header().Set("Content-Type", "application/json")
 
-	buffer, err := parseBody(req.Body)
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	defer store.Close()
+
+	buffer, err = parseBody(req.Body)
 	if err != nil {
 		http.Error(resp, "No body", http.StatusBadRequest)
 	} else {
@@ -310,40 +415,40 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			return
 		} else {
 			userid, user, err = self.verifyAssertion(assertion)
-			if err != nil {
+			if err != nil || userid == "" {
 				http.Error(resp, "Unauthorized", 401)
 			}
 			self.logger.Debug(self.logCat, "Got user "+userid, nil)
 			user = strings.SplitN(user, "@", 2)[0]
 		}
 
-		if _, ok = buffer["pushurl"]; !ok {
+		if val, ok := buffer["pushurl"]; !ok || val == nil || len(val.(string)) == 0 {
 			self.logger.Error(self.logCat, "Missing SimplePush url", nil)
 			http.Error(resp, "Bad Data", 400)
 			return
 		} else {
-			pushUrl = buffer["pushurl"].(string)
+			pushUrl = val.(string)
 		}
 		//ALWAYS generate a new secret on registration!
 		secret = GenNonce(16)
-		if _, ok = buffer["deviceid"]; !ok {
+		if val, ok := buffer["deviceid"]; !ok {
 			deviceid, err = util.GenUUID4()
 		} else {
-			deviceid = buffer["deviceid"].(string)
+			deviceid = strings.Map(deviceIdFilter, val.(string))[:32]
 		}
-		if _, ok = buffer["has_passcode"]; !ok {
+		if val, ok := buffer["has_passcode"]; !ok {
 			lockable = true
 		} else {
-			lockable, err = strconv.ParseBool(buffer["has_passcode"].(string))
+			lockable, err = strconv.ParseBool(val.(string))
 			if err != nil {
 				lockable = false
 			}
 		}
-		if k, ok := buffer["accepts"]; ok {
+		if val, ok := buffer["accepts"]; ok {
 			// collapse the array to a string
-			if l := len(k.([]interface{})); l > 0 {
+			if l := len(val.([]interface{})); l > 0 {
 				acc := make([]byte, l)
-				for n, ke := range k.([]interface{}) {
+				for n, ke := range val.([]interface{}) {
 					acc[n] = ke.(string)[0]
 				}
 				accepts = strings.ToLower(string(acc))
@@ -355,7 +460,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 		// create the new device record
 		var devId string
-		if devId, err = self.store.RegisterDevice(
+		if devId, err = store.RegisterDevice(
 			userid,
 			storage.Device{
 				ID:       deviceid,
@@ -379,20 +484,33 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 	self.metrics.Increment("device.registration")
-	resp.Write([]byte(fmt.Sprintf("{\"deviceid\":\"%s\", \"secret\":\"%s\"}",
-		self.devId,
-		secret)))
+	reply, err := json.Marshal(util.Fields{"deviceid": self.devId,
+		"secret": secret})
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not marshal reply",
+			util.Fields{"error": err.Error()})
+		return
+	}
+	resp.Write(reply)
 	return
 }
 
+// Handle the Cmd response from the device and pass next command if available.
 func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
-	/* Log response and Pass the latest command off to the device.
-	 */
 	var err error
 	var l int
 
 	self.logCat = "handler:Cmd"
 	resp.Header().Set("Content-Type", "application/json")
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	defer store.Close()
+
 	deviceId := getDevFromUrl(req.URL)
 	if deviceId == "" {
 		self.logger.Error(self.logCat, "Invalid call (No device id)", nil)
@@ -400,7 +518,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	devRec, err := self.store.GetDeviceInfo(deviceId)
+	devRec, err := store.GetDeviceInfo(deviceId)
 	if err != nil {
 		switch err {
 		case storage.ErrUnknownDevice:
@@ -429,7 +547,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	//validate the Hawk header
-	if util.MzGetFlag(self.config, "hawk.disabled") == false {
+	if self.config.GetFlag("hawk.disabled") == false {
 		// Remote Hawk
 		rhawk := Hawk{logger: self.logger}
 		// Local Hawk
@@ -473,8 +591,9 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			"cmd":    string(body),
 			"length": fmt.Sprintf("%d", l),
 		})
-	if l > 0 {
-		reply := make(reply_t)
+	// Ignore effectively null commands (e.g. "" or {})
+	if l > 2 {
+		reply := make(replyType)
 		merr := json.Unmarshal(body, &reply)
 		//	merr := json.Unmarshal(body, &reply)
 		if merr != nil {
@@ -498,20 +617,22 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			self.metrics.Increment("cmd.received." + string(c))
 			switch c {
 			case "l", "r", "m", "e":
-				err = self.store.Touch(deviceId)
-				self.updatePage(deviceId, args.(map[string]interface{}), false)
+				err = store.Touch(deviceId)
+				self.updatePage(deviceId,
+					args.(map[string]interface{}), false)
 			case "h":
-				argl := make(reply_t)
+				argl := make(replyType)
 				argl[string(cmd)] = isTrue(args)
 				self.updatePage(deviceId, argl, false)
 			case "t":
 				// track
-				err = self.updatePage(deviceId, args.(map[string]interface{}), true)
+				err = self.updatePage(deviceId,
+					args.(map[string]interface{}), true)
 				// store tracking info.
 			case "q":
 				// User has quit, nuke what we know.
-				if util.MzGetFlag(self.config, "cmd.q.allow") {
-					err = self.store.DeleteDevice(deviceId)
+				if self.config.GetFlag("cmd.q.allow") {
+					err = store.DeleteDevice(deviceId)
 				}
 			}
 			if err != nil {
@@ -522,7 +643,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 						"device":  deviceId,
 						"args":    fmt.Sprintf("%v", args)})
 				http.Error(resp,
-					"Server Error",
+					"\"Server Error\"",
 					http.StatusServiceUnavailable)
 				return
 			}
@@ -531,17 +652,18 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 
 	// reply with pending commands
 	//
-	cmd, err := self.store.GetPending(deviceId)
-	var output []byte = []byte(cmd)
+	cmd, err := store.GetPending(deviceId)
+	var output = []byte(cmd)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send commands",
 			util.Fields{"error": err.Error()})
-		http.Error(resp, "Server Error", http.StatusServiceUnavailable)
+		http.Error(resp, "\"Server Error\"", http.StatusServiceUnavailable)
 	}
 	if output == nil || len(output) < 2 {
 		output = []byte("{}")
 	}
-	authHeader := self.hawk.AsHeader(req, devRec.User, string(output),
+	hawk := Hawk{config: self.config, logger: self.logger}
+	authHeader := hawk.AsHeader(req, devRec.ID, string(output),
 		"", devRec.Secret)
 	resp.Header().Add("Authorization", authHeader)
 	// total cheat to get the command without parsing the cmd data.
@@ -551,14 +673,18 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(output)
 }
 
-func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *reply_t) (status int, err error) {
+// Queue the command from the Web Front End for the device.
+func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyType) (status int, err error) {
 	status = http.StatusOK
 
+	self.logCat = "handler:Queue"
 	deviceId := devRec.ID
 	// sanitize values.
 	var v interface{}
 	var ok bool
 	c := strings.ToLower(string(cmd[0]))
+	self.logger.Debug(self.logCat, "Processing UI Command",
+		util.Fields{"cmd": cmd})
 	if !strings.Contains(devRec.Accepts, c) {
 		// skip unacceptable command
 		self.logger.Warn(self.logCat, "Agent does not accept command",
@@ -572,16 +698,14 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *reply_
 	switch c {
 	case "l":
 		if v, ok = rargs["c"]; ok {
-			max, err := strconv.ParseInt(util.MzGet(self.config,
-				"cmd.c.max",
-				"9999"), 10, 64)
+			max, err := strconv.ParseInt(self.config.Get("cmd.c.max", "9999"),
+				10, 64)
 			if err != nil {
 				max = 9999
 			}
 			vs := v.(string)
-			rargs["c"] = strings.Map(digitsOnly,
-				vs[:minInt(4, len(vs))])
-			rargs["c"] = self.rangeCheck(rargs["c"].(string),
+			rargs["c"] = self.rangeCheck(
+				strings.Map(digitsOnly, vs[:minInt(4, len(vs))]),
 				0,
 				max)
 		}
@@ -592,22 +716,34 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *reply_
 		}
 	case "r", "t":
 		if v, ok = rargs["d"]; ok {
+			vs := ""
 			max, err := strconv.ParseInt(
-				util.MzGet(self.config,
-					"cmd."+c+".max",
+				self.config.Get("cmd."+c+".max",
 					"10500"), 10, 64)
 			if err != nil {
 				max = 10500
 			}
-			vs := v.(string)
-			rargs["d"] = strings.Map(digitsOnly, vs)
-			rargs["d"] = self.rangeCheck(rargs["d"].(string),
-				0, max)
+			switch v.(type) {
+			case string:
+				vs = v.(string)
+			case float64:
+				vs = strconv.FormatFloat(v.(float64), 'f', 0, 64)
+			default:
+				vs = fmt.Sprintf("%s", v)
+			}
+			rargs["d"] = self.rangeCheck(
+				strings.Map(digitsOnly, vs),
+				0,
+				max)
 		}
 	case "e":
-		rargs = reply_t{}
+		rargs = replyType{}
 	default:
-		return http.StatusBadRequest, errors.New("Invalid Command")
+		self.logger.Warn(self.logCat, "Invalid Command",
+			util.Fields{"command": string(cmd),
+				"device": deviceId,
+				"args":   fmt.Sprintf("%v", rargs)})
+		return http.StatusBadRequest, errors.New("\"Invalid Command\"")
 	}
 	fixed, err := json.Marshal(storage.Unstructured{c: rargs})
 	if err != nil {
@@ -617,9 +753,18 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *reply_
 				"command": string(cmd),
 				"device":  deviceId,
 				"args":    fmt.Sprintf("%v", rargs)})
-		return http.StatusServiceUnavailable, errors.New("Server Error")
+		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
-	err = self.store.StoreCommand(deviceId, string(fixed))
+
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
+	}
+	defer store.Close()
+
+	err = store.StoreCommand(deviceId, string(fixed))
 	if err != nil {
 		// Log the error
 		self.logger.Error(self.logCat, "Error storing command",
@@ -627,17 +772,17 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *reply_
 				"command": string(cmd),
 				"device":  deviceId,
 				"args":    fmt.Sprintf("%v", args)})
-		return http.StatusServiceUnavailable, errors.New("Server Error")
+		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 	// trigger the push
 	self.metrics.Increment("cmd.store." + c)
 	self.metrics.Increment("push.send")
-	err = SendPush(devRec, &self.config)
+	err = SendPush(devRec, self.config)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send Push",
 			util.Fields{"error": err.Error(),
 				"pushUrl": devRec.PushUrl})
-		return http.StatusServiceUnavailable, errors.New("Server Error")
+		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 	return
 }
@@ -649,34 +794,62 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	var err error
 	var lbody int
 
-	rep := make(reply_t)
-
-	self.logCat = "handler:Queue"
 	resp.Header().Set("Content-Type", "application/json")
+	rep := make(replyType)
+	self.logCat = "handler:Queue"
+
+	session, err := self.session.Get(req, SESSION_NAME)
+	if err != nil {
+		self.logger.Error(self.logCat, "Unauthorized access to Cmd",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Unauthorized", 401)
+		return
+	}
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	defer store.Close()
+
 	deviceId := getDevFromUrl(req.URL)
 	if deviceId == "" {
 		self.logger.Error(self.logCat, "Invalid call (No device id)", nil)
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
-	userId, _, err := self.getUser(req)
-	if err != nil {
+	userId, _, err := self.getUser(resp, req)
+	if userId == "" || err != nil {
 		self.logger.Error(self.logCat, "No userid", nil)
-		http.SetCookie(resp, &http.Cookie{Name: "user", MaxAge: -1})
-		http.Error(resp, "Unauthorized", 401)
-		return
-	}
-	if userId == "" {
-		self.logger.Error(self.logCat, "No userid", nil)
-		http.SetCookie(resp, &http.Cookie{Name: "user", MaxAge: -1})
+		self.clearSession(session)
+		session.Save(req, resp)
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
 
-	devRec, err := self.store.GetDeviceInfo(deviceId)
+	devRec, err := store.GetDeviceInfo(deviceId)
+	if err != nil || devRec == nil {
+		fields := util.Fields{"deviceId": deviceId}
+		if err != nil {
+			fields["error"] = err.Error()
+		}
+		if devRec != nil {
+			fields["devRec"] = devRec.ID
+		}
+		self.logger.Error(self.logCat, "Could not get userid", fields)
+		self.clearSession(session)
+		session.Save(req, resp)
+		http.Error(resp, "Unauthorized", 401)
+		return
+	}
 	if devRec.User != userId {
-		self.logger.Error(self.logCat, "Unauthorized userid", nil)
-		http.SetCookie(resp, &http.Cookie{Name: "user", MaxAge: -1})
+		self.logger.Error(self.logCat, "Unauthorized device",
+			util.Fields{"devrec": devRec.User,
+				"userid": userId})
+		self.clearSession(session)
+		session.Save(req, resp)
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
@@ -686,7 +859,8 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 			util.Fields{
 				"deviceId": deviceId,
 				"userId":   userId})
-		http.SetCookie(resp, &http.Cookie{Name: "user", MaxAge: -1})
+		self.clearSession(session)
+		session.Save(req, resp)
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
@@ -718,7 +892,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 			"length": fmt.Sprintf("%d", lbody),
 		})
 	if lbody > 0 {
-		reply := make(reply_t)
+		reply := make(replyType)
 		merr := json.Unmarshal(body, &reply)
 		//	merr := json.Unmarshal(body, &reply)
 		if merr != nil {
@@ -731,7 +905,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		}
 
 		for cmd, args := range reply {
-			rargs := reply_t(args.(map[string]interface{}))
+			rargs := replyType(args.(map[string]interface{}))
 			status, err := self.Queue(devRec, cmd, &rargs, &rep)
 			if err != nil {
 				self.logger.Error(self.logCat, "Error processing command",
@@ -754,18 +928,13 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	/* Handle a user login to the web UI
 	 */
 
+	self.logCat = "handler:Index"
 	// This should be handled by an nginx rule.
+
 	if strings.Contains(req.URL.Path, "/static/") {
-		if strings.Contains(req.URL.Path, "..") {
-			return
-		}
-		body, err := ioutil.ReadFile("." + req.URL.Path)
-		if err == nil {
-			resp.Write(body)
-		}
+		self.Static(resp, req)
 		return
 	}
-	self.logCat = "handler:Index"
 	var data struct {
 		ProductName string
 		UserId      string
@@ -774,27 +943,40 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		Device      *storage.Device
 		Host        map[string]string
 	}
-
 	var err error
 
-	// Get this from the config file?
-	data.ProductName = util.MzGet(self.config, "productname", "Find My Device")
+	session, err := self.session.Get(req, SESSION_NAME)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not initialize session",
+			util.Fields{"error": err.Error()})
+	}
 
-	data.MapKey = util.MzGet(self.config, "mapbox.key", "")
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	defer store.Close()
+
+	// Get this from the config file?
+	data.ProductName = self.config.Get("productname", "Find My Device")
+
+	data.MapKey = self.config.Get("mapbox.key", "")
 
 	// host information (for websocket callback)
 	data.Host = make(map[string]string)
-	data.Host["Hostname"] = util.MzGet(self.config,
-		"ws_hostname", "localhost")
+	data.Host["Hostname"] = self.config.Get("ws_hostname", "localhost")
 
 	// get the cached session info (if present)
 	// will also resolve assertions and other bits to get user and dev info.
-	sessionInfo, err := self.getSessionInfo(req)
+	sessionInfo, err := self.getSessionInfo(resp, req, session)
 	if err == nil {
 		// we have user info, use it.
 		data.UserId = sessionInfo.UserId
 		if sessionInfo.DeviceId == "" {
-			data.DeviceList, err = self.store.GetDevicesForUser(data.UserId)
+			data.DeviceList, err = store.GetDevicesForUser(data.UserId)
 			if err != nil {
 				self.logger.Error(self.logCat, "Could not get user devices",
 					util.Fields{"error": err.Error(),
@@ -806,7 +988,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 			}
 		}
 		if sessionInfo.DeviceId != "" {
-			data.Device, err = self.store.GetDeviceInfo(sessionInfo.DeviceId)
+			data.Device, err = store.GetDeviceInfo(sessionInfo.DeviceId)
 			if err != nil {
 				self.logger.Error(self.logCat, "Could not get device info",
 					util.Fields{"error": err.Error(),
@@ -816,12 +998,13 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 				}
 				return
 			}
-			data.Device.PreviousPositions, err = self.store.GetPositions(sessionInfo.DeviceId)
+			data.Device.PreviousPositions, err = store.GetPositions(sessionInfo.DeviceId)
 			if err != nil {
 				self.logger.Error(self.logCat,
 					"Could not get device's position information",
 					util.Fields{"error": err.Error(),
-						"user":   data.UserId,
+						"userId": data.UserId,
+						"user":   sessionInfo.User,
 						"device": sessionInfo.DeviceId})
 				return
 			}
@@ -831,7 +1014,6 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	// render the page from the template
 	tmpl, err := template.New("index.html").ParseFiles("static/index.html")
 	if err != nil {
-		// TODO: display error
 		self.logger.Error(self.logCat, "Could not display index page",
 			util.Fields{"error": err.Error(),
 				"user": data.UserId})
@@ -841,9 +1023,14 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if sessionInfo != nil {
-		setSessionInfo(resp, sessionInfo)
+		session.Values["userId"] = sessionInfo.UserId
+		session.Values["user"] = sessionInfo.User
+		session.Values["deviceId"] = sessionInfo.DeviceId
 	} else {
-		http.SetCookie(resp, &http.Cookie{Name: "user", MaxAge: -1})
+		if !session.IsNew {
+			self.clearSession(session)
+			session.Save(req, resp)
+		}
 	}
 	err = tmpl.Execute(resp, data)
 	if err != nil {
@@ -854,23 +1041,44 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	return
 }
 
+// Show the state of the user's devices.
 func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
-	/* Show the state of the user's devices.
-	 */
 	// get session info
-	self.logCat = self.logCat + ":State"
-	sessionInfo, err := self.getSessionInfo(req)
+	self.logCat = "handler:State"
+
+	resp.Header().Set("Content-Type", "application/json")
+
+	store, err := storage.Open(self.config, self.logger, self.metrics)
 	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	defer store.Close()
+
+	session, err := self.session.Get(req, SESSION_NAME)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not get session info",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, err.Error(), 500)
+	}
+	sessionInfo, err := self.getSessionInfo(resp, req, session)
+	if err != nil && err != ErrNoUser {
 		http.Error(resp, err.Error(), 500)
 		return
 	}
-	devInfo, err := self.store.GetDeviceInfo(sessionInfo.DeviceId)
+	devInfo, err := store.GetDeviceInfo(sessionInfo.DeviceId)
 	if err != nil {
 		http.Error(resp, err.Error(), 500)
 		return
 	}
 	// add the user session cookie
-	setSessionInfo(resp, sessionInfo)
+	if sessionInfo != nil {
+		session.Values["userId"] = sessionInfo.UserId
+		session.Values["deviceId"] = sessionInfo.DeviceId
+	}
+	session.Save(req, resp)
 	// display the device info...
 	reply, err := json.Marshal(devInfo)
 	if err == nil {
@@ -878,11 +1086,12 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// Show the status of the program (For Load Balancers)
 func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
-	/* Show program status
-	 */
 	self.logCat = "handler:Status"
-	reply := reply_t{
+
+	resp.Header().Set("Content-Type", "application/json")
+	reply := replyType{
 		"status":     "ok",
 		"goroutines": runtime.NumGoroutine(),
 		"version":    req.URL.Path[len("/status/"):],
@@ -891,15 +1100,21 @@ func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(rep)
 }
 
+// Handle requests for static content (should be an NGINX rule)
 func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
 	/* This should be handled by something like an nginx rule
 	 */
+
+	if !self.config.GetFlag("use_insecure_static") {
+		return
+	}
 	sl := len("/static/")
 	if len(req.URL.Path) > sl {
 		http.ServeFile(resp, req, "./static/"+req.URL.Path[sl:])
 	}
 }
 
+// Display the current metrics as a JSON snapshot
 func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 	snapshot := self.metrics.Snapshot()
 
@@ -917,12 +1132,14 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(reply)
 }
 
+// Add a new trackable client.
 func addClient(id string, sock *WWS) {
 	defer muClient.Unlock()
 	muClient.Lock()
 	Clients[id] = sock
 }
 
+// remove a trackable client
 func rmClient(id string) {
 	defer muClient.Unlock()
 	muClient.Lock()
@@ -931,9 +1148,19 @@ func rmClient(id string) {
 	}
 }
 
+// Handle Websocket processing.
 func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
+	self.logCat = "handler:Socket"
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		return
+	}
+	defer store.Close()
+
 	self.devId = getDevFromUrl(ws.Request().URL)
-	devRec, err := self.store.GetDeviceInfo(self.devId)
+	devRec, err := store.GetDeviceInfo(self.devId)
 	if err != nil {
 		self.logger.Error(self.logCat, "Invalid Device for socket",
 			util.Fields{"error": err.Error(),

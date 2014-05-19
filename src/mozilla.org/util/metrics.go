@@ -25,11 +25,11 @@ type Metrics struct {
     born   time.Time
 }
 
-func NewMetrics(prefix string, logger *HekaLogger, config JsMap) (self *Metrics) {
+func NewMetrics(prefix string, logger *HekaLogger, config *MzConfig) (self *Metrics) {
 
     var statsdc *statsd.Client
-    if server, ok := config["statsd.server"].(string); ok {
-        name := strings.ToLower(MzGet(config, "statsd.name", "undef"))
+    if server := config.Get("statsd.server",""); server != "" {
+        name := strings.ToLower(config.Get("statsd.name", "undef"))
         client, err := statsd.New(server, name)
         if err != nil {
             logger.Error("metrics", "Could not init statsd connection",
@@ -71,9 +71,9 @@ func (self *Metrics) Snapshot() map[string]interface{} {
 		oldMetrics[pfx + "counter." + k] = v
 	}
     for k, v := range self.timer {
-        oldMetrics[pfx + "age_avg." + k] = v
+        oldMetrics[pfx + "avg." + k] = v
     }
-    oldMetrics[pfx + "age.server"] = time.Now().Unix() - self.born.Unix();
+    oldMetrics[pfx + "server.age"] = time.Now().Unix() - self.born.Unix();
 	return oldMetrics
 }
 

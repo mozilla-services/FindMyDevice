@@ -1,16 +1,16 @@
+package wmf
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package wmf
-
 import (
 	"mozilla.org/util"
 
+	"bytes"
 	"encoding/json"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -64,28 +64,28 @@ func isTrue(val interface{}) bool {
 	}
 }
 
+// There's no built in min function.
+// awesome.
 func minInt(x, y int) int {
-	// There's no built in min function.
-	// awesome.
 	if x < y {
 		return x
 	}
 	return y
 }
 
-// get the device id from the URL path
-func getDevFromUrl(u *url.URL) (devId string) {
-	elements := strings.Split(u.Path, "/")
-	return elements[len(elements)-1]
+//filter
+func deviceIdFilter(r rune) rune {
+	if bytes.IndexRune([]byte("ABCDEFabcdef0123456789-"), r) < 0 {
+		return rune(-1)
+	}
+	return r
 }
 
-// get the user id info from the session. (userid/devid)
-func setSessionInfo(resp http.ResponseWriter, session *sessionInfo) (err error) {
-	if session != nil {
-		cookie := http.Cookie{Name: "user",
-			Value: session.UserId,
-			Path:  "/"}
-		http.SetCookie(resp, &cookie)
+// get the device id from the URL path
+func getDevFromUrl(u *url.URL) (devId string) {
+	if len(u.Path) < 32 || !strings.Contains(u.Path, "/") {
+		return ""
 	}
-	return err
+	elements := strings.Split(u.Path, "/")
+	return strings.Map(deviceIdFilter, elements[len(elements)-1])[:32]
 }

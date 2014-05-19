@@ -26,7 +26,7 @@ type HekaLogger struct {
 	logname  string
 	pid      int32
 	hostname string
-	conf     JsMap
+	conf     *MzConfig
 	tracer   bool
 	filter   int64
 }
@@ -47,9 +47,8 @@ const (
 type Fields map[string]string
 
 // Create a new Heka logging interface.
-func NewHekaLogger(conf JsMap) *HekaLogger {
+func NewHekaLogger(conf *MzConfig) *HekaLogger {
 	//Preflight
-	var ok bool
 	var encoder client.Encoder = nil
 	var sender client.Sender = nil
 	var logname string = ""
@@ -59,36 +58,24 @@ func NewHekaLogger(conf JsMap) *HekaLogger {
 
 	pid := int32(os.Getpid())
 
-	if _, ok = conf["heka.sender"]; !ok {
-		conf["heka.sender"] = "tcp"
-	}
-	if _, ok = conf["heka.server_addr"]; !ok {
-		conf["heka.server_addr"] = "127.0.0.1:5565"
-	}
-	if _, ok = conf["heka.logger_name"]; !ok {
-		conf["heka.logger_name"] = "wmf"
-	}
-	if _, ok = conf["heka.current_host"]; !ok {
-		conf["heka.current_host"], _ = os.Hostname()
-	}
-	if _, ok = conf["heka.show_caller"]; ok {
-		tracer, _ = strconv.ParseBool(conf["heka.show_caller"].(string))
-	}
-	filter, _ = strconv.ParseInt(MzGet(conf, "logger.filter", "10"), 0, 0)
-	if MzGetFlag(conf, "heka.use") {
-		encoder = client.NewJsonEncoder(nil)
-		sender, err = client.NewNetworkSender(conf["heka.sender"].(string),
-			conf["heka.server_addr"].(string))
+    dhost, _ := os.Hostname()
+	conf.SetDefaultFlag("heka.show_caller", false)
+    conf.SetDefault("logger.filter", "10")
+	filter, _ = strconv.ParseInt(conf.Get("logger.filter", "10"), 0, 0)
+	if conf.GetFlag("heka.use") {
+		encoder = client.NewProtobufEncoder(nil)
+		sender, err = client.NewNetworkSender(conf.Get("heka.sender", "tcp"),
+            conf.Get("heka.server_addr", "127.0.0.1:5565"))
 		if err != nil {
 			log.Panic("Could not create sender ", err)
 		}
-		logname = conf["heka.logger_name"].(string)
+		logname = conf.Get("heka.logger_name", "package")
 	}
 	return &HekaLogger{encoder: encoder,
 		sender:   sender,
 		logname:  logname,
 		pid:      pid,
-		hostname: conf["heka.current_host"].(string),
+		hostname: conf.Get("heka.current_host", dhost),
 		conf:     conf,
 		tracer:   tracer,
 		filter:   filter}

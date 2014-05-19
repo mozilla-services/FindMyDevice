@@ -1,10 +1,12 @@
+package main
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
-  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-package main
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"github.com/gorilla/context"
 	flags "github.com/jessevdk/go-flags"
 	"mozilla.org/util"
 	"mozilla.org/wmf"
@@ -31,14 +33,14 @@ var opts struct {
 }
 
 var (
-	logger *util.HekaLogger
-	store  *storage.Storage
-    metrics *util.Metrics
+	logger  *util.HekaLogger
+	store   *storage.Storage
+	metrics *util.Metrics
 )
 
 const (
+	// VERSION is the version number for system.
 	VERSION = "0.1"
-	SIGUSR1 = syscall.SIGUSR1
 )
 
 func main() {
@@ -47,37 +49,46 @@ func main() {
 	// Configuration
 	// defaults don't appear to work.
 	if opts.ConfigFile == "" {
-	opts.ConfigFile = "config.ini"
+		opts.ConfigFile = "config.ini"
 	}
-	config := util.MzGetConfig(opts.ConfigFile)
-	config["VERSION"] = VERSION
+	config, err := util.ReadMzConfig(opts.ConfigFile)
+	if err != nil {
+		log.Fatal("Could not read config file %s: %s", opts.ConfigFile, err.Error())
+		return
+	}
+	config.SetDefault("VERSION", VERSION)
 
 	// Rest Config
 	errChan := make(chan error)
-	host := util.MzGet(config, "host", "localhost")
-	port := util.MzGet(config, "port", "8080")
+	host := config.Get("host", "localhost")
+	port := config.Get("port", "8080")
 
-	if util.MzGetFlag(config, "aws.get_hostname") {
+	if config.GetFlag("aws.get_hostname") {
 		if hostname, err := util.GetAWSPublicHostname(); err == nil {
-			config["ws_hostname"] = hostname
+			config.SetDefault("ws_hostname", hostname)
 		}
 		if port != "80" {
-			config["ws_hostname"] = config["ws_hostname"].(string) + ":" + port
+			config.SetDefault("ws_hostname", config.Get("ws_hostname", "")+":"+port)
 		}
 	}
 
-	//TODO: Build out the partner cert pool if need be.
-	// certpoo
+	// Partner cert pool contains the various self-signed certs that
+	// partners may require to access their servers (for Proprietary
+	// wake mechanisms like UDP)
+	// This would be where you collect the certs and store them into
+	// the config map as something like:
+	// config["partnerCertPool"] = self.loadCerts()
 
 	if opts.Profile != "" {
 		log.Printf("Creating profile %s...\n", opts.Profile)
 		f, err := os.Create(opts.Profile)
 		if err != nil {
-			log.Fatal("Profile creation failed:\n%s\n", err.Error())
+			log.Fatal(fmt.Sprintf("Profile creation failed:\n%s\n",
+				err.Error()))
 			return
 		}
 		defer func() {
-			log.Printf("Closing profile...\n")
+			log.Printf("Writing app profile...\n")
 			pprof.StopCPUProfile()
 		}()
 		pprof.StartCPUProfile(f)
@@ -86,9 +97,10 @@ func main() {
 		defer func() {
 			profFile, err := os.Create(opts.MemProfile)
 			if err != nil {
-				log.Fatal("Memory Profile creation failed:\n%s\n", err.Error())
+				log.Fatal(fmt.Sprintf("Memory Profile creation failed:\n%s\n", err.Error()))
 				return
 			}
+			log.Printf("Writing memory profile...\n")
 			pprof.WriteHeapProfile(profFile)
 			profFile.Close()
 		}()
@@ -96,22 +108,21 @@ func main() {
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	logger := util.NewHekaLogger(config)
-    metrics := util.NewMetrics(util.MzGet(config,
-                           "metrics.prefix",
-                           "wmf"), logger, config)
-	store, err := storage.Open(config, logger, metrics)
+	metrics := util.NewMetrics(config.Get(
+		"metrics.prefix",
+		"wmf"), logger, config)
 	if err != nil {
 		logger.Error("main", "Unable to connect to database. Have you configured it yet?", nil)
 		return
 	}
-	handlers := wmf.NewHandler(config, logger, store, metrics)
+	handlers := wmf.NewHandler(config, logger, metrics)
 
 	// Signal handler
 	sigChan := make(chan os.Signal)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, SIGUSR1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
 
-	var RESTMux *http.ServeMux = http.DefaultServeMux
-	var WSMux *http.ServeMux = http.DefaultServeMux
+	var RESTMux = http.DefaultServeMux
+	var WSMux = http.DefaultServeMux
 	var verRoot = strings.SplitN(VERSION, ".", 2)[0]
 
 	// REST calls
@@ -142,7 +153,7 @@ func main() {
 		util.Fields{"host": host, "port": port})
 
 	go func() {
-		errChan <- http.ListenAndServe(host+":"+port, nil)
+		errChan <- http.ListenAndServe(host+":"+port, context.ClearHandler(http.DefaultServeMux))
 	}()
 
 	select {
@@ -153,5 +164,4 @@ func main() {
 	case <-sigChan:
 		logger.Info("main", "Shutting down...", nil)
 	}
-
 }
