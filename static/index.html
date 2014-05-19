@@ -15,7 +15,7 @@
     <h1>{{.ProductName}}</h1>
     <div id="login">
         {{if not .UserId}}
-        <div id="persona-login"><div id="browserid"><img src="https://login.persona.org/i/sign_in_blue.png" id="signin"></div></div>
+        <div id="persona-login"><div id="browserid"><a href="{{.Host.Endpoint}}/authorization?client_id={{.Host.Client_id}}&scope=profile:email&action=signin&state=somestate"><img src="https://login.persona.org/i/sign_in_blue.png" id="signin"></a></div></div>
         {{else}}
         <div id="persona-logout"><a href="/" id="signout">Logout</a></div>
         {{end}}
@@ -88,7 +88,7 @@ this is a pretty crappy device picker. Obviously, it should be better.
 <footer>
 <!-- completely optional Footery stuffs... -->
 </footer>
-         <script id='bidjs' src="https://login.persona.org/include.js" type="text/javascript"></script>
+         <!-- script id='bidjs' src="https://login.persona.org/include.js" type="text/javascript"></script -->
          <script id="mapbox" src="//api.tiles.mapbox.com/mapbox.js/v1.6.0/mapbox.js" type="text/javascript"></script>
          <script type="text/javascript">
 // javascript

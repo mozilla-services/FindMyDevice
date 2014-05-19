@@ -229,7 +229,7 @@ def send(urlStr, cred, data, method="POST", user=None):
                            data=datas,
                            headers=headers)
     prepped = req.prepare()
-    response = session.send(prepped, timeout=3)
+    response = session.send(prepped, timeout=5)
     if response.status_code != requests.codes.ok:
         pdb.set_trace()
         print("Response Not OK")

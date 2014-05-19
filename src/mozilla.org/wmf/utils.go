@@ -35,6 +35,22 @@ func asciiOnly(r rune) rune {
 	}
 }
 
+func deviceIdFilter(r rune) rune {
+	if bytes.IndexRune([]byte("ABCDEFabcdef0123456789-"), r) < 0 {
+		return rune(-1)
+	}
+	return r
+}
+
+func assertionFilter(r rune) rune {
+    // wish that base64.go exported this publicly:
+    if bytes.IndexRune([]byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_~."), r) < 0 {
+        return rune(-1)
+    }
+    return r
+}
+
+
 // parse a body and return the JSON
 func parseBody(rbody io.ReadCloser) (rep util.JsMap, err error) {
 	var body []byte
@@ -74,13 +90,6 @@ func minInt(x, y int) int {
 }
 
 //filter
-func deviceIdFilter(r rune) rune {
-	if bytes.IndexRune([]byte("ABCDEFabcdef0123456789-"), r) < 0 {
-		return rune(-1)
-	}
-	return r
-}
-
 // get the device id from the URL path
 func getDevFromUrl(u *url.URL) (devId string) {
 	if len(u.Path) < 32 || !strings.Contains(u.Path, "/") {

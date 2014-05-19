@@ -52,6 +52,7 @@ type Device struct {
 	Pending           string // pending command
 	LastExchange      int32  // last time we did anything
 	Accepts           string // commands the device accepts
+    AccessToken       string // OAuth Access token
 }
 
 type DeviceList struct {
@@ -81,6 +82,7 @@ type Unstructured map[string]interface{}
        hawkSecret     string
        pushUrl        string
        accepts        string
+       accesstoken    string
 
    table position:
        positionId UUID index
@@ -89,6 +91,11 @@ type Unstructured map[string]interface{}
        latitude   float
        longitude  float
        altitude   float
+
+   // misc administrivia table.
+   table meta:
+       key        string
+       value      string
 */
 /* key:
 deviceId {positions:[{lat:float, lon: float, alt: float, time:int},...],
@@ -151,7 +158,7 @@ func (self *Storage) Init() (err error) {
 		"create index on userToDeviceMap (userId);",
 		"create unique index on userToDeviceMap (userId, deviceId);",
 
-		"create table if not exists deviceInfo (deviceId varchar unique, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar, pushurl varchar, accepts varchar);",
+		"create table if not exists deviceInfo (deviceId varchar unique, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar, pushurl varchar, accepts varchar, accesstoken varchar);",
 		"create index on deviceInfo (deviceId);",
 
 		"create table if not exists pendingCommands (id bigserial, deviceId varchar, time timestamp, cmd varchar);",
@@ -162,6 +169,8 @@ func (self *Storage) Init() (err error) {
 		"create or replace function update_time() returns trigger as $$ begin new.lastexchange = now(); return new; end; $$ language 'plpgsql';",
 		"drop trigger if exists update_le on deviceinfo;",
 		"create trigger update_le before update on deviceinfo for each row execute procedure update_time();",
+        "create table if not exists meta (key string, value string);",
+        "create index on meta (key);",
 		"set time zone utc;",
 	}
 
@@ -237,7 +246,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 
 	// collect the data for a given device for display
 
-	var deviceId, userId, pushUrl, name, secret, lestr []uint8
+	var deviceId, userId, pushUrl, name, secret, lestr, accesstoken []uint8
 	var lastexchange float64
 	var lockable, loggedIn bool
 	var statement, accepts string
@@ -245,7 +254,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 	dbh := self.db
 
 	// verify that the device belongs to the user
-	statement = "select d.deviceId, u.userId, coalesce(u.name,d.deviceId), d.lockable, d.loggedin, d.pushUrl, d.accepts, d.hawksecret, extract(epoch from d.lastexchange) from userToDeviceMap as u, deviceInfo as d where u.deviceId=$1 and u.deviceId=d.deviceId;"
+	statement = "select d.deviceId, u.userId, coalesce(u.name,d.deviceId), d.lockable, d.loggedin, d.pushUrl, d.accepts, d.hawksecret, extract(epoch from d.lastexchange), d.accesstoken from userToDeviceMap as u, deviceInfo as d where u.deviceId=$1 and u.deviceId=d.deviceId;"
 	stmt, err := dbh.Prepare(statement)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not query device info",
@@ -255,7 +264,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 	defer stmt.Close()
 	row := stmt.QueryRow(devId)
 	err = row.Scan(&deviceId, &userId, &name, &lockable,
-		&loggedIn, &pushUrl, &accepts, &secret, &lestr)
+		&loggedIn, &pushUrl, &accepts, &secret, &lestr, &accesstoken)
 	switch {
 	case err == sql.ErrNoRows:
 		return nil, ErrUnknownDevice
@@ -279,6 +288,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		LastExchange: int32(lastexchange),
 		PushUrl:      string(pushUrl),
 		Accepts:      accepts,
+        AccessToken:  string(accesstoken),
 	}
 
 	return reply, nil
@@ -400,6 +410,21 @@ func (self *Storage) StoreCommand(devId, command string) (err error) {
 	return nil
 }
 
+func (self *Storage) SetAccessToken(devId, token string) (err error) {
+    dbh := self.db
+
+    statement := "update deviceInfo set accesstoken = $1, lastexchange = now() where deviceId = $2"
+    _, err = dbh.Exec(statement, token, devId)
+    if err != nil {
+        self.logger.Error(self.logCat, "Could not set the access token",
+            util.Fields{"error": err.Error(),
+                "device": devId,
+                "token": token})
+        return err
+    }
+    return nil
+}
+
 // Shorthand function to set the lock state for a device.
 func (self *Storage) SetDeviceLockable(devId string, state bool) (err error) {
 	dbh := self.db
@@ -490,6 +515,37 @@ func (self *Storage) DeleteDevice(devId string) (err error) {
 		}
 	}
 	return nil
+}
+
+func (self *Storage) getMeta(key string) (val string, err error) {
+    var row *sql.Row
+    dbh := self.db
+
+    statement := "select val from meta where key=$1;"
+    if row = dbh.QueryRow(statement, key); row != nil {
+        row.Scan(&val)
+        return val, err
+    }
+    return "", err
+}
+
+func (self *Storage) setMeta(key, val string) (err error) {
+    var statement string
+    dbh := self.db
+
+    // try to update or insert.
+    statement = "update meta set val = $2 where key = $1;"
+    if res, err := dbh.Exec(statement, key, val); err != nil {
+        return err
+    } else {
+        if cnt, _ := res.RowsAffected(); cnt == 0 {
+            statement = "insert into met (key, val) values ($1, $2);"
+            if _, err = dbh.Exec(statement, key, val); err != nil {
+                return err
+            }
+        }
+    }
+    return nil
 }
 
 func (self *Storage) Close() {

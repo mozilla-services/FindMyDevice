@@ -126,7 +126,7 @@ func main() {
 	var verRoot = strings.SplitN(VERSION, ".", 2)[0]
 
 	// REST calls
-	// Device calls.
+
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/register/", verRoot),
 		handlers.Register)
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/cmd/", verRoot),
@@ -143,6 +143,11 @@ func main() {
 	// Operations call
 	RESTMux.HandleFunc("/status/",
 		handlers.Status)
+    // Config option because there are other teams involved.
+    auth := config.Get("oauth.redir_uri", "/oauth/")
+    fmt.Printf("### auth: %s\n", auth)
+    RESTMux.HandleFunc(auth, handlers.OAuthCallback)
+
 	WSMux.Handle(fmt.Sprintf("/%s/ws/", verRoot),
 		websocket.Handler(handlers.WSSocketHandler))
 	// Handle root calls as webUI

@@ -46,24 +46,32 @@ type Handler struct {
 // Map of clientIDs to socket handlers
 type ClientMap map[string]*WWS
 
-const SESSION_NAME = "user"
+const (
+	SESSION_NAME     = "user"
+	OAUTH_ENDPOINT   = "https://oauth.accounts.firefox.com"
+	CONTENT_ENDPOINT = "https://accounts.firefox.com"
+)
 
-var muClient sync.Mutex
-var Clients = make(ClientMap)
+var (
+	muClient sync.Mutex
+	Clients  = make(ClientMap)
+)
 
 // Generic reply structure (useful for JSON responses)
 type replyType map[string]interface{}
 
 // Each session contains a UserID and a DeviceID
 type sessionInfoStruct struct {
-	UserId   string
-	DeviceId string
-	User     string
+	UserId      string
+	DeviceId    string
+	User        string
+	AccessToken string
 }
 
 var ErrInvalidReply = errors.New("Invalid Command Response")
 var ErrAuthorization = errors.New("Needs Authorization")
 var ErrNoUser = errors.New("No User")
+var ErrOauth = errors.New("OAuth Error")
 
 //Handler private functions
 
@@ -71,6 +79,12 @@ var ErrNoUser = errors.New("No User")
 // part of Handler for config & logging reasons
 func (self *Handler) verifyAssertion(assertion string) (userid, email string, err error) {
 	var ok bool
+	if assLen := len(assertion); assLen != len(strings.Map(assertionFilter, assertion)) {
+		self.logger.Error(self.logCat, "Assertion contains invalid characters.",
+			util.Fields{"assertion": assertion})
+		return "", "", ErrAuthorization
+	}
+
 	if self.config.GetFlag("auth.disabled") {
 		self.logger.Warn(self.logCat, "!!! Skipping validation...", nil)
 		if len(assertion) == 0 {
@@ -112,6 +126,7 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 		hasher := sha256.New()
 		hasher.Write([]byte(email))
 		userid = hex.EncodeToString(hasher.Sum(nil))
+		userid = self.genHash(email)
 		self.logger.Debug(self.logCat, "Extracted credentials",
 			util.Fields{"userId": userid, "email": email})
 		return userid, email, nil
@@ -135,6 +150,7 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not POST assertion",
 			util.Fields{"error": err.Error()})
+		return "", "", err
 	}
 	req.Header.Add("Content-Type", "application/json")
 	cli := http.Client{}
@@ -181,6 +197,8 @@ func (self *Handler) clearSession(sess *sessions.Session) (err error) {
 	delete(sess.Values, "userId")
 	delete(sess.Values, "deviceId")
 	delete(sess.Values, "user")
+	delete(sess.Values, "email")
+	delete(sess.Values, "accessToken")
 	return
 }
 
@@ -247,10 +265,15 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 		self.logger.Error("handler", "Could not get user", fields)
 		return nil, ErrNoUser
 	}
+	accesstoken := ""
+	if token, ok := session.Values["accessToken"]; ok {
+		accesstoken = token.(string)
+	}
 	info = &sessionInfoStruct{
-		UserId:   userid,
-		User:     user,
-		DeviceId: dev}
+		UserId:      userid,
+		User:        user,
+		DeviceId:    dev,
+		AccessToken: accesstoken}
 	return
 }
 
@@ -395,6 +418,12 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 	self.logCat = "handler:Register"
 	resp.Header().Set("Content-Type", "application/json")
+	session, err := self.session.Get(req, SESSION_NAME)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open session",
+			util.Fields{"error": err.Error()})
+		return
+	}
 
 	store, err := storage.Open(self.config, self.logger, self.metrics)
 	if err != nil {
@@ -409,17 +438,41 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		http.Error(resp, "No body", http.StatusBadRequest)
 	} else {
-		if assertion, ok := buffer["assert"].(string); !ok {
-			self.logger.Error(self.logCat, "Missing assertion", nil)
-			http.Error(resp, "Unauthorized", 401)
-			return
-		} else {
-			userid, user, err = self.verifyAssertion(assertion)
+		loggedIn := false
+
+		// Persona assertion
+		if assertion, ok := buffer["assert"]; !ok {
+			userid, user, err = self.verifyAssertion(assertion.(string))
 			if err != nil || userid == "" {
 				http.Error(resp, "Unauthorized", 401)
+				return
 			}
 			self.logger.Debug(self.logCat, "Got user "+userid, nil)
 			user = strings.SplitN(user, "@", 2)[0]
+			loggedIn = true
+		}
+
+		//FxA OAuth Login.
+		if code, ok := buffer["code"]; !loggedIn && ok {
+			session.Values["accessToken"], err = self.getAccessToken(code.(string))
+			if err != nil {
+				http.Error(resp, "Server Error", 500)
+				return
+			}
+			email, err := self.getUserEmail(session.Values["accessToken"].(string))
+			if err != nil {
+				http.Error(resp, "Server Error", 500)
+				return
+			}
+			userid = self.genHash(email)
+			user = strings.SplitN(user, "@", 2)[0]
+			loggedIn = true
+		}
+
+		if !loggedIn {
+			self.logger.Error(self.logCat, "Not logged in", nil)
+			http.Error(resp, "Unauthorized", 401)
+			return
 		}
 
 		if val, ok := buffer["pushurl"]; !ok || val == nil || len(val.(string)) == 0 {
@@ -968,6 +1021,10 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	// host information (for websocket callback)
 	data.Host = make(map[string]string)
 	data.Host["Hostname"] = self.config.Get("ws_hostname", "localhost")
+	data.Host["Client_id"] = self.config.Get("oauth.client_id", "none")
+	data.Host["Endpoint"] = self.config.Get("oauth.endpoint", "https://oauth.accounts.firefox.com/v1")
+	// TODO: generate "state" code thingy
+	data.Host["State"] = "somestate"
 
 	// get the cached session info (if present)
 	// will also resolve assertions and other bits to get user and dev info.
@@ -1130,6 +1187,122 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 		reply = []byte("{}")
 	}
 	resp.Write(reply)
+}
+
+func (self *Handler) getAccessToken(code string) (accessToken string, err error) {
+	token_url := self.config.Get("oauth.endpoint", OAUTH_ENDPOINT) + "/token"
+	vals := make(map[string]string)
+	vals["client_id"] = self.config.Get("oauth.client_id", "invalid")
+	vals["client_secret"] = self.config.Get("oauth.client_secret", "invalid")
+	vals["code"] = code
+	vd, err := json.Marshal(vals)
+	fmt.Printf("### %s\n", string(vd))
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not marshal vals to json",
+			util.Fields{"error": err.Error()})
+		return "", err
+	}
+	token_resp, err := http.Post(token_url, "application/json", bytes.NewBuffer(vd))
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not get oauth token",
+			util.Fields{"code": code, "error": err.Error()})
+		return "", ErrOauth
+	}
+	reply, err := parseBody(token_resp.Body)
+	fmt.Printf("### %+v\n", reply)
+	token, ok := reply["access_token"]
+	if !ok {
+		self.logger.Error(self.logCat, "OAuth Access token missing from reply",
+			util.Fields{"code": code})
+		return "", ErrOauth
+	}
+	return token.(string), nil
+}
+
+func (self *Handler) getUserEmail(accessToken string) (email string, err error) {
+	client := &http.Client{}
+	req, err := http.NewRequest("POST",
+		self.config.Get("fxa.content.endpoint", CONTENT_ENDPOINT)+"/email",
+		nil)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not POST to get email",
+			util.Fields{"error": err.Error()})
+		return "", err
+	}
+	req.Header.Add("Authorization", "Bearer "+accessToken)
+	resp, err := client.Do(req)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not get user email",
+			util.Fields{"error": err.Error()})
+		return "", err
+	}
+	buffer, err := parseBody(resp.Body)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not parse body",
+			util.Fields{"error": err.Error()})
+		return "", err
+	}
+	if _, ok := buffer["email"]; !ok {
+		self.logger.Error(self.logCat, "Response did not contain email",
+			nil)
+		return "", ErrNoUser
+	}
+	return buffer["email"].(string), nil
+}
+
+func (self *Handler) genHash(input string) (output string) {
+	hasher := sha256.New()
+	hasher.Write([]byte(input))
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) {
+	self.logCat = "oauth"
+
+	session, err := self.session.Get(req, SESSION_NAME)
+	fmt.Printf("### oauth session: %s, err: %s\n", session, err)
+	if err == nil {
+		if _, ok := session.Values["accessToken"]; !ok {
+			// get the "state", and "code"
+			state := req.FormValue("state")
+			code := req.FormValue("code")
+			// TODO: check "state" matches magic code thingy
+			if state == "" {
+				self.logger.Error(self.logCat, "No State", nil)
+				return
+			}
+			if code == "" {
+				self.logger.Error(self.logCat, "Missing code value", nil)
+				http.Error(resp, "Unauthorized", 401)
+				return
+			}
+
+			// fetch the token:
+			fmt.Printf("### Getting access token\n")
+			token, err := self.getAccessToken(code)
+			if err != nil {
+				self.logger.Error(self.logCat, "Could not get access token",
+					util.Fields{"error": err.Error()})
+				http.Error(resp, "Unauthorized", 401)
+				return
+			}
+			fmt.Printf("### store user token %s\n", token)
+            delete(session.Values, "email")
+			session.Values["accessToken"] = token
+        }
+        if _, ok := session.Values["email"]; !ok {
+			email, err := self.getUserEmail(session.Values["accessToken"].(string))
+			if err != nil {
+				self.logger.Error(self.logCat, "Could not get email",
+					util.Fields{"error": err.Error()})
+				http.Error(resp, "Unauthorized", 401)
+				return
+			}
+			session.Values["email"] = email
+			session.Save(req, resp)
+		}
+	}
+	self.Index(resp, req)
+	return
 }
 
 // Add a new trackable client.
