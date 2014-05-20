@@ -147,21 +147,7 @@ module.exports = function (grunt) {
     csslint: {
       strict: {
         options: {
-          'adjoining-classes': 0,
-          'box-model': 0,
-          'box-sizing': 0,
-          'compatible-vendor-prefixes': 0,
-          'duplicate-background-images': 0,
-          'errors': 0,
-          'ids': 0,
-          'import': 2,
-          'important': 0,
-          'outline-none': 0,
-          'overqualified-elements': 0,
-          'qualified-headings': 0,
-          'text-indent': 0,
-          'unique-headings': 0,
-          'universal-selector': 0
+          'csslintrc': '.csslintrc'
         },
         src: ['<%= yeoman.tmp %>/styles/**/*.css']
       }
