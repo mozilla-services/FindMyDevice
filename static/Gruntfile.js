@@ -143,6 +143,30 @@ module.exports = function (grunt) {
       }
     },
 
+    // CSSLINT TASK
+    csslint: {
+      strict: {
+        options: {
+          'adjoining-classes': 0,
+          'box-model': 0,
+          'box-sizing': 0,
+          'compatible-vendor-prefixes': 0,
+          'duplicate-background-images': 0,
+          'errors': 0,
+          'ids': 0,
+          'import': 2,
+          'important': 0,
+          'outline-none': 0,
+          'overqualified-elements': 0,
+          'qualified-headings': 0,
+          'text-indent': 0,
+          'unique-headings': 0,
+          'universal-selector': 0
+        },
+        src: ['<%= yeoman.tmp %>/styles/**/*.css']
+      }
+    },
+
     // CSSMIN TASK
     cssmin: {
       dist: {
@@ -355,7 +379,8 @@ module.exports = function (grunt) {
   // CSS TASK
   grunt.registerTask('css', [
     'sass',
-    'autoprefixer'
+    'autoprefixer',
+    'csslint'
   ]);
 
   // DEFAULT TASK
