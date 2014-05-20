@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+    "fmt"
 )
 
 //filters
@@ -44,7 +46,7 @@ func deviceIdFilter(r rune) rune {
 
 func assertionFilter(r rune) rune {
     // wish that base64.go exported this publicly:
-    if bytes.IndexRune([]byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_~."), r) < 0 {
+    if bytes.IndexRune([]byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_~.="), r) < 0 {
         return rune(-1)
     }
     return r
@@ -59,6 +61,7 @@ func parseBody(rbody io.ReadCloser) (rep util.JsMap, err error) {
 	if body, err = ioutil.ReadAll(rbody.(io.Reader)); err != nil {
 		return nil, err
 	}
+    fmt.Printf("### parseBody: %s\n", body)
 	if err = json.Unmarshal(body, &rep); err != nil {
 		return nil, err
 	}

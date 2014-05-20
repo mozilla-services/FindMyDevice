@@ -191,25 +191,25 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 }
 
 func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string, err error) {
-    var ok bool
+    fmt.Printf("Verifying FxA %s\n", assertion)
 	if assLen := len(assertion); assLen != len(strings.Map(assertionFilter, assertion)) {
 		self.logger.Error(self.logCat, "Assertion contains invalid characters.",
 			util.Fields{"assertion": assertion})
 		return "", "", ErrAuthorization
 	}
-
+/*
     if self.config.GetFlag("auth.disabled") {
         self.logger.Warn(self.logCat, "!!! Skipping validation...", nil)
         return "user1", "user@example.com", nil
     }
-
+*/
     cli := http.Client{}
     args := make(map[string]string)
     args["client_id"] = self.config.Get("oauth.client_id", "invalid")
     args["assertion"] = assertion
     args["state"] = "state"
 
-    argsj, err = json.Marshal(args)
+    argsj, err := json.Marshal(args)
     if err != nil {
         self.logger.Error(self.logCat, "Could not marshal args",
             util.Fields{"error": err.Error()})
@@ -217,6 +217,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
     }
     validatorUrl := self.config.Get("oauth.endpoint", "oauth.accounts.firefox.com/v1") +
         "/authorization"
+    fmt.Printf("### argsj : %s\n", argsj)
     req, err := http.NewRequest("POST", validatorUrl, bytes.NewReader(argsj))
     if err != nil {
         self.logger.Error(self.logCat, "Could not POST verify assertion",
@@ -234,10 +235,16 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
     if err != nil {
         return "", "", err
     }
+    if code, ok := buff["code"]; ok && int(code.(float64)) > 299.0 {
+        self.logger.Error(self.logCat, "FxA verification failed auth",
+            util.Fields{"code": strconv.FormatInt(int64(code.(float64)), 10),
+            "error": buff["error"].(string)})
+        return "", "", err
+    }
     // get the "redirect" url. We're not going to redirect, just get the code.
-    if redir, ok := buffer["redrirect"]; !ok {
+    if redir, ok := buff["redrirect"]; !ok {
         self.logger.Error(self.logCat, "FxA verification did not return redirect",
-            util.Fields{"error": err.Error()})
+            nil)
         return "", "", err
     } else {
         if vurl, err := url.Parse(redir.(string)); err != nil {
@@ -249,29 +256,21 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
             if len(code) == 0 {
                 self.logger.Error(self.logCat, "FxA code not present",
                     util.Fields{"url": redir.(string)})
-                return "", "", OAuthErr
+                return "", "", ErrOauth
             }
             //Convert code to access token.
-            targs := make(map[string]string)
-            targs["client_id"] = args["client_id"]
-            targs["client_secret"] = self.config.Get("oauth.client_secret", "invalid")
-            targs["code"] = code
-            argsj, err = json.Marshal(targs)
-            req, err = http.NewRequest("POST", validatorUrl + "/token", bytes.NewReader(argsj))
-            // TODO err handler
-            req.Header.Add("Content-Type", "application/json")
-            res, err = client.Do(req)
-            // TODO err handler
-            buff, err = parseBody(res.Body)
-            // TODO err handler
-            // save the token (as uid?)
-            // TODO get the email
+            accessToken, err := self.getAccessToken(code)
+            if err != nil {
+                return "", "", ErrOauth
+            }
+            email, err := self.getUserEmail(accessToken)
+            if err != nil {
+                return "", "", ErrOauth
+            }
 
-
-
-
-
-
+           return accessToken, email, nil
+        }
+    }
 }
 
 
@@ -520,13 +519,14 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	defer store.Close()
 
 	buffer, err = parseBody(req.Body)
+    fmt.Printf("### buffer: %+v\n", buffer)
 	if err != nil {
 		http.Error(resp, "No body", http.StatusBadRequest)
 	} else {
 		loggedIn := false
 
-		// Persona assertion
-		if assertion, ok := buffer["assert"]; !ok {
+		if assertion, ok := buffer["assert"]; ok {
+            fmt.Printf("Getting assertion\n")
 			userid, user, err = self.verifyFxAAssertion(assertion.(string))
 			if err != nil || userid == "" {
 				http.Error(resp, "Unauthorized", 401)
@@ -534,23 +534,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			}
 			self.logger.Debug(self.logCat, "Got user "+userid, nil)
 			user = strings.SplitN(user, "@", 2)[0]
-			loggedIn = true
-		}
-
-		//FxA OAuth Login.
-		if code, ok := buffer["code"]; !loggedIn && ok {
-			session.Values["accessToken"], err = self.getAccessToken(code.(string))
-			if err != nil {
-				http.Error(resp, "Server Error", 500)
-				return
-			}
-			email, err := self.getUserEmail(session.Values["accessToken"].(string))
-			if err != nil {
-				http.Error(resp, "Server Error", 500)
-				return
-			}
-			userid = self.genHash(email)
-			user = strings.SplitN(user, "@", 2)[0]
+            session.Values["userId"] = userid
 			loggedIn = true
 		}
 
@@ -569,10 +553,13 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		}
 		//ALWAYS generate a new secret on registration!
 		secret = GenNonce(16)
-		if val, ok := buffer["deviceid"]; !ok {
+		if val, ok := buffer["deviceid"]; !ok || len(val.(string)) == 0 {
 			deviceid, err = util.GenUUID4()
 		} else {
-			deviceid = strings.Map(deviceIdFilter, val.(string))[:32]
+			deviceid = strings.Map(deviceIdFilter, val.(string))
+            if len(deviceid) > 32 {
+                deviceid = deviceid[:32]
+            }
 		}
 		if val, ok := buffer["has_passcode"]; !ok {
 			lockable = true
@@ -629,6 +616,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			util.Fields{"error": err.Error()})
 		return
 	}
+    session.Save(req, resp)
 	resp.Write(reply)
 	return
 }
