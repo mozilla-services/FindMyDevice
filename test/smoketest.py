@@ -151,7 +151,7 @@ def registerNew(config):
     # divy up based on scheme.
     regObj = {"assert": assertion,
               "pushurl": "http://example.com",
-              "deviceid": "test1"}
+              "deviceid": "aaaa-1"}
     reply = send(trg, regObj, {})
     cred = reply.json()
     print "Credentials: "
@@ -270,6 +270,7 @@ def main(argv):
     if response is not None:
         print(response.text)
 #    sendCmd(config, cred, {'l': {'ok': True}, 'has_passcode': True})
+    print "done"
 
 
 if __name__ == "__main__":

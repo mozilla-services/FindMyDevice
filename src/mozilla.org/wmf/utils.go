@@ -83,9 +83,13 @@ func deviceIdFilter(r rune) rune {
 
 // get the device id from the URL path
 func getDevFromUrl(u *url.URL) (devId string) {
-	if len(u.Path) < 32 || !strings.Contains(u.Path, "/") {
+	if !strings.Contains(u.Path, "/") {
 		return ""
 	}
 	elements := strings.Split(u.Path, "/")
-	return strings.Map(deviceIdFilter, elements[len(elements)-1])[:32]
+    devId = strings.Map(deviceIdFilter, elements[len(elements)-1])
+    if len(devId) > 32 {
+        devId = devId[:32]
+    }
+    return devId
 }

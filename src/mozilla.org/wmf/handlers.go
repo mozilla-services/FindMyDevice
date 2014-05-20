@@ -73,9 +73,9 @@ func (self *Handler) verifyAssertion(assertion string) (userid, email string, er
 	var ok bool
 	if self.config.GetFlag("auth.disabled") {
 		self.logger.Warn(self.logCat, "!!! Skipping validation...", nil)
-		if len(assertion) == 0 {
+//		if len(assertion) == 0 {
 			return "user1", "user@example.com", nil
-		}
+//		}
 		// Time to UberFake! THIS IS VERY DANGEROUS!
 		self.logger.Warn(self.logCat,
 			"!!! Using Assertion Without Validation",
@@ -220,13 +220,8 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		return "", "", ErrAuthorization
 	}
 	userid, user, err = self.verifyAssertion(auth)
-	fmt.Printf("### assertion userid: %s\n", userid)
 	if err != nil {
 		return "", "", ErrAuthorization
-	}
-	if userid != "" {
-		self.clearSession(session)
-		session.Save(req, resp)
 	}
 	return userid, user, nil
 }
@@ -434,7 +429,10 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		if val, ok := buffer["deviceid"]; !ok {
 			deviceid, err = util.GenUUID4()
 		} else {
-			deviceid = strings.Map(deviceIdFilter, val.(string))[:32]
+			deviceid = strings.Map(deviceIdFilter, val.(string))
+            if len(deviceid) > 32 {
+                deviceid = deviceid[:32]
+            }
 		}
 		if val, ok := buffer["has_passcode"]; !ok {
 			lockable = true
@@ -500,6 +498,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	var err error
 	var l int
 
+    fmt.Printf("#### URL: %s\n", req.URL)
 	self.logCat = "handler:Cmd"
 	resp.Header().Set("Content-Type", "application/json")
 	store, err := storage.Open(self.config, self.logger, self.metrics)
@@ -617,10 +616,12 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			self.metrics.Increment("cmd.received." + string(c))
 			switch c {
 			case "l", "r", "m", "e":
+                //lock, ring, message, erase
 				err = store.Touch(deviceId)
 				self.updatePage(deviceId,
 					args.(map[string]interface{}), false)
 			case "h":
+                // "has lock code"
 				argl := make(replyType)
 				argl[string(cmd)] = isTrue(args)
 				self.updatePage(deviceId, argl, false)
