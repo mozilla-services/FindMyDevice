@@ -5,8 +5,9 @@
 define([
   'views/base',
   'stache!templates/erase_confirmation',
-  'lib/modal_manager'
-], function (BaseView, EraseConfirmationTemplate, ModalManager) {
+  'lib/modal_manager',
+  'models/erase_command'
+], function (BaseView, EraseConfirmationTemplate, ModalManager, EraseCommand) {
   'use strict';
 
   var EraseView = BaseView.extend({
@@ -22,7 +23,7 @@ define([
     },
 
     erase: function(event) {
-      alert('OHHH NO ALL YOUR STUFFS IS GONE');
+      currentDevice.sendCommand(new EraseCommand());
     }
   });
 

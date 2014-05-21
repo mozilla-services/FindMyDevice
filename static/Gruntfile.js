@@ -248,7 +248,7 @@ module.exports = function (grunt) {
       },
       dev: {
         files: {
-          '<%= yeoman.tmp %>/styles/main.css': '<%= yeoman.app %>/styles/main.scss'
+          '<%= yeoman.app %>/styles/main.css': '<%= yeoman.app %>/styles/main.scss'
         }
       }
     },
@@ -278,7 +278,10 @@ module.exports = function (grunt) {
       },
       sass: {
         files: ['<%= yeoman.app %>/styles/{,*/}*.scss'],
-        tasks: ['sass:dev']
+        tasks: ['sass:dev'],
+        options: {
+          atBegin: true
+        }
       },
       livereload: {
         options: {

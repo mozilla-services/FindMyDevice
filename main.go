@@ -6,7 +6,6 @@ package main
 
 import (
 	"code.google.com/p/go.net/websocket"
-	"github.com/gorilla/context"
 	flags "github.com/jessevdk/go-flags"
 	"mozilla.org/util"
 	"mozilla.org/wmf"
@@ -136,8 +135,16 @@ func main() {
 		handlers.RestQueue)
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/state/", verRoot),
 		handlers.State)
-	RESTMux.HandleFunc("/static/",
+	// Static files (served by nginx in production)
+	RESTMux.HandleFunc("/bower_components/",
 		handlers.Static)
+	RESTMux.HandleFunc("/images/",
+		handlers.Static)
+	RESTMux.HandleFunc("/scripts/",
+		handlers.Static)
+	RESTMux.HandleFunc("/styles/",
+		handlers.Static)
+	// Metrics
 	RESTMux.HandleFunc("/metrics/",
 		handlers.Metrics)
 	// Operations call
@@ -153,7 +160,7 @@ func main() {
 		util.Fields{"host": host, "port": port})
 
 	go func() {
-		errChan <- http.ListenAndServe(host+":"+port, context.ClearHandler(http.DefaultServeMux))
+		errChan <- http.ListenAndServe(host+":"+port, nil)
 	}()
 
 	select {

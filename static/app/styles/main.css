@@ -1,0 +1,139 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* Border box all the things */
+*, *:before, *:after {
+  box-sizing: border-box; }
+
+html, body, input, select {
+  font-family: 'TypoPRO Fira Sans', sans-serif; }
+
+html, body, #stage, #stage > div, #map {
+  height: 100%;
+  width: 100%; }
+
+a {
+  cursor: pointer; }
+
+.tbd {
+  background: yellow;
+  color: purple;
+  font-style: italic; }
+
+#stage {
+  position: relative; }
+  #stage header {
+    background: #f4f4f4;
+    height: 47px;
+    left: 0;
+    padding: 0 34px;
+    position: absolute;
+    top: 0;
+    width: 100%;
+    z-index: 1000; }
+    #stage header h1 {
+      color: #8a8b97;
+      font-size: 27px;
+      font-weight: normal;
+      height: 32px;
+      margin-top: -16px;
+      position: absolute;
+      top: 50%; }
+  #stage footer {
+    background: #242426;
+    bottom: 0;
+    color: #f2f1ec;
+    height: 39px;
+    left: 0;
+    position: absolute;
+    width: 100%;
+    z-index: 1000; }
+    #stage footer .button {
+      display: block;
+      float: left;
+      height: 39px;
+      width: 33%; }
+      #stage footer .button a {
+        background: url("../images/icon-sound-white.png") no-repeat 50% 50%;
+        display: block;
+        font-size: 13px;
+        height: 39px;
+        line-height: 1em;
+        text-indent: -1000em;
+        width: 100%; }
+        #stage footer .button a:active {
+          background-color: #6f7181; }
+      #stage footer .button.play-sound a {
+        background-image: url("../images/icon-sound-white.png"); }
+      #stage footer .button.lost-mode a {
+        background-image: url("../images/icon-lock-white.png"); }
+      #stage footer .button.erase a {
+        background-image: url("../images/icon-erase-white.png"); }
+
+#modal {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+  display: none;
+  height: 400px;
+  left: 50%;
+  margin-left: -150px;
+  margin-top: -200px;
+  overflow: hidden;
+  position: absolute;
+  top: 50%;
+  width: 300px;
+  z-index: 1000; }
+  #modal header {
+    background: #f4f4f4;
+    padding: 5px; }
+    #modal header h2 {
+      color: #8a8b97;
+      font-size: 27px;
+      font-weight: normal;
+      margin: 0; }
+  #modal section {
+    padding: 10px; }
+    #modal section .buttons {
+      margin-top: 10px; }
+
+.leaflet-top {
+  top: 45px; }
+
+.leaflet-bottom {
+  bottom: 30px; }
+
+/* Desktop */
+@media only screen and (min-width: 768px) {
+  #stage footer {
+    background: #e7e7e7;
+    bottom: auto;
+    color: #333;
+    height: 47px;
+    padding-left: 26px;
+    text-align: left;
+    top: 47px; }
+    #stage footer .button {
+      height: 47px;
+      width: auto; }
+      #stage footer .button a {
+        background: url("../images/icon-sound.png") no-repeat left 50%;
+        display: inline-block;
+        font-size: 13px;
+        height: 47px;
+        padding: 15px 12px 0 40px;
+        text-indent: 0;
+        width: auto; }
+        #stage footer .button a:hover {
+          background-color: #d9d9d9; }
+      #stage footer .button.play-sound a {
+        background-image: url("../images/icon-sound.png"); }
+      #stage footer .button.lost-mode a {
+        background-image: url("../images/icon-lock.png");
+        margin: 0; }
+      #stage footer .button.erase a {
+        background-image: url("../images/icon-erase.png"); }
+  .leaflet-top {
+    top: 95px; }
+  .leaflet-bottom {
+    bottom: 0; } }

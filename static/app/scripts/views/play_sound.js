@@ -4,8 +4,9 @@
 
 define([
   'views/base',
-  'stache!templates/play_sound'
-], function (BaseView, PlaySoundTemplate) {
+  'stache!templates/play_sound',
+  'models/ring_command'
+], function (BaseView, PlaySoundTemplate, RingCommand) {
   'use strict';
 
   var PlaySoundView = BaseView.extend({
@@ -16,7 +17,7 @@ define([
     },
 
     playSound: function(event) {
-      alert('ALL THE SOUNDS');
+      currentDevice.sendCommand(new RingCommand({ duration: 30, period: 5 }));
     }
   });
 
