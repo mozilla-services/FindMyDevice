@@ -13,6 +13,7 @@
   "funcscope": false,
   "globals": {
     "alert": false,
+    "currentDevice": false,
     "define": false,
     "L": false,
     "require": false

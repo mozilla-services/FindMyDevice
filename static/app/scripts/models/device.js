@@ -3,8 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 define([
-  'backbone'
-], function (Backbone) {
+  'backbone',
+  'jquery'
+], function (Backbone, $) {
   'use strict';
 
   var Device = Backbone.Model.extend({
@@ -23,7 +24,7 @@ define([
           updatedAttributes.altitude = data.Altitude;
         }
 
-        console.log('updatedAttributes', updatedAttributes, message.data);
+        console.log('device:updated', this.get('id'), updatedAttributes, message.data);
 
         // Set the new attributes all at once so that we only get one change event
         this.set(updatedAttributes);
@@ -33,6 +34,15 @@ define([
     listenForUpdates: function() {
       this.socket = new WebSocket('ws://fmd.local:9090/0/ws/' + this.id);
       this.socket.onmessage = this.onWebSocketUpdate.bind(this);
+    },
+
+    sendCommand: function(command) {
+      return $.ajax({
+        data: command.toJSON(),
+        dataType: 'json',
+        type: 'PUT',
+        url: '/0/queue/' + this.get('id')
+      });
     }
   });
 

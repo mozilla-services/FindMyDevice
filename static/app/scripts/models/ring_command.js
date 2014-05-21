@@ -7,22 +7,16 @@ define([
 ], function (Command) {
   'use strict';
 
-  function RingCommand(duration, period) {
-    this.duration = duration;
-    this.period = period;
-  }
-
-  // Extend Command
-  RingCommand.prototype = new Command();
-
-  RingCommand.prototype.asJSON = function() {
-    return {
-      r: {
-        d: this.duration,
-        p: this.period
-      }
-    };
-  };
+  var RingCommand = Command.extend({
+    asJSON: function() {
+      return {
+        l: {
+          d: this.get('duration'),
+          p: this.get('period')
+        }
+      };
+    }
+  });
 
   return RingCommand;
 });

@@ -5,13 +5,20 @@
 define([
   'jquery',
   'backbone',
+  'models/device',
   'views/location'
-], function ($, Backbone, LocationView) {
+], function ($, Backbone, Device, LocationView) {
   'use strict';
 
   var Router = Backbone.Router.extend({
     routes: {
       '': 'showLocation'
+    },
+
+    initialize: function() {
+      // Convert our embedded globals to models
+      window.currentDevice = new Device(window.currentDevice);
+      window.currentUser = new Backbone.Model(window.currentUser);
     },
 
     showLocation: function() {

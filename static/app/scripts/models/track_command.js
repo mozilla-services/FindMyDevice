@@ -7,22 +7,16 @@ define([
 ], function (Command) {
   'use strict';
 
-  function TrackCommand(duration, period) {
-    this.duration = duration;
-    this.period = period;
-  }
-
-  // Extend Command
-  TrackCommand.prototype = new Command();
-
-  TrackCommand.prototype.asJSON = function() {
-    return {
-      t: {
-        d: this.duration,
-        p: this.period
-      }
-    };
-  };
+  var TrackCommand = Command.extend({
+    asJSON: function() {
+      return {
+        l: {
+          d: this.get('duration'),
+          p: this.get('period')
+        }
+      };
+    }
+  });
 
   return TrackCommand;
 });

@@ -3,31 +3,19 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 define([
-  'jquery'
-], function ($) {
+  'backbone'
+], function (Backbone) {
   'use strict';
 
-  function Command() {
-    // nothing to initialize
-  }
+  var Command = Backbone.Model.extend({
+    asJSON: function() {
+      return this.attributes;
+    },
 
-  // Should be implemented by subclasses
-  Command.prototype.asJSON = function() {
-    return {};
-  };
-
-  Command.prototype.toJSON = function() {
-    return JSON.stringify(this.asJSON());
-  };
-
-  Command.prototype.enqueue = function(deviceID) {
-    $.ajax({
-      data: this.toJSON(),
-      dataType: 'json',
-      type: 'PUT',
-      url: '/0/queue/' + deviceID
-    });
-  };
+    toJSON: function() {
+      return JSON.stringify(this.asJSON());
+    }
+  });
 
   return Command;
 });

@@ -30,9 +30,7 @@ define([
     activate: function(event) {
       this.passcode = this.$('.passcode').val();
 
-      var lockCommand = new LockCommand(this.passcode, this.note);
-
-      lockCommand.enqueue(window.currentDevice.id);
+      currentDevice.sendCommand(new LockCommand({ code: this.passcode, message: this.note }));
     }
   });
 

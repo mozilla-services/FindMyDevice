@@ -7,16 +7,13 @@ define([
 ], function (Command) {
   'use strict';
 
-  function EraseCommand() {}
-
-  // Extend Command
-  EraseCommand.prototype = new Command();
-
-  EraseCommand.prototype.asJSON = function() {
-    return {
-      e: {}
-    };
-  };
+  var EraseCommand = Command.extend({
+    asJSON: function() {
+      return {
+        e: {}
+      };
+    }
+  });
 
   return EraseCommand;
 });

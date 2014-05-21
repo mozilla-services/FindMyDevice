@@ -7,22 +7,16 @@ define([
 ], function (Command) {
   'use strict';
 
-  function LockCommand(code, message) {
-    this.code = code;
-    this.message = message;
-  }
-
-  // Extend Command
-  LockCommand.prototype = new Command();
-
-  LockCommand.prototype.asJSON = function() {
-    return {
-      l: {
-        c: this.code,
-        m: this.message
-      }
-    };
-  };
+  var LockCommand = Command.extend({
+    asJSON: function() {
+      return {
+        l: {
+          c: this.get('code'),
+          m: this.get('message')
+        }
+      };
+    }
+  });
 
   return LockCommand;
 });

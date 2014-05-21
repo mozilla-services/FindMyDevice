@@ -23,9 +23,7 @@ define([
     },
 
     erase: function(event) {
-      var eraseCommand = new EraseCommand();
-
-      eraseCommand.enqueue(window.currentDevice.id);
+      currentDevice.sendCommand(new EraseCommand());
     }
   });
 

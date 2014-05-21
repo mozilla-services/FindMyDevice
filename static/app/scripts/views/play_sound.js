@@ -17,9 +17,7 @@ define([
     },
 
     playSound: function(event) {
-      var ringCommand = new RingCommand(10, 10);
-
-      ringCommand.enqueue(window.currentDevice.id);
+      currentDevice.sendCommand(new RingCommand({ duration: 30, period: 5 }));
     }
   });
 

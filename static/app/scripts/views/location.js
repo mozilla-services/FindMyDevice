@@ -25,15 +25,12 @@ define([
     },
 
     initialize: function() {
-      this.model = new Device(window.currentDevice);
+      this.model = currentDevice;
 
-      this.model.listenForUpdates();
-
-      var command = new TrackCommand(30, 10);
-
-      command.enqueue(this.model.get('id'));
-
+      // Listen for model changes
       this.listenTo(this.model, 'change:latitude', this.updateMapPosition);
+
+      this.startTracking();
     },
 
     openPlaySound: function (event) {
@@ -54,6 +51,12 @@ define([
 
       // Position zoom controls
       new L.Control.Zoom({ position: 'topright' }).addTo(this.map);
+    },
+
+    startTracking: function() {
+      currentDevice.listenForUpdates();
+
+      currentDevice.sendCommand(new TrackCommand({ duration: 30, period: 10 }));
     },
 
     updateMapPosition: function() {
