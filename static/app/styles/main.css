@@ -15,11 +15,6 @@ html, body, #stage, #stage > div, #map {
 a {
   cursor: pointer; }
 
-.tbd {
-  background: yellow;
-  color: purple;
-  font-style: italic; }
-
 #stage {
   position: relative; }
   #stage header {
@@ -34,6 +29,7 @@ a {
     #stage header h1 {
       color: #8a8b97;
       font-size: 27px;
+      font-style: italic;
       font-weight: normal;
       height: 32px;
       margin-top: -16px;
@@ -75,27 +71,64 @@ a {
   border-radius: 6px;
   box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
   display: none;
-  height: 400px;
-  left: 50%;
-  margin-left: -150px;
-  margin-top: -200px;
   overflow: hidden;
   position: absolute;
-  top: 50%;
   width: 300px;
   z-index: 1000; }
   #modal header {
     background: #f4f4f4;
-    padding: 5px; }
+    padding: 5px 20px; }
     #modal header h2 {
       color: #8a8b97;
       font-size: 27px;
+      font-style: italic;
       font-weight: normal;
       margin: 0; }
+      #modal header h2 small {
+        font-size: 18px; }
   #modal section {
-    padding: 10px; }
-    #modal section .buttons {
-      margin-top: 10px; }
+    padding: 20px; }
+    #modal section p:first-child {
+      margin-top: 0; }
+    #modal section button, #modal section input, #modal section textarea {
+      width: 100%; }
+    #modal section input, #modal section textarea {
+      border: 1px solid #ccc;
+      padding: 8px; }
+    #modal section textarea {
+      height: 75px;
+      resize: none; }
+  #modal footer {
+    padding: 0 20px 20px 20px; }
+    #modal footer .buttons {
+      margin-top: 0;
+      text-align: center; }
+      #modal footer .buttons button {
+        width: 48%; }
+  #modal .buttons {
+    margin-top: 20px; }
+    #modal .buttons button {
+      background: #bbb;
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      padding: 10px; }
+      #modal .buttons button:hover {
+        background: #c3c3c3; }
+      #modal .buttons button:active {
+        background: #aeaeae; }
+      #modal .buttons button.danger {
+        background: red; }
+        #modal .buttons button.danger:hover {
+          background: #ff1a1a; }
+        #modal .buttons button.danger:active {
+          background: #e60000; }
+      #modal .buttons button.primary {
+        background: #5493da; }
+        #modal .buttons button.primary:hover {
+          background: #69a2df; }
+        #modal .buttons button.primary:active {
+          background: #3f88d5; }
 
 .leaflet-top {
   top: 45px; }
@@ -137,3 +170,10 @@ a {
     top: 95px; }
   .leaflet-bottom {
     bottom: 0; } }
+
+@media only screen and (max-width: 768px) {
+  #modal {
+    height: 100%;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100%; } }

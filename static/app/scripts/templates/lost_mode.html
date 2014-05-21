@@ -1,16 +1,18 @@
-<header>
-  <h2>Lost Mode</h2>
-</header>
-<section>
-  <p>Enter a phone number where you can be reached. It will be shown on your phone.</p>
+<form>
+  <header>
+    <h2>Lost Mode</h2>
+  </header>
+  <section>
+    <p>Enter a phone number where you can be reached. It will be shown on your phone.</p>
 
-  <input type="tel" class="phone-number">
+    <input type="tel" class="phone-number" required>
 
-  <p>Enter a note that will be shown with your phone number on the phone.</p>
+    <p>Enter a note that will be shown with your phone number on the phone.</p>
 
-  <textarea class="note"></textarea>
+    <textarea class="note" required maxlength="100"></textarea>
 
-  <div class="buttons">
-    <button type="button" class="next">Next</button>
-  </div>
-</section>
+    <div class="buttons">
+      <button class="next primary">Next</button>
+    </div>
+  </section>
+</form>

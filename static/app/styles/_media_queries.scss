@@ -53,3 +53,14 @@
     bottom: 0;
   }
 }
+
+// Styles are "mobile first" and don't usually belong in this media block. Only rules that are
+// important overrides from desktop belong here.
+@media only screen and (max-width: 768px) {
+  #modal {
+    height: 100%;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100%;
+  }
+}

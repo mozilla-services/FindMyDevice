@@ -15,7 +15,7 @@ define([
 
     events: {
       'click a.back': 'back',
-      'click button.activate': 'activate'
+      'submit form': 'activate'
     },
 
     initialize: function(options) {
@@ -28,9 +28,13 @@ define([
     },
 
     activate: function(event) {
+      event.preventDefault();
+
       this.passcode = this.$('.passcode').val();
 
       currentDevice.sendCommand(new LockCommand({ code: this.passcode, message: this.note }));
+
+      ModalManager.close();
     }
   });
 
