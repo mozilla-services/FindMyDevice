@@ -5,6 +5,5 @@ code.google.com/p/goprotobuf -d
 github.com/cactus/go-statsd-client/statsd
 github.com/jessevdk/go-flags
 github.com/lib/pq
-github.com/gorilla/sessions
 github.com/mozilla-services/heka/client
 github.com/mozilla-services/heka/message
