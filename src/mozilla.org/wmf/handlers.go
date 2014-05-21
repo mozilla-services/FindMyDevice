@@ -937,7 +937,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	// render the page from the template
-	tmpl, err := template.New("index.html").ParseFiles("static/index.html")
+	tmpl, err := template.New("index.html").ParseFiles("static/app/index.html")
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not display index page",
 			util.Fields{"error": err.Error(),
@@ -1010,10 +1010,7 @@ func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
 func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
 	/* This should be handled by something like an nginx rule
 	 */
-	sl := len("/static/")
-	if len(req.URL.Path) > sl {
-		http.ServeFile(resp, req, "./static/"+req.URL.Path[sl:])
-	}
+	http.ServeFile(resp, req, "./static/app/"+req.URL.Path)
 }
 
 // Display the current metrics as a JSON snapshot

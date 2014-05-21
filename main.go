@@ -135,8 +135,16 @@ func main() {
 		handlers.RestQueue)
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/state/", verRoot),
 		handlers.State)
-	RESTMux.HandleFunc("/static/",
+	// Static files (served by nginx in production)
+	RESTMux.HandleFunc("/bower_components/",
 		handlers.Static)
+	RESTMux.HandleFunc("/images/",
+		handlers.Static)
+	RESTMux.HandleFunc("/scripts/",
+		handlers.Static)
+	RESTMux.HandleFunc("/styles/",
+		handlers.Static)
+	// Metrics
 	RESTMux.HandleFunc("/metrics/",
 		handlers.Metrics)
 	// Operations call
