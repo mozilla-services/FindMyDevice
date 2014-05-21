@@ -1,0 +1,40 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+define([
+  'backbone'
+], function (Backbone) {
+  'use strict';
+
+  var Device = Backbone.Model.extend({
+    onWebSocketUpdate: function(message) {
+      var data = JSON.parse(message.data);
+
+      if (data) {
+        var updatedAttributes = {};
+
+        updatedAttributes.time = data.Time;
+        updatedAttributes.lockable = data.Lockable;
+
+        if (data.Latitude > 0) {
+          updatedAttributes.latitude = data.Latitude;
+          updatedAttributes.longitude = data.Longitude;
+          updatedAttributes.altitude = data.Altitude;
+        }
+
+        console.log('updatedAttributes', updatedAttributes, message.data);
+
+        // Set the new attributes all at once so that we only get one change event
+        this.set(updatedAttributes);
+      }
+    },
+
+    listenForUpdates: function() {
+      this.socket = new WebSocket('ws://fmd.local:9090/0/ws/' + this.id);
+      this.socket.onmessage = this.onWebSocketUpdate.bind(this);
+    }
+  });
+
+  return Device;
+});
