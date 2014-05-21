@@ -19,11 +19,80 @@
     <!-- endbuild -->
   </head>
   <body>
-    <div id="stage"></div>
-    <div id="modal"></div>
-    <script src="https://api.tiles.mapbox.com/mapbox.js/v1.6.1/mapbox.js"></script>
-    <!-- build:js scripts/main.js -->
-      <script data-main="scripts/main" src="bower_components/requirejs/require.js"></script>
-    <!-- endbuild -->
+    {{if .UserId}}
+      <div id="stage"></div>
+      <div id="modal"></div>
+      <script src="https://api.tiles.mapbox.com/mapbox.js/v1.6.1/mapbox.js"></script>
+      <script>
+        // Hello globals.
+        window.currentUser = { id: '{{.UserId}}' };
+
+        {{with $device := .Device}}
+          window.currentDevice = { id: '{{$device.ID}}', name: '{{$device.Name}}' };
+        {{end}}
+      </script>
+      <!-- build:js scripts/main.js -->
+        <script data-main="scripts/main" src="bower_components/requirejs/require.js"></script>
+      <!-- endbuild -->
+    {{else}}
+      <h1>Hey there good buddy, you need to sign in.</h1>
+      <div id="persona-login">
+        <div id="browserid">
+          <img src="https://login.persona.org/i/sign_in_blue.png" id="signin">
+        </div>
+      </div>
+      <script id='bidjs' src="https://login.persona.org/include.js"></script>
+      <script>
+        window.addEventListener("load",
+          function() {
+          var body = document.getElementsByTagName("body")[0];
+          var email="";
+          if (body.dataset.user) {
+            email = body.dataset.user;
+          }
+          navigator.id.watch({
+              loggedInUser:email,
+              onlogout: function(e){
+              str = document.cookie;
+              if ((str.length > 0) && str.indexOf("user")>=0) {
+                document.cookie="user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
+                document.location = "/";
+                }
+              },
+              onlogin: function(assertion) {
+                body.style.cursor = "auto";
+                /* TODO: Send the assertion.
+                   Refresh the page wth the current ID?
+                 */
+                {{if not .UserId}}
+                  form = ("<form method='POST' action='/' id='fs'>" +
+                  "<input type='hidden' name='assertion' value='" +
+                  assertion +
+                  "'/><input type='hidden' name='audience' "+
+                  "value='localhost'>" +
+                  "</form>");
+                  document.getElementById('browserid').innerHTML = form;
+                  document.getElementById('fs').submit();
+                {{end}}
+              }
+          })
+          if (document.getElementById("signin")) {
+          document.getElementById("signin").addEventListener("click",
+            function(){
+              document.getElementsByTagName("body")[0].style.cursor="wait";
+              navigator.id.request();
+            });
+          }
+          if (document.getElementById("signout")) {
+          document.getElementById("signout").addEventListener("click",
+            function(){
+              navigator.id.logout();
+              document.cookie="user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
+              document.location = "/";
+            });
+          }
+        });
+      </script>
+    {{end}}
   </body>
 </html>
