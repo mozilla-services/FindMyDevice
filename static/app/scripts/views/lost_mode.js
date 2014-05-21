@@ -14,14 +14,16 @@ define([
     template: LostModeTemplate,
 
     events: {
-      'click button.next': 'next'
+      'submit form': 'next'
     },
 
     next: function(event) {
+      event.preventDefault();
+
       var phoneNumber = this.$('.phone-number').val();
       var note = this.$('.note').val();
 
-      ModalManager.push(new LostModePasscodeView({ phoneNumber: phoneNumber, note: note }));
+      ModalManager.push(new LostModePasscodeView({ phoneNumber: phoneNumber, note: note + '\n\n' + phoneNumber }));
     }
   });
 

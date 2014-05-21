@@ -32,11 +32,11 @@ a {
 }
 
 // "To Be Determined" style for placeholder-ish things
-.tbd {
-  background: yellow !important;
-  color: purple !important;
-  font-style: italic !important;
-}
+// .tbd {
+//   background: yellow !important;
+//   color: purple !important;
+//   font-style: italic !important;
+// }
 
 #stage {
   position: relative;
@@ -54,6 +54,7 @@ a {
     h1 {
       color: $heading-text-color;
       font-size: 27px;
+      font-style: italic;
       font-weight: normal;
       height: 32px;
       margin-top: -16px;
@@ -124,8 +125,13 @@ a {
     h2 {
       color: $heading-text-color;
       font-size: 27px;
+      font-style: italic;
       font-weight: normal;
       margin: 0;
+
+      small {
+        font-size: 18px;
+      }
     }
   }
 
@@ -140,15 +146,70 @@ a {
       width: 100%;
     }
 
+    input, textarea {
+      border: 1px solid #ccc;
+      padding: 8px;
+    }
+
+    textarea {
+      height: 75px;
+      resize: none;
+    }
+  }
+
+  footer {
+    padding: 0 20px 20px 20px;
+
     .buttons {
-      margin-top: 20px;
+      margin-top: 0;
+      text-align: center;
 
       button {
-        border: none;
-        background: #5493da;
-        border-radius: 5px;
-        color: #fff;
-        padding: 10px;
+        width: 48%;
+      }
+    }
+  }
+
+  .buttons {
+    margin-top: 20px;
+
+    button {
+      background: $modal-button-background-color;
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      padding: 10px;
+
+      &:hover {
+        background: lighten($modal-button-background-color, 3%);
+      }
+
+      &:active {
+        background: darken($modal-button-background-color, 5%);
+      }
+
+      &.danger {
+        background: $modal-button-danger-background-color;
+
+        &:hover {
+          background: lighten($modal-button-danger-background-color, 5%);
+        }
+
+        &:active {
+          background: darken($modal-button-danger-background-color, 5%);
+        }
+      }
+
+      &.primary {
+        background: $modal-button-primary-background-color;
+
+        &:hover {
+          background: lighten($modal-button-primary-background-color, 5%);
+        }
+
+        &:active {
+          background: darken($modal-button-primary-background-color, 5%);
+        }
       }
     }
   }

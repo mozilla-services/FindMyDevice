@@ -5,8 +5,9 @@
 define([
   'views/base',
   'stache!templates/play_sound',
-  'models/ring_command'
-], function (BaseView, PlaySoundTemplate, RingCommand) {
+  'models/ring_command',
+  'lib/modal_manager'
+], function (BaseView, PlaySoundTemplate, RingCommand, ModalManager) {
   'use strict';
 
   var PlaySoundView = BaseView.extend({
@@ -18,6 +19,8 @@ define([
 
     playSound: function(event) {
       currentDevice.sendCommand(new RingCommand({ duration: 30, period: 5 }));
+
+      ModalManager.close();
     }
   });
 
