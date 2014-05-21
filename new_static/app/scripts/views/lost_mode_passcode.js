@@ -5,8 +5,9 @@
 define([
   'views/base',
   'stache!templates/lost_mode_passcode',
-  'lib/modal_manager'
-], function (BaseView, LostModePasscodeTemplate, ModalManager) {
+  'lib/modal_manager',
+  'models/lock_command'
+], function (BaseView, LostModePasscodeTemplate, ModalManager, LockCommand) {
   'use strict';
 
   var LostModePasscodeView = BaseView.extend({
@@ -29,7 +30,9 @@ define([
     activate: function(event) {
       this.passcode = this.$('.passcode').val();
 
-      alert('I FEEL SO ACTIVATED');
+      var lockCommand = new LockCommand(this.passcode, this.note);
+
+      lockCommand.enqueue(window.currentDevice.id);
     }
   });
 

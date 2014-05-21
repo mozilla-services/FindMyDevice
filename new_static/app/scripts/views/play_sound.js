@@ -4,8 +4,9 @@
 
 define([
   'views/base',
-  'stache!templates/play_sound'
-], function (BaseView, PlaySoundTemplate) {
+  'stache!templates/play_sound',
+  'models/ring_command'
+], function (BaseView, PlaySoundTemplate, RingCommand) {
   'use strict';
 
   var PlaySoundView = BaseView.extend({
@@ -16,7 +17,9 @@ define([
     },
 
     playSound: function(event) {
-      alert('ALL THE SOUNDS');
+      var ringCommand = new RingCommand(10, 10);
+
+      ringCommand.enqueue(window.currentDevice.id);
     }
   });
 
