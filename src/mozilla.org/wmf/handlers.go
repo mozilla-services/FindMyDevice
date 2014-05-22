@@ -75,6 +75,51 @@ var ErrOauth = errors.New("OAuth Error")
 
 //Handler private functions
 
+// SUPER FAKE DO NOT EVER USE IN PRODUCTION FOR DEBUGGING ONLY!
+// Extract the user info from the assertion WITHOUT VERIFICATION
+func (self *Handler) extractFromAssertion(assertion string, isFxa bool) (userid, email string, err error) {
+	var ErrInvalidAssertion = errors.New("Invalid assertion")
+	bits := strings.Split(assertion, ".")
+	if len(bits) < 2 {
+		self.logger.Error(self.logCat, "Invalid assertion",
+			util.Fields{"assertion": assertion})
+		return "", "", ErrInvalidAssertion
+	}
+	data := bits[1]
+	// pad to byte boundry
+	data = data + "===="[:len(data)%4]
+	decoded, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not decode assertion",
+			util.Fields{"assertion frame": data})
+		return "", "", ErrInvalidAssertion
+	}
+	asrt := make(replyType)
+	err = json.Unmarshal(decoded, &asrt)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not unmarshal",
+			util.Fields{"error": err.Error()})
+		return "", "", err
+	}
+	// Normally, the UserID would be provided from FxA.
+	// since FxA is currently unavailable for desktop, we're going
+	// to need a value here, thus the insecure Id generation.
+	// Obviously:
+	// ******** DO NOT ENABLE auth.disabled FLAG IN PRODUCTION!! ******
+	if !isFxa {
+		email = asrt["principal"].(map[string]interface{})["email"].(string)
+	} else {
+		email = asrt["fxa-verifiedEmail"].(string)
+	}
+	hasher := sha256.New()
+	hasher.Write([]byte(email))
+	userid = hex.EncodeToString(hasher.Sum(nil))
+	userid = self.genHash(email)
+	self.logger.Debug(self.logCat, "Extracted credentials",
+		util.Fields{"userId": userid, "email": email})
+	return userid, email, nil
+}
+
 // verify a Persona assertion using the config values
 // part of Handler for config & logging reasons
 func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email string, err error) {
@@ -85,6 +130,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 		return "", "", ErrAuthorization
 	}
 
+	// ******** DO NOT ENABLE auth.disabled FLAG IN PRODUCTION!! ******
 	if self.config.GetFlag("auth.disabled") {
 		self.logger.Warn(self.logCat, "!!! Skipping validation...", nil)
 		if len(assertion) == 0 {
@@ -94,42 +140,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 		self.logger.Warn(self.logCat,
 			"!!! Using Assertion Without Validation",
 			nil)
-		bits := strings.Split(assertion, ".")
-		if len(bits) < 2 {
-			self.logger.Error(self.logCat, "Invalid assertion",
-				util.Fields{"assertion": assertion})
-			return "", "", errors.New("Invalid assertion")
-		}
-		// get the interesting bit
-		intBit := bits[1]
-		// pad to byte boundry
-		intBit = intBit + "===="[:len(intBit)%4]
-		decoded, err := base64.StdEncoding.DecodeString(intBit)
-		if err != nil {
-			self.logger.Error(self.logCat, "Could not decode assertion",
-				util.Fields{"error": err.Error()})
-			return "", "", err
-		}
-		asrt := make(replyType)
-		err = json.Unmarshal(decoded, &asrt)
-		if err != nil {
-			self.logger.Error(self.logCat, "Could not unmarshal",
-				util.Fields{"error": err.Error()})
-			return "", "", err
-		}
-		// Normally, the UserID would be provided from FxA.
-		// since FxA is currently unavailable for desktop, we're going
-		// to need a value here, thus the insecure Id generation.
-		// Obviously:
-		// ******** DO NOT ENABLE auth.disabled FLAG IN PRODUCTION!! ******
-		email = asrt["principal"].(map[string]interface{})["email"].(string)
-		hasher := sha256.New()
-		hasher.Write([]byte(email))
-		userid = hex.EncodeToString(hasher.Sum(nil))
-		userid = self.genHash(email)
-		self.logger.Debug(self.logCat, "Extracted credentials",
-			util.Fields{"userId": userid, "email": email})
-		return userid, email, nil
+		return self.extractFromAssertion(assertion, false)
 	}
 
 	// Better verify for realz
@@ -191,88 +202,88 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 }
 
 func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string, err error) {
-    fmt.Printf("Verifying FxA %s\n", assertion)
 	if assLen := len(assertion); assLen != len(strings.Map(assertionFilter, assertion)) {
 		self.logger.Error(self.logCat, "Assertion contains invalid characters.",
 			util.Fields{"assertion": assertion})
 		return "", "", ErrAuthorization
 	}
-/*
-    if self.config.GetFlag("auth.disabled") {
-        self.logger.Warn(self.logCat, "!!! Skipping validation...", nil)
-        return "user1", "user@example.com", nil
-    }
-*/
-    cli := http.Client{}
-    args := make(map[string]string)
-    args["client_id"] = self.config.Get("oauth.client_id", "invalid")
-    args["assertion"] = assertion
-    args["state"] = "state"
 
-    argsj, err := json.Marshal(args)
-    if err != nil {
-        self.logger.Error(self.logCat, "Could not marshal args",
-            util.Fields{"error": err.Error()})
-        return "", "", err
-    }
-    validatorUrl := self.config.Get("oauth.endpoint", "oauth.accounts.firefox.com/v1") +
-        "/authorization"
-    fmt.Printf("### argsj : %s\n", argsj)
-    req, err := http.NewRequest("POST", validatorUrl, bytes.NewReader(argsj))
-    if err != nil {
-        self.logger.Error(self.logCat, "Could not POST verify assertion",
-            util.Fields{"error": err.Error()})
-        return "", "", err
-    }
-    req.Header.Add("Content-Type", "application/json")
-    res, err := cli.Do(req)
-    if err != nil {
-        self.logger.Error(self.logCat, "FxA verification failed",
-            util.Fields{"error": err.Error()})
-        return "", "", err
-    }
-    buff, err := parseBody(res.Body)
-    if err != nil {
-        return "", "", err
-    }
-    if code, ok := buff["code"]; ok && int(code.(float64)) > 299.0 {
-        self.logger.Error(self.logCat, "FxA verification failed auth",
-            util.Fields{"code": strconv.FormatInt(int64(code.(float64)), 10),
-            "error": buff["error"].(string)})
-        return "", "", err
-    }
-    // get the "redirect" url. We're not going to redirect, just get the code.
-    if redir, ok := buff["redrirect"]; !ok {
-        self.logger.Error(self.logCat, "FxA verification did not return redirect",
-            nil)
-        return "", "", err
-    } else {
-        if vurl, err := url.Parse(redir.(string)); err != nil {
-            self.logger.Error(self.logCat, "FxA redirect url invalid",
-                util.Fields{"error": err.Error(), "url": redir.(string)})
-            return "", "", err
-        } else {
-            code  := vurl.Query().Get("code")
-            if len(code) == 0 {
-                self.logger.Error(self.logCat, "FxA code not present",
-                    util.Fields{"url": redir.(string)})
-                return "", "", ErrOauth
-            }
-            //Convert code to access token.
-            accessToken, err := self.getAccessToken(code)
-            if err != nil {
-                return "", "", ErrOauth
-            }
-            email, err := self.getUserEmail(accessToken)
-            if err != nil {
-                return "", "", ErrOauth
-            }
+	// ******** DO NOT ENABLE auth.disabled FLAG IN PRODUCTION!! ******
+	if self.config.GetFlag("auth.disabled") {
+		self.logger.Warn(self.logCat, "!!! Skipping validation...", nil)
+		return self.extractFromAssertion(assertion, true)
 
-           return accessToken, email, nil
-        }
-    }
+	}
+	cli := http.Client{}
+	validatorUrl := self.config.Get("oauth.endpoint",
+		"https://oauth.accounts.firefox.com") + "/v1/authorization"
+	fmt.Printf("### Sending to %s\n", validatorUrl)
+	args := make(map[string]string)
+	args["client_id"] = self.config.Get("oauth.client_id", "invalid")
+	args["assertion"] = assertion
+	args["state"] = "state"
+
+	argsj, err := json.Marshal(args)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not marshal args",
+			util.Fields{"error": err.Error()})
+		return "", "", err
+	}
+	fmt.Printf("### argsj : %s\n", argsj)
+	req, err := http.NewRequest("POST", validatorUrl, bytes.NewReader(argsj))
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not POST verify assertion",
+			util.Fields{"error": err.Error()})
+		return "", "", err
+	}
+	req.Header.Add("Content-Type", "application/json")
+	res, err := cli.Do(req)
+	if err != nil {
+		self.logger.Error(self.logCat, "FxA verification failed",
+			util.Fields{"error": err.Error()})
+		return "", "", err
+	}
+	buff, err := parseBody(res.Body)
+	if err != nil {
+		return "", "", err
+	}
+	if code, ok := buff["code"]; ok && int(code.(float64)) > 299.0 {
+		self.logger.Error(self.logCat, "FxA verification failed auth",
+			util.Fields{"code": strconv.FormatInt(int64(code.(float64)), 10),
+				"error": buff["error"].(string)})
+		return "", "", err
+	}
+	// get the "redirect" url. We're not going to redirect, just get the code.
+	if redir, ok := buff["redrirect"]; !ok {
+		self.logger.Error(self.logCat, "FxA verification did not return redirect",
+			nil)
+		return "", "", err
+	} else {
+		if vurl, err := url.Parse(redir.(string)); err != nil {
+			self.logger.Error(self.logCat, "FxA redirect url invalid",
+				util.Fields{"error": err.Error(), "url": redir.(string)})
+			return "", "", err
+		} else {
+			code := vurl.Query().Get("code")
+			if len(code) == 0 {
+				self.logger.Error(self.logCat, "FxA code not present",
+					util.Fields{"url": redir.(string)})
+				return "", "", ErrOauth
+			}
+			//Convert code to access token.
+			accessToken, err := self.getAccessToken(code)
+			if err != nil {
+				return "", "", ErrOauth
+			}
+			email, err := self.getUserEmail(accessToken)
+			if err != nil {
+				return "", "", ErrOauth
+			}
+
+			return accessToken, email, nil
+		}
+	}
 }
-
 
 func (self *Handler) clearSession(sess *sessions.Session) (err error) {
 	if sess == nil {
@@ -321,7 +332,11 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 	if auth = req.FormValue("assertion"); auth == "" {
 		return "", "", ErrAuthorization
 	}
-	userid, user, err = self.verifyFxAAssertion(auth)
+	if self.config.GetFlag("auth.persona") {
+		userid, user, err = self.verifyPersonaAssertion(auth)
+	} else {
+		userid, user, err = self.verifyFxAAssertion(auth)
+	}
 	fmt.Printf("### assertion userid: %s\n", userid)
 	if err != nil {
 		return "", "", ErrAuthorization
@@ -519,22 +534,24 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	defer store.Close()
 
 	buffer, err = parseBody(req.Body)
-    fmt.Printf("### buffer: %+v\n", buffer)
 	if err != nil {
 		http.Error(resp, "No body", http.StatusBadRequest)
 	} else {
 		loggedIn := false
 
 		if assertion, ok := buffer["assert"]; ok {
-            fmt.Printf("Getting assertion\n")
-			userid, user, err = self.verifyFxAAssertion(assertion.(string))
+			if self.config.GetFlag("login.persona") {
+				userid, user, err = self.verifyPersonaAssertion(assertion.(string))
+			} else {
+				userid, user, err = self.verifyFxAAssertion(assertion.(string))
+			}
 			if err != nil || userid == "" {
 				http.Error(resp, "Unauthorized", 401)
 				return
 			}
 			self.logger.Debug(self.logCat, "Got user "+userid, nil)
 			user = strings.SplitN(user, "@", 2)[0]
-            session.Values["userId"] = userid
+			session.Values["userId"] = userid
 			loggedIn = true
 		}
 
@@ -557,9 +574,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			deviceid, err = util.GenUUID4()
 		} else {
 			deviceid = strings.Map(deviceIdFilter, val.(string))
-            if len(deviceid) > 32 {
-                deviceid = deviceid[:32]
-            }
+			if len(deviceid) > 32 {
+				deviceid = deviceid[:32]
+			}
 		}
 		if val, ok := buffer["has_passcode"]; !ok {
 			lockable = true
@@ -616,7 +633,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			util.Fields{"error": err.Error()})
 		return
 	}
-    session.Save(req, resp)
+	session.Save(req, resp)
 	resp.Write(reply)
 	return
 }
@@ -1269,7 +1286,6 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 	vals["client_secret"] = self.config.Get("oauth.client_secret", "invalid")
 	vals["code"] = code
 	vd, err := json.Marshal(vals)
-	fmt.Printf("### %s\n", string(vd))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not marshal vals to json",
 			util.Fields{"error": err.Error()})
@@ -1282,7 +1298,6 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 		return "", ErrOauth
 	}
 	reply, err := parseBody(token_resp.Body)
-	fmt.Printf("### %+v\n", reply)
 	token, ok := reply["access_token"]
 	if !ok {
 		self.logger.Error(self.logCat, "OAuth Access token missing from reply",
@@ -1332,7 +1347,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 	self.logCat = "oauth"
 
 	session, err := self.session.Get(req, SESSION_NAME)
-	fmt.Printf("### oauth session: %s, err: %s\n", session, err)
+	fmt.Printf("### oauth session: %+v, err: %s\n", session, err)
 	if err == nil {
 		if _, ok := session.Values["accessToken"]; !ok {
 			// get the "state", and "code"
@@ -1359,10 +1374,10 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 				return
 			}
 			fmt.Printf("### store user token %s\n", token)
-            delete(session.Values, "email")
+			delete(session.Values, "email")
 			session.Values["accessToken"] = token
-        }
-        if _, ok := session.Values["email"]; !ok {
+		}
+		if _, ok := session.Values["email"]; !ok {
 			email, err := self.getUserEmail(session.Values["accessToken"].(string))
 			if err != nil {
 				self.logger.Error(self.logCat, "Could not get email",
