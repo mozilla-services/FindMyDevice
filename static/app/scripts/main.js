@@ -44,7 +44,7 @@ require([
 
       onlogout: function() {
         document.cookie="user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
-        document.location.reload();
+        document.location = '/';
       }
     });
 
