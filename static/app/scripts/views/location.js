@@ -62,7 +62,7 @@ define([
     startTracking: function() {
       currentDevice.listenForUpdates();
 
-      currentDevice.sendCommand(new TrackCommand({ duration: 30, period: 10 }));
+      currentDevice.sendCommand(new TrackCommand({ duration: 60, period: 10 }));
     },
 
     updateMapPosition: function() {
@@ -84,13 +84,15 @@ define([
         });
 
         this.marker.addTo(this.map);
-      } else {
-        // TODO: Make sure this really works...
-        this.marker.setLatLng(L.latLng(latitude, longitude));
-      }
 
-      // Set view to new latitude and longitude and zoom to 15
-      this.map.setView([latitude, longitude], 15);
+        // Set view to new latitude and longitude and zoom to 15
+        this.map.setView([latitude, longitude], 15);
+      } else {
+        var latLng = L.latLng(latitude, longitude);
+
+        this.marker.setLatLng(latLng);
+        this.map.panTo(latLng);
+      }
     }
   });
 
