@@ -10,7 +10,7 @@ define([
   var TrackCommand = Command.extend({
     asJSON: function() {
       return {
-        l: {
+        t: {
           d: this.get('duration'),
           p: this.get('period')
         }

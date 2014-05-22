@@ -10,7 +10,7 @@ define([
   var RingCommand = Command.extend({
     asJSON: function() {
       return {
-        l: {
+        r: {
           d: this.get('duration'),
           p: this.get('period')
         }
