@@ -88,10 +88,8 @@ define([
         // Set view to new latitude and longitude and zoom to 15
         this.map.setView([latitude, longitude], 15);
       } else {
-        var latLng = L.latLng(latitude, longitude);
-
-        this.marker.setLatLng(latLng);
-        this.map.panTo(latLng);
+        this.marker.setLatLng([latitude, longitude]);
+        this.map.panTo([latitude, longitude]);
       }
     }
   });
