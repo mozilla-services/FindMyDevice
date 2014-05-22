@@ -6,23 +6,39 @@ define([
   'jquery',
   'backbone',
   'models/device',
-  'views/location'
-], function ($, Backbone, Device, LocationView) {
+  'views/location',
+  'views/device_not_found'
+], function ($, Backbone, Device, LocationView, DeviceNotFoundView) {
   'use strict';
 
   var Router = Backbone.Router.extend({
     routes: {
-      '': 'showLocation'
+      '': 'showIndex'
     },
 
     initialize: function() {
       // Convert our embedded globals to models
-      window.currentDevice = new Device(window.currentDevice);
+      if (window.currentDevice) {
+        window.currentDevice = new Device(window.currentDevice);
+      }
+
       window.currentUser = new Backbone.Model(window.currentUser);
+    },
+
+    showIndex: function() {
+      if (window.currentDevice) {
+        this.showLocation();
+      } else {
+        this.showDeviceNotFound();
+      }
     },
 
     showLocation: function() {
       this.setStage(new LocationView());
+    },
+
+    showDeviceNotFound: function() {
+      this.setStage(new DeviceNotFoundView());
     },
 
     setStage: function(view) {

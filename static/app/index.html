@@ -17,6 +17,7 @@
     <!-- build:js scripts/vendor/modernizr.js -->
       <script src="bower_components/modernizr/modernizr.js"></script>
     <!-- endbuild -->
+    <script id='bidjs' src="https://login.persona.org/include.js"></script>
   </head>
   <body>
     {{if .UserId}}
@@ -35,13 +36,15 @@
         <script data-main="scripts/main" src="bower_components/requirejs/require.js"></script>
       <!-- endbuild -->
     {{else}}
-      <h1>Hey there good buddy, you need to sign in.</h1>
-      <div id="persona-login">
-        <div id="browserid">
-          <img src="https://login.persona.org/i/sign_in_blue.png" id="signin">
+      <div class="hero">
+        <h1>Rumor has it that you can't find your device.</h1>
+        <h2>Don't worry: we're the app for that.</h2>
+        <div id="persona-login">
+          <div id="browserid">
+            <img src="https://login.persona.org/i/sign_in_blue.png" id="signin">
+          </div>
         </div>
       </div>
-      <script id='bidjs' src="https://login.persona.org/include.js"></script>
       <script>
         window.addEventListener("load",
           function() {

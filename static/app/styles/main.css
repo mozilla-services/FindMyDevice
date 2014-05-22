@@ -15,6 +15,21 @@ html, body, #stage, #stage > div, #map {
 a {
   cursor: pointer; }
 
+.hero {
+  color: #333;
+  padding: 60px 20px 20px 20px;
+  text-align: center; }
+  .hero h1 {
+    margin-bottom: 0; }
+  .hero h2 {
+    color: #aaa;
+    font-size: 20px;
+    font-style: italic;
+    font-weight: normal;
+    margin-top: 10px; }
+  .hero .signout {
+    font-weight: bold; }
+
 #stage {
   position: relative; }
   #stage header {
@@ -34,6 +49,13 @@ a {
       height: 32px;
       margin-top: -16px;
       position: absolute;
+      top: 50%; }
+    #stage header .signout {
+      color: #8a8b97;
+      font-style: italic;
+      margin-top: -9px;
+      position: absolute;
+      right: 20px;
       top: 50%; }
   #stage footer {
     background: #242426;

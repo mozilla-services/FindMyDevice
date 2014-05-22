@@ -32,4 +32,22 @@ require([
   'router'
 ], function (Backbone, Router) {
   Backbone.history.start();
+
+  // Temporary logout handing
+  $(document).on('click', 'a.signout', function(event) {
+    event.preventDefault();
+
+    navigator.id.watch({
+      onlogin: function() {
+        // we're not handling login here.
+      },
+
+      onlogout: function() {
+        document.cookie="user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        document.location.reload();
+      }
+    });
+
+    navigator.id.logout();
+  })
 });

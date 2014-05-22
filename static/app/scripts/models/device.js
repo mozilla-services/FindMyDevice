@@ -33,7 +33,7 @@ define([
 
     listenForUpdates: function() {
       // TODO: replace this with something configurable
-      this.socket = new WebSocket('ws://' + window.location.host + ':8080/0/ws/' + this.id);
+      this.socket = new WebSocket('ws://' + window.location.hostname + ':8080/0/ws/' + this.id);
       this.socket.onmessage = this.onWebSocketUpdate.bind(this);
     },
 
