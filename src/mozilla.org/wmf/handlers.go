@@ -77,7 +77,7 @@ var ErrOauth = errors.New("OAuth Error")
 
 // SUPER FAKE DO NOT EVER USE IN PRODUCTION FOR DEBUGGING ONLY!
 // Extract the user info from the assertion WITHOUT VERIFICATION
-func (self *Handler) extractFromAssertion(assertion string, isFxa bool) (userid, email string, err error) {
+func (self *Handler) extractFromAssertion(assertion string) (userid, email string, err error) {
 	var ErrInvalidAssertion = errors.New("Invalid assertion")
 	bits := strings.Split(assertion, ".")
 	if len(bits) < 2 {
@@ -106,10 +106,10 @@ func (self *Handler) extractFromAssertion(assertion string, isFxa bool) (userid,
 	// to need a value here, thus the insecure Id generation.
 	// Obviously:
 	// ******** DO NOT ENABLE auth.disabled FLAG IN PRODUCTION!! ******
-	if !isFxa {
-		email = asrt["principal"].(map[string]interface{})["email"].(string)
+	if e, ok := asrt["fxa-verifiedEmail"]; ok {
+		email = e.(string)
 	} else {
-		email = asrt["fxa-verifiedEmail"].(string)
+		email = asrt["principal"].(map[string]interface{})["email"].(string)
 	}
 	hasher := sha256.New()
 	hasher.Write([]byte(email))
@@ -140,12 +140,12 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 		self.logger.Warn(self.logCat,
 			"!!! Using Assertion Without Validation",
 			nil)
-		return self.extractFromAssertion(assertion, false)
+		return self.extractFromAssertion(assertion)
 	}
 
 	// Better verify for realz
-	validatorURL := self.config.Get("persona.validater_url",
-		"https://verifier.login.persona.org/verify")
+	validatorURL := self.config.Get("persona.verifier",
+		"https://verifier.login.persona.org/v2")
 	audience := self.config.Get("persona.audience",
 		"http://localhost:8080")
 	body, err := json.Marshal(
@@ -211,12 +211,12 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	// ******** DO NOT ENABLE auth.disabled FLAG IN PRODUCTION!! ******
 	if self.config.GetFlag("auth.disabled") {
 		self.logger.Warn(self.logCat, "!!! Skipping validation...", nil)
-		return self.extractFromAssertion(assertion, true)
+		return self.extractFromAssertion(assertion)
 
 	}
 	cli := http.Client{}
 	validatorUrl := self.config.Get("oauth.endpoint",
-		"https://oauth.accounts.firefox.com") + "/v1/authorization"
+		"https://oauth.accounts.firefox.com") + "/authorization"
 	fmt.Printf("### Sending to %s\n", validatorUrl)
 	args := make(map[string]string)
 	args["client_id"] = self.config.Get("oauth.client_id", "invalid")
@@ -389,33 +389,37 @@ func (self *Handler) updatePage(devId string, args map[string]interface{}, logPo
 	}
 	defer store.Close()
 
-	for key, arg := range args {
-		if len(key) < 2 {
-			continue
-		}
-		switch k := strings.ToLower(key[:2]); k {
-		case "la":
-			location.Latitude = arg.(float64)
-		case "lo":
-			location.Longitude = arg.(float64)
-		case "al":
-			location.Altitude = arg.(float64)
-		case "ti":
-			location.Time = int64(arg.(float64))
-		case "ha":
-			locked = isTrue(arg)
-			location.Lockable = !locked
-			if err = store.SetDeviceLockable(devId, !locked); err != nil {
-				return err
+	// Only record a location if there is one.
+	// Device reports OK:false on errors
+	if b, ok := args["ok"]; ok && b.(bool) {
+		for key, arg := range args {
+			if len(key) < 2 {
+				continue
+			}
+			switch k := strings.ToLower(key[:2]); k {
+			case "la":
+				location.Latitude = arg.(float64)
+			case "lo":
+				location.Longitude = arg.(float64)
+			case "al":
+				location.Altitude = arg.(float64)
+			case "ti":
+				location.Time = int64(arg.(float64))
+			case "ha":
+				locked = isTrue(arg)
+				location.Lockable = !locked
+				if err = store.SetDeviceLockable(devId, !locked); err != nil {
+					return err
+				}
 			}
 		}
-	}
-	if logPosition {
-		if err = store.SetDeviceLocation(devId, location); err != nil {
-			return err
+		if logPosition {
+			if err = store.SetDeviceLocation(devId, location); err != nil {
+				return err
+			}
+			// because go sql locking.
+			store.GcPosition(devId)
 		}
-		// because go sql locking.
-		store.GcPosition(devId)
 	}
 	if client, ok := Clients[devId]; ok {
 		js, _ := json.Marshal(location)
@@ -553,6 +557,8 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			user = strings.SplitN(user, "@", 2)[0]
 			session.Values["userId"] = userid
 			loggedIn = true
+		} else {
+			self.logger.Error(self.logCat, "Missing 'assert' value", nil)
 		}
 
 		if !loggedIn {
@@ -750,6 +756,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		}
 
 		for cmd, args := range reply {
+			var margs replyType
 			c := strings.ToLower(string(cmd[0]))
 			if !strings.Contains(devRec.Accepts, c) {
 				self.logger.Warn(self.logCat, "Unacceptable Command",
@@ -758,19 +765,29 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				continue
 			}
 			self.metrics.Increment("cmd.received." + string(c))
+			// Normalize the args.
+			switch args.(type) {
+			case bool:
+				margs[string(cmd)] = isTrue(args)
+			default:
+				margs = args.(map[string]interface{})
+			}
+			// handle the client response
 			switch c {
 			case "l", "r", "m", "e":
 				err = store.Touch(deviceId)
 				self.updatePage(deviceId,
-					args.(map[string]interface{}), false)
+					margs, false)
 			case "h":
+				// has_code is a boolean
 				argl := make(replyType)
 				argl[string(cmd)] = isTrue(args)
 				self.updatePage(deviceId, argl, false)
 			case "t":
 				// track
+				margs := args.(map[string]interface{})
 				err = self.updatePage(deviceId,
-					args.(map[string]interface{}), true)
+					margs, true)
 				// store tracking info.
 			case "q":
 				// User has quit, nuke what we know.
@@ -847,10 +864,11 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				max = 9999
 			}
 			vs := v.(string)
-			rargs["c"] = self.rangeCheck(
+			// make sure that the lock code is a valid four digit string.
+			// otherwise we may lock users out of their phones.
+			rargs["c"] = fmt.Sprintf("%04s", self.rangeCheck(
 				strings.Map(digitsOnly, vs[:minInt(4, len(vs))]),
-				0,
-				max)
+				0, max))
 		}
 		if v, ok = rargs["m"]; ok {
 			vs := v.(string)

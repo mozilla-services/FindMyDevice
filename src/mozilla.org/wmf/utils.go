@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-    "fmt"
+	"fmt"
 )
 
 //filters
@@ -45,13 +45,12 @@ func deviceIdFilter(r rune) rune {
 }
 
 func assertionFilter(r rune) rune {
-    // wish that base64.go exported this publicly:
-    if bytes.IndexRune([]byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_~.="), r) < 0 {
-        return rune(-1)
-    }
-    return r
+	// wish that base64.go exported this publicly:
+	if bytes.IndexRune([]byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_~.="), r) < 0 {
+		return rune(-1)
+	}
+	return r
 }
-
 
 // parse a body and return the JSON
 func parseBody(rbody io.ReadCloser) (rep util.JsMap, err error) {
@@ -61,7 +60,7 @@ func parseBody(rbody io.ReadCloser) (rep util.JsMap, err error) {
 	if body, err = ioutil.ReadAll(rbody.(io.Reader)); err != nil {
 		return nil, err
 	}
-    fmt.Printf("### parseBody: %s\n", body)
+	fmt.Printf("### parseBody: %s\n", body)
 	if err = json.Unmarshal(body, &rep); err != nil {
 		return nil, err
 	}
@@ -99,9 +98,9 @@ func getDevFromUrl(u *url.URL) (devId string) {
 		return ""
 	}
 	elements := strings.Split(u.Path, "/")
-    devId = strings.Map(deviceIdFilter, elements[len(elements)-1])
-    if len(devId) > 32 {
-        devId = devId[:32]
-    }
-    return devId
+	devId = strings.Map(deviceIdFilter, elements[len(elements)-1])
+	if len(devId) > 32 {
+		devId = devId[:32]
+	}
+	return devId
 }

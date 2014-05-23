@@ -52,7 +52,7 @@ type Device struct {
 	Pending           string // pending command
 	LastExchange      int32  // last time we did anything
 	Accepts           string // commands the device accepts
-    AccessToken       string // OAuth Access token
+	AccessToken       string // OAuth Access token
 }
 
 type DeviceList struct {
@@ -154,7 +154,7 @@ func (self *Storage) Init() (err error) {
 	// TODO: create a versioned db update system that contains commands
 	// to execute.
 	cmds := []string{
-		"create table if not exists userToDeviceMap (userId varchar, deviceId varchar, name varchar);",
+		"create table if not exists userToDeviceMap (userId varchar, deviceId varchar, name varchar, date date);",
 		"create index on userToDeviceMap (userId);",
 		"create unique index on userToDeviceMap (userId, deviceId);",
 
@@ -169,8 +169,8 @@ func (self *Storage) Init() (err error) {
 		"create or replace function update_time() returns trigger as $$ begin new.lastexchange = now(); return new; end; $$ language 'plpgsql';",
 		"drop trigger if exists update_le on deviceinfo;",
 		"create trigger update_le before update on deviceinfo for each row execute procedure update_time();",
-        "create table if not exists meta (key string, value string);",
-        "create index on meta (key);",
+		"create table if not exists meta (key string, value string);",
+		"create index on meta (key);",
 		"set time zone utc;",
 	}
 
@@ -225,7 +225,7 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 				"device": fmt.Sprintf("%+v", dev)})
 		return "", err
 	}
-	if _, err = dbh.Exec("insert into userToDeviceMap (userId, deviceId, name) values ($1, $2, $3);", userid, dev.ID, dev.Name); err != nil {
+	if _, err = dbh.Exec("insert into userToDeviceMap (userId, deviceId, name, date) values ($1, $2, $3, now());", userid, dev.ID, dev.Name); err != nil {
 		switch {
 		default:
 			self.logger.Error(self.logCat,
@@ -288,7 +288,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		LastExchange: int32(lastexchange),
 		PushUrl:      string(pushUrl),
 		Accepts:      accepts,
-        AccessToken:  string(accesstoken),
+		AccessToken:  string(accesstoken),
 	}
 
 	return reply, nil
@@ -369,7 +369,7 @@ func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err
 		return nil, err
 	}
 
-	statement := "select deviceId, coalesce(name,deviceId) from userToDeviceMap where userId = $1;"
+	statement := "select deviceId, coalesce(name,deviceId) from userToDeviceMap where userId = $1 order by date;"
 	rows, err := dbh.Query(statement, userId)
 	if err == nil {
 		for rows.Next() {
@@ -411,18 +411,18 @@ func (self *Storage) StoreCommand(devId, command string) (err error) {
 }
 
 func (self *Storage) SetAccessToken(devId, token string) (err error) {
-    dbh := self.db
+	dbh := self.db
 
-    statement := "update deviceInfo set accesstoken = $1, lastexchange = now() where deviceId = $2"
-    _, err = dbh.Exec(statement, token, devId)
-    if err != nil {
-        self.logger.Error(self.logCat, "Could not set the access token",
-            util.Fields{"error": err.Error(),
-                "device": devId,
-                "token": token})
-        return err
-    }
-    return nil
+	statement := "update deviceInfo set accesstoken = $1, lastexchange = now() where deviceId = $2"
+	_, err = dbh.Exec(statement, token, devId)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not set the access token",
+			util.Fields{"error": err.Error(),
+				"device": devId,
+				"token":  token})
+		return err
+	}
+	return nil
 }
 
 // Shorthand function to set the lock state for a device.
@@ -518,34 +518,34 @@ func (self *Storage) DeleteDevice(devId string) (err error) {
 }
 
 func (self *Storage) getMeta(key string) (val string, err error) {
-    var row *sql.Row
-    dbh := self.db
+	var row *sql.Row
+	dbh := self.db
 
-    statement := "select val from meta where key=$1;"
-    if row = dbh.QueryRow(statement, key); row != nil {
-        row.Scan(&val)
-        return val, err
-    }
-    return "", err
+	statement := "select val from meta where key=$1;"
+	if row = dbh.QueryRow(statement, key); row != nil {
+		row.Scan(&val)
+		return val, err
+	}
+	return "", err
 }
 
 func (self *Storage) setMeta(key, val string) (err error) {
-    var statement string
-    dbh := self.db
+	var statement string
+	dbh := self.db
 
-    // try to update or insert.
-    statement = "update meta set val = $2 where key = $1;"
-    if res, err := dbh.Exec(statement, key, val); err != nil {
-        return err
-    } else {
-        if cnt, _ := res.RowsAffected(); cnt == 0 {
-            statement = "insert into met (key, val) values ($1, $2);"
-            if _, err = dbh.Exec(statement, key, val); err != nil {
-                return err
-            }
-        }
-    }
-    return nil
+	// try to update or insert.
+	statement = "update meta set val = $2 where key = $1;"
+	if res, err := dbh.Exec(statement, key, val); err != nil {
+		return err
+	} else {
+		if cnt, _ := res.RowsAffected(); cnt == 0 {
+			statement = "insert into met (key, val) values ($1, $2);"
+			if _, err = dbh.Exec(statement, key, val); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (self *Storage) Close() {
