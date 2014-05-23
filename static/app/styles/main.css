@@ -1,0 +1,201 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* Border box all the things */
+*, *:before, *:after {
+  box-sizing: border-box; }
+
+html, body, input, select {
+  font-family: 'TypoPRO Fira Sans', sans-serif; }
+
+html, body, #stage, #stage > div, #map {
+  height: 100%;
+  width: 100%; }
+
+a {
+  cursor: pointer; }
+
+.hero {
+  color: #333;
+  padding: 60px 20px 20px 20px;
+  text-align: center; }
+  .hero h1 {
+    margin-bottom: 0; }
+  .hero h2 {
+    color: #aaa;
+    font-size: 20px;
+    font-style: italic;
+    font-weight: normal;
+    margin-top: 10px; }
+  .hero .signout {
+    font-weight: bold; }
+
+#stage {
+  position: relative; }
+  #stage header {
+    background: #f4f4f4;
+    height: 47px;
+    left: 0;
+    padding: 0 34px;
+    position: absolute;
+    top: 0;
+    width: 100%;
+    z-index: 1000; }
+    #stage header h1 {
+      color: #8a8b97;
+      font-size: 27px;
+      font-style: italic;
+      font-weight: normal;
+      height: 32px;
+      margin-top: -16px;
+      position: absolute;
+      top: 50%; }
+    #stage header .signout {
+      color: #8a8b97;
+      font-style: italic;
+      margin-top: -9px;
+      position: absolute;
+      right: 20px;
+      top: 50%; }
+  #stage footer {
+    background: #242426;
+    bottom: 0;
+    color: #f2f1ec;
+    height: 39px;
+    left: 0;
+    position: absolute;
+    width: 100%;
+    z-index: 1000; }
+    #stage footer .button {
+      display: block;
+      float: left;
+      height: 39px;
+      width: 33%; }
+      #stage footer .button a {
+        background: url("../images/icon-sound-white.png") no-repeat 50% 50%;
+        display: block;
+        font-size: 13px;
+        height: 39px;
+        line-height: 1em;
+        text-indent: -1000em;
+        width: 100%; }
+        #stage footer .button a:active {
+          background-color: #6f7181; }
+      #stage footer .button.play-sound a {
+        background-image: url("../images/icon-sound-white.png"); }
+      #stage footer .button.lost-mode a {
+        background-image: url("../images/icon-lock-white.png"); }
+      #stage footer .button.erase a {
+        background-image: url("../images/icon-erase-white.png"); }
+
+#modal {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+  display: none;
+  overflow: hidden;
+  position: absolute;
+  width: 300px;
+  z-index: 1000; }
+  #modal header {
+    background: #f4f4f4;
+    padding: 5px 20px; }
+    #modal header h2 {
+      color: #8a8b97;
+      font-size: 27px;
+      font-style: italic;
+      font-weight: normal;
+      margin: 0; }
+      #modal header h2 small {
+        font-size: 18px; }
+  #modal section {
+    padding: 20px; }
+    #modal section p:first-child {
+      margin-top: 0; }
+    #modal section button, #modal section input, #modal section textarea {
+      width: 100%; }
+    #modal section input, #modal section textarea {
+      border: 1px solid #ccc;
+      padding: 8px; }
+    #modal section textarea {
+      height: 75px;
+      resize: none; }
+  #modal footer {
+    padding: 0 20px 20px 20px; }
+    #modal footer .buttons {
+      margin-top: 0;
+      text-align: center; }
+      #modal footer .buttons button {
+        width: 48%; }
+  #modal .buttons {
+    margin-top: 20px; }
+    #modal .buttons button {
+      background: #bbb;
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      padding: 10px; }
+      #modal .buttons button:hover {
+        background: #c3c3c3; }
+      #modal .buttons button:active {
+        background: #aeaeae; }
+      #modal .buttons button.danger {
+        background: red; }
+        #modal .buttons button.danger:hover {
+          background: #ff1a1a; }
+        #modal .buttons button.danger:active {
+          background: #e60000; }
+      #modal .buttons button.primary {
+        background: #5493da; }
+        #modal .buttons button.primary:hover {
+          background: #69a2df; }
+        #modal .buttons button.primary:active {
+          background: #3f88d5; }
+
+.leaflet-top {
+  top: 45px; }
+
+.leaflet-bottom {
+  bottom: 30px; }
+
+/* Desktop */
+@media only screen and (min-width: 768px) {
+  #stage footer {
+    background: #e7e7e7;
+    bottom: auto;
+    color: #333;
+    height: 47px;
+    padding-left: 26px;
+    text-align: left;
+    top: 47px; }
+    #stage footer .button {
+      height: 47px;
+      width: auto; }
+      #stage footer .button a {
+        background: url("../images/icon-sound.png") no-repeat left 50%;
+        display: inline-block;
+        font-size: 13px;
+        height: 47px;
+        padding: 15px 12px 0 40px;
+        text-indent: 0;
+        width: auto; }
+        #stage footer .button a:hover {
+          background-color: #d9d9d9; }
+      #stage footer .button.play-sound a {
+        background-image: url("../images/icon-sound.png"); }
+      #stage footer .button.lost-mode a {
+        background-image: url("../images/icon-lock.png");
+        margin: 0; }
+      #stage footer .button.erase a {
+        background-image: url("../images/icon-erase.png"); }
+  .leaflet-top {
+    top: 95px; }
+  .leaflet-bottom {
+    bottom: 0; } }
+
+@media only screen and (max-width: 768px) {
+  #modal {
+    height: 100%;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100%; } }

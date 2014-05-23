@@ -1,0 +1,100 @@
+<!doctype html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js"> <!--<![endif]-->
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Find My Device</title>
+    <meta name="viewport" content="width=device-width">
+    <link href="https://api.tiles.mapbox.com/mapbox.js/v1.6.1/mapbox.css" rel="stylesheet">
+    <!-- build:css(.tmp) styles/main.css -->
+      <link rel="stylesheet" href="bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans.css">
+      <link rel="stylesheet" href="bower_components/normalize-css/normalize.css">
+      <link rel="stylesheet" href="styles/main.css">
+    <!-- endbuild -->
+    <!-- build:js scripts/vendor/modernizr.js -->
+      <script src="bower_components/modernizr/modernizr.js"></script>
+    <!-- endbuild -->
+    <script id='bidjs' src="https://login.persona.org/include.js"></script>
+  </head>
+  <body>
+    {{if .UserId}}
+      <div id="stage"></div>
+      <div id="modal"></div>
+      <script src="https://api.tiles.mapbox.com/mapbox.js/v1.6.1/mapbox.js"></script>
+      <script>
+        // Hello globals.
+        window.currentUser = { id: '{{.UserId}}' };
+
+        {{with $device := .Device}}
+          window.currentDevice = { id: '{{$device.ID}}', name: '{{$device.Name}}' };
+        {{end}}
+      </script>
+      <!-- build:js scripts/main.js -->
+        <script data-main="scripts/main" src="bower_components/requirejs/require.js"></script>
+      <!-- endbuild -->
+    {{else}}
+      <div class="hero">
+        <h1>Rumor has it that you can't find your device.</h1>
+        <h2>Don't worry: we're the app for that.</h2>
+        <div id="persona-login">
+          <div id="browserid">
+            <img src="https://login.persona.org/i/sign_in_blue.png" id="signin">
+          </div>
+        </div>
+      </div>
+      <script>
+        window.addEventListener("load",
+          function() {
+          var body = document.getElementsByTagName("body")[0];
+          var email="";
+          if (body.dataset.user) {
+            email = body.dataset.user;
+          }
+          navigator.id.watch({
+              loggedInUser:email,
+              onlogout: function(e){
+              str = document.cookie;
+              if ((str.length > 0) && str.indexOf("user")>=0) {
+                document.cookie="user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
+                document.location = "/";
+                }
+              },
+              onlogin: function(assertion) {
+                /* TODO: Send the assertion.
+                   Refresh the page wth the current ID?
+                 */
+                {{if not .UserId}}
+                  form = ("<form method='POST' action='/' id='fs'>" +
+                  "<input type='hidden' name='assertion' value='" +
+                  assertion +
+                  "'/><input type='hidden' name='audience' "+
+                  "value='localhost'>" +
+                  "</form>");
+                  document.getElementById('browserid').innerHTML = form;
+                  document.getElementById('fs').submit();
+                {{end}}
+              }
+          })
+          if (document.getElementById("signin")) {
+          document.getElementById("signin").addEventListener("click",
+            function(){
+              document.getElementsByTagName("body")[0].style.cursor="wait";
+              navigator.id.request();
+            });
+          }
+          if (document.getElementById("signout")) {
+          document.getElementById("signout").addEventListener("click",
+            function(){
+              navigator.id.logout();
+              document.cookie="user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
+              document.location = "/";
+            });
+          }
+        });
+      </script>
+    {{end}}
+  </body>
+</html>

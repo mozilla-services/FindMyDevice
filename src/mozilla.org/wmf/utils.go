@@ -7,10 +7,10 @@ package wmf
 import (
 	"mozilla.org/util"
 
-	"bytes"
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -73,14 +73,6 @@ func minInt(x, y int) int {
 	return y
 }
 
-//filter
-func deviceIdFilter(r rune) rune {
-	if bytes.IndexRune([]byte("ABCDEFabcdef0123456789-"), r) < 0 {
-		return rune(-1)
-	}
-	return r
-}
-
 // get the device id from the URL path
 func getDevFromUrl(u *url.URL) (devId string) {
 	if !strings.Contains(u.Path, "/") {
@@ -92,4 +84,15 @@ func getDevFromUrl(u *url.URL) (devId string) {
         devId = devId[:32]
     }
     return devId
+}
+
+// get the user id info from the session. (userid/devid)
+func setSessionInfo(resp http.ResponseWriter, session *sessionInfo) (err error) {
+	if session != nil {
+		cookie := http.Cookie{Name: "user",
+			Value: session.UserId,
+			Path:  "/"}
+		http.SetCookie(resp, &cookie)
+	}
+	return err
 }

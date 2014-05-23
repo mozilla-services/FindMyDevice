@@ -1,0 +1,66 @@
+/* Desktop */
+
+@media only screen and (min-width: 768px) {
+  #stage {
+    footer {
+      background: $footer-background-color--desktop;
+      bottom: auto;
+      color: $footer-text-color--desktop;
+      height: 47px;
+      padding-left: 26px; // 34px - 8px for button padding
+      text-align: left;
+      top: 47px;
+
+      .button {
+        height: 47px;
+        width: auto;
+
+        a {
+          background: image-url('icon-sound.png') no-repeat left 50%;
+          display: inline-block;
+          font-size: 13px;
+          height: 47px;
+          padding: 15px 12px 0 40px;
+          text-indent: 0;
+          width: auto;
+
+          &:hover {
+            background-color: $footer-link-hover-background-color--desktop;
+          }
+        }
+
+        &.play-sound a {
+          background-image: image-url('icon-sound.png');
+        }
+
+        &.lost-mode a {
+          background-image: image-url('icon-lock.png');
+          margin: 0;
+        }
+
+        &.erase a {
+          background-image: image-url('icon-erase.png');
+        }
+      }
+    }
+  }
+
+  .leaflet-top {
+    top: 95px;
+  }
+
+  .leaflet-bottom {
+    bottom: 0;
+  }
+}
+
+// Styles are "mobile first" and don't usually belong in this media block. Only rules that are
+// important overrides from desktop belong here.
+@media only screen and (max-width: 768px) {
+  #modal {
+    height: 100%;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100%;
+  }
+}
