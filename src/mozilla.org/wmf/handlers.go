@@ -111,9 +111,6 @@ func (self *Handler) extractFromAssertion(assertion string) (userid, email strin
 	} else {
 		email = asrt["principal"].(map[string]interface{})["email"].(string)
 	}
-	hasher := sha256.New()
-	hasher.Write([]byte(email))
-	userid = hex.EncodeToString(hasher.Sum(nil))
 	userid = self.genHash(email)
 	self.logger.Debug(self.logCat, "Extracted credentials",
 		util.Fields{"userId": userid, "email": email})
@@ -173,7 +170,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 	}
 
 	// Handle the verifier response
-	buffer, err := parseBody(res.Body)
+	buffer, raw, err := parseBody(res.Body)
 	if isOk, ok := buffer["status"]; !ok || isOk != "okay" {
 		var errStr string
 		if err != nil {
@@ -183,11 +180,19 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 		}
 		self.logger.Error(self.logCat, "Persona Auth Failed",
 			util.Fields{"error": errStr,
-				"buffer": fmt.Sprintf("%+v", buffer)})
+				"body": raw})
 		return "", "", ErrAuthorization
 	}
 
 	// extract the email
+    if idp, ok := buffer["idpClaims"]; ok {
+        if fxe, ok := idp.(map[string]interface{})["fxa-verifiedEmail"]; ok {
+            email = fxe.(string)
+	        userid = self.genHash(email)
+            return userid, email, nil
+        }
+    }
+
 	if email, ok = buffer["email"].(string); !ok {
 		self.logger.Error(self.logCat, "No email found in assertion",
 			util.Fields{"assertion": fmt.Sprintf("%+v", buffer)})
@@ -195,8 +200,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 	}
 	// and the userid, generating one if need be.
 	if _, ok = buffer["userid"].(string); !ok {
-		self.logger.Error(self.logCat, "No UserID found. Cannot identify user.", nil)
-		return "", "", ErrNoUser
+        userid = self.genHash(email)
 	}
 	return userid, email, nil
 }
@@ -243,18 +247,19 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 			util.Fields{"error": err.Error()})
 		return "", "", err
 	}
-	buff, err := parseBody(res.Body)
+	buff, raw, err := parseBody(res.Body)
 	if err != nil {
 		return "", "", err
 	}
-	if code, ok := buff["code"]; ok && int(code.(float64)) > 299.0 {
+	if code, ok := buff["code"]; ok && code.(float64) > 299.0 {
 		self.logger.Error(self.logCat, "FxA verification failed auth",
 			util.Fields{"code": strconv.FormatInt(int64(code.(float64)), 10),
-				"error": buff["error"].(string)})
+				"error": buff["error"].(string),
+                "body": raw})
 		return "", "", err
 	}
 	// get the "redirect" url. We're not going to redirect, just get the code.
-	if redir, ok := buff["redrirect"]; !ok {
+	if redir, ok := buff["redirect"]; !ok {
 		self.logger.Error(self.logCat, "FxA verification did not return redirect",
 			nil)
 		return "", "", err
@@ -304,6 +309,7 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		self.logger.Error(self.logCat, "Could not open session",
 			util.Fields{"error": err.Error()})
 	} else {
+        fmt.Printf("#### raw session: %+v\n", session)
 		var ret = false
 		if ruid, ok := session.Values["userId"]; ok {
 			switch ruid.(type) {
@@ -518,6 +524,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var accepts string
 	var lockable bool
 	var err error
+    var raw string
 
 	self.logCat = "handler:Register"
 	resp.Header().Set("Content-Type", "application/json")
@@ -537,14 +544,14 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	}
 	defer store.Close()
 
-	buffer, err = parseBody(req.Body)
+	buffer, raw, err = parseBody(req.Body)
 	if err != nil {
 		http.Error(resp, "No body", http.StatusBadRequest)
 	} else {
 		loggedIn := false
 
 		if assertion, ok := buffer["assert"]; ok {
-			if self.config.GetFlag("login.persona") {
+			if self.config.GetFlag("auth.persona") {
 				userid, user, err = self.verifyPersonaAssertion(assertion.(string))
 			} else {
 				userid, user, err = self.verifyFxAAssertion(assertion.(string))
@@ -558,7 +565,8 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			session.Values["userId"] = userid
 			loggedIn = true
 		} else {
-			self.logger.Error(self.logCat, "Missing 'assert' value", nil)
+			self.logger.Error(self.logCat, "Missing 'assert' value",
+                util.Fields{"body": raw})
 		}
 
 		if !loggedIn {
@@ -1131,26 +1139,33 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	data.Host["Hostname"] = self.config.Get("ws_hostname", "localhost")
 	data.Host["Client_id"] = self.config.Get("oauth.client_id", "none")
 	data.Host["Endpoint"] = self.config.Get("oauth.endpoint", "https://oauth.accounts.firefox.com/v1")
+    data.Host["Login"] = self.config.Get("oauth.login", data.Host["Endpoint"])
 	// TODO: generate "state" code thingy
 	data.Host["State"] = "somestate"
 
 	// get the cached session info (if present)
 	// will also resolve assertions and other bits to get user and dev info.
 	sessionInfo, err := self.getSessionInfo(resp, req, session)
+    fmt.Printf("### Session info: %+v, url: %s \n", sessionInfo, req.URL)
 	if err == nil {
 		// we have user info, use it.
 		data.UserId = sessionInfo.UserId
-		if sessionInfo.DeviceId == "" {
+        if sessionInfo.DeviceId == "" {
+            sessionInfo.DeviceId = getDevFromUrl(req.URL)
+        }
+        dev := getDevFromUrl(req.URL);
+        if sessionInfo.DeviceId == "" {
+            fmt.Printf("### Getting devices\n");
 			data.DeviceList, err = store.GetDevicesForUser(data.UserId)
 			if err != nil {
 				self.logger.Error(self.logCat, "Could not get user devices",
 					util.Fields{"error": err.Error(),
 						"user": data.UserId})
 			}
-			if len(data.DeviceList) == 1 {
+			if len(data.DeviceList) > 0 {
 				sessionInfo.DeviceId = (data.DeviceList[0]).ID
-				data.DeviceList = nil
 			}
+            fmt.Printf("### Devices %+v, Device %s", data.DeviceList, dev)
 		}
 		if sessionInfo.DeviceId != "" {
 			data.Device, err = store.GetDeviceInfo(sessionInfo.DeviceId)
@@ -1299,6 +1314,7 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 
 func (self *Handler) getAccessToken(code string) (accessToken string, err error) {
 	token_url := self.config.Get("oauth.endpoint", OAUTH_ENDPOINT) + "/token"
+    fmt.Printf("### sending to %s\n", token_url)
 	vals := make(map[string]string)
 	vals["client_id"] = self.config.Get("oauth.client_id", "invalid")
 	vals["client_secret"] = self.config.Get("oauth.client_secret", "invalid")
@@ -1309,13 +1325,28 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 			util.Fields{"error": err.Error()})
 		return "", err
 	}
-	token_resp, err := http.Post(token_url, "application/json", bytes.NewBuffer(vd))
+    fmt.Printf("### args: %s\n", vd)
+	req, err := http.NewRequest("POST", token_url, bytes.NewBuffer(vd))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not get oauth token",
 			util.Fields{"code": code, "error": err.Error()})
 		return "", ErrOauth
 	}
-	reply, err := parseBody(token_resp.Body)
+    req.Header.Add("Content-Type", "application/json")
+    cli := http.DefaultClient
+    res, err := cli.Do(req)
+    if err != nil {
+        self.logger.Error(self.logCat, "Access Token Fetch failed",
+            util.Fields{"error": err.Error()})
+        return "", err
+    }
+	reply, raw, err := parseBody(res.Body)
+    if code, ok := reply["code"]; ok && code.(float64) > 299.0 {
+        self.logger.Error(self.logCat, "FxA Access token failure",
+            util.Fields{"code": strconv.FormatFloat(code.(float64), 'f', 1, 64),
+                "body": raw})
+        return "", ErrOauth
+    }
 	token, ok := reply["access_token"]
 	if !ok {
 		self.logger.Error(self.logCat, "OAuth Access token missing from reply",
@@ -1326,23 +1357,23 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 }
 
 func (self *Handler) getUserEmail(accessToken string) (email string, err error) {
-	client := &http.Client{}
-	req, err := http.NewRequest("POST",
-		self.config.Get("fxa.content.endpoint", CONTENT_ENDPOINT)+"/email",
-		nil)
+	client := http.DefaultClient
+    url := self.config.Get("fxa.content.endpoint", CONTENT_ENDPOINT)+"/email"
+	req, err := http.NewRequest("GET",url, nil)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not POST to get email",
 			util.Fields{"error": err.Error()})
 		return "", err
 	}
-	req.Header.Add("Authorization", "Bearer "+accessToken)
+	req.Header.Add("Authorization", "Bearer " + accessToken)
+    fmt.Printf("### Sending %+v", req)
 	resp, err := client.Do(req)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not get user email",
 			util.Fields{"error": err.Error()})
 		return "", err
 	}
-	buffer, err := parseBody(resp.Body)
+	buffer, raw, err := parseBody(resp.Body)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not parse body",
 			util.Fields{"error": err.Error()})
@@ -1350,7 +1381,7 @@ func (self *Handler) getUserEmail(accessToken string) (email string, err error) 
 	}
 	if _, ok := buffer["email"]; !ok {
 		self.logger.Error(self.logCat, "Response did not contain email",
-			nil)
+        util.Fields{"body": raw})
 		return "", ErrNoUser
 	}
 	return buffer["email"].(string), nil
@@ -1361,6 +1392,7 @@ func (self *Handler) genHash(input string) (output string) {
 	hasher.Write([]byte(input))
 	return hex.EncodeToString(hasher.Sum(nil))
 }
+
 func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "oauth"
 

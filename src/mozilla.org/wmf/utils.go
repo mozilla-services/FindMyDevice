@@ -53,18 +53,18 @@ func assertionFilter(r rune) rune {
 }
 
 // parse a body and return the JSON
-func parseBody(rbody io.ReadCloser) (rep util.JsMap, err error) {
+func parseBody(rbody io.ReadCloser) (rep util.JsMap, raw string, err error) {
 	var body []byte
 	rep = util.JsMap{}
 	defer rbody.Close()
 	if body, err = ioutil.ReadAll(rbody.(io.Reader)); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	fmt.Printf("### parseBody: %s\n", body)
 	if err = json.Unmarshal(body, &rep); err != nil {
-		return nil, err
+		return nil, string(body), err
 	}
-	return rep, nil
+	return rep, string(body), nil
 }
 
 // Take an interface value and return if it's true or not.
@@ -94,7 +94,8 @@ func minInt(x, y int) int {
 //filter
 // get the device id from the URL path
 func getDevFromUrl(u *url.URL) (devId string) {
-	if len(u.Path) < 32 || !strings.Contains(u.Path, "/") {
+	if len(u.Path) < 10 || !strings.Contains(u.Path, "/") {
+        fmt.Printf("### path too short: %s\n", u.Path)
 		return ""
 	}
 	elements := strings.Split(u.Path, "/")
@@ -102,5 +103,6 @@ func getDevFromUrl(u *url.URL) (devId string) {
 	if len(devId) > 32 {
 		devId = devId[:32]
 	}
+    fmt.Printf("### devid: %s\n", devId)
 	return devId
 }
