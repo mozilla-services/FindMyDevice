@@ -132,7 +132,6 @@ func (self *Handler) extractFromAssertion(assertion string) (userid, email strin
 // part of Handler for config & logging reasons
 func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email string, err error) {
 	var ok bool
-	fmt.Printf("### Persona Assertion:\n%s\n", assertion)
 	if assLen := len(assertion); assLen != len(strings.Map(assertionFilter, assertion)) {
 		self.logger.Error(self.logCat, "Assertion contains invalid characters.",
 			util.Fields{"assertion": assertion})
