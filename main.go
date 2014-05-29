@@ -40,7 +40,7 @@ var (
 
 const (
 	// VERSION is the version number for system.
-	VERSION = "0.1"
+	VERSION = "0.6"
 )
 
 func main() {
@@ -150,6 +150,13 @@ func main() {
 	WSMux.Handle(fmt.Sprintf("/%s/ws/", verRoot),
 		websocket.Handler(handlers.WSSocketHandler))
 	// Handle root calls as webUI
+	// Get a list of registered devices for the currently logged in user
+	RESTMux.HandleFunc(fmt.Sprintf("/%s/devices/", verRoot),
+		handlers.UserDevices)
+	// Get an object describing the data for a user's device
+	// e.g. http://host/0/data/0123deviceid
+	RESTMux.HandleFunc(fmt.Sprintf("/%s/data/", verRoot),
+		handlers.InitDataJson)
 	RESTMux.HandleFunc("/",
 		handlers.Index)
 

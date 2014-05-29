@@ -6,6 +6,7 @@ package wmf
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"mozilla.org/util"
 	"mozilla.org/wmf/storage"
@@ -19,7 +20,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
+	// "io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -40,7 +41,6 @@ type Handler struct {
 	logCat  string
 	accepts []string
 	hawk    *Hawk
-	session *sessions.CookieStore
 }
 
 // Map of clientIDs to socket handlers
@@ -57,6 +57,8 @@ var (
 	Clients  = make(ClientMap)
 )
 
+var sessionStore *sessions.CookieStore
+
 // Generic reply structure (useful for JSON responses)
 type replyType map[string]interface{}
 
@@ -66,6 +68,15 @@ type sessionInfoStruct struct {
 	DeviceId    string
 	User        string
 	AccessToken string
+}
+
+type initDataStruct struct {
+	ProductName string
+	UserId      string
+	MapKey      string
+	DeviceList  []storage.DeviceList
+	Device      *storage.Device
+	Host        map[string]string
 }
 
 var ErrInvalidReply = errors.New("Invalid Command Response")
@@ -121,6 +132,7 @@ func (self *Handler) extractFromAssertion(assertion string) (userid, email strin
 // part of Handler for config & logging reasons
 func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email string, err error) {
 	var ok bool
+	fmt.Printf("### Persona Assertion:\n%s\n", assertion)
 	if assLen := len(assertion); assLen != len(strings.Map(assertionFilter, assertion)) {
 		self.logger.Error(self.logCat, "Assertion contains invalid characters.",
 			util.Fields{"assertion": assertion})
@@ -185,13 +197,13 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 	}
 
 	// extract the email
-    if idp, ok := buffer["idpClaims"]; ok {
-        if fxe, ok := idp.(map[string]interface{})["fxa-verifiedEmail"]; ok {
-            email = fxe.(string)
-	        userid = self.genHash(email)
-            return userid, email, nil
-        }
-    }
+	if idp, ok := buffer["idpClaims"]; ok {
+		if fxe, ok := idp.(map[string]interface{})["fxa-verifiedEmail"]; ok {
+			email = fxe.(string)
+			userid = self.genHash(email)
+			return userid, email, nil
+		}
+	}
 
 	if email, ok = buffer["email"].(string); !ok {
 		self.logger.Error(self.logCat, "No email found in assertion",
@@ -200,7 +212,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 	}
 	// and the userid, generating one if need be.
 	if _, ok = buffer["userid"].(string); !ok {
-        userid = self.genHash(email)
+		userid = self.genHash(email)
 	}
 	return userid, email, nil
 }
@@ -255,7 +267,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 		self.logger.Error(self.logCat, "FxA verification failed auth",
 			util.Fields{"code": strconv.FormatInt(int64(code.(float64)), 10),
 				"error": buff["error"].(string),
-                "body": raw})
+				"body":  raw})
 		return "", "", err
 	}
 	// get the "redirect" url. We're not going to redirect, just get the code.
@@ -304,12 +316,11 @@ func (self *Handler) clearSession(sess *sessions.Session) (err error) {
 
 // get the user id from the session, or the assertion.
 func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (userid string, user string, err error) {
-	session, err := self.session.Get(req, SESSION_NAME)
+	session, err := sessionStore.Get(req, SESSION_NAME)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not open session",
 			util.Fields{"error": err.Error()})
 	} else {
-        fmt.Printf("#### raw session: %+v\n", session)
 		var ret = false
 		if ruid, ok := session.Values["userId"]; ok {
 			switch ruid.(type) {
@@ -494,11 +505,23 @@ func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Me
 		logger.Error("Handler", "No session secret defined.", nil)
 		return nil
 	}
-	session := sessions.NewCookieStore([]byte(sessionSecret))
-	if err != nil {
-		logger.Error("Handler", "Could not open session",
-			util.Fields{"error": err.Error()})
-		return nil
+	sessionCrypt := config.Get("session.crypt", "")
+	if sessionCrypt == "" {
+		sessionCrypt = string(securecookie.GenerateRandomKey(16))
+	} else {
+		b, err := base64.StdEncoding.DecodeString(sessionSecret)
+		if err != nil {
+			sessionCrypt = string(securecookie.GenerateRandomKey(16))
+		} else {
+			sessionCrypt = string(b)
+		}
+	}
+	sessionStore = sessions.NewCookieStore([]byte(sessionSecret),
+		[]byte(sessionCrypt))
+	sessionStore.Options = &sessions.Options{
+		Domain: config.Get("session.domain", "localhost"),
+		Path:   "/",
+		MaxAge: 3600 * 24,
 	}
 
 	// Initialize the data store once. This creates tables and
@@ -508,7 +531,6 @@ func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Me
 	return &Handler{config: config,
 		logger:  logger,
 		logCat:  "handler",
-		session: session,
 		metrics: metrics}
 }
 
@@ -524,11 +546,11 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var accepts string
 	var lockable bool
 	var err error
-    var raw string
+	var raw string
 
 	self.logCat = "handler:Register"
 	resp.Header().Set("Content-Type", "application/json")
-	session, err := self.session.Get(req, SESSION_NAME)
+	session, err := sessionStore.Get(req, SESSION_NAME)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not open session",
 			util.Fields{"error": err.Error()})
@@ -566,7 +588,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			loggedIn = true
 		} else {
 			self.logger.Error(self.logCat, "Missing 'assert' value",
-                util.Fields{"body": raw})
+				util.Fields{"body": raw})
 		}
 
 		if !loggedIn {
@@ -668,6 +690,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	}
 	defer store.Close()
 
+	fmt.Printf("### req.URL: %s", req.URL)
 	deviceId := getDevFromUrl(req.URL)
 	if deviceId == "" {
 		self.logger.Error(self.logCat, "Invalid call (No device id)", nil)
@@ -680,7 +703,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		switch err {
 		case storage.ErrUnknownDevice:
 			self.logger.Error(self.logCat,
-				"Cmd:Unknown device requesting cmd",
+				"Unknown device requesting cmd",
 				util.Fields{
 					"deviceId": deviceId})
 			http.Error(resp, "Unauthorized", 401)
@@ -776,7 +799,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			// Normalize the args.
 			switch args.(type) {
 			case bool:
-				margs[string(cmd)] = isTrue(args)
+				margs = replyType{string(cmd): isTrue(args.(bool))}
 			default:
 				margs = args.(map[string]interface{})
 			}
@@ -967,7 +990,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	rep := make(replyType)
 	self.logCat = "handler:Queue"
 
-	session, err := self.session.Get(req, SESSION_NAME)
+	session, err := sessionStore.Get(req, SESSION_NAME)
 	if err != nil {
 		self.logger.Error(self.logCat, "Unauthorized access to Cmd",
 			util.Fields{"error": err.Error()})
@@ -1092,40 +1115,193 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(repl)
 }
 
-// user login functions
-func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
-	/* Handle a user login to the web UI
-	 */
+func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
+	self.logCat = "handler:userDevices"
+	type devList struct {
+		ID   string
+		Name string
+		URL  string
+	}
 
+	var data struct {
+		UserId     string
+		DeviceList []devList
+	}
+
+	session, err := sessionStore.Get(req, SESSION_NAME)
+	if err != nil {
+		self.logger.Error(self.logCat,
+			"Could not initialize session",
+			util.Fields{"error": err.Error()})
+		//TODO: return error, clear cookie?
+		return
+	}
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat,
+			"Could not open database",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	defer store.Close()
+
+	sessionInfo, err := self.getSessionInfo(resp, req, session)
+	if err == nil && len(sessionInfo.UserId) > 0 {
+		data.UserId = sessionInfo.UserId
+	} else {
+		self.logger.Error(self.logCat,
+			"Could not get user id",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Needs Auth", 401)
+		return
+	}
+
+	deviceList, err := store.GetDevicesForUser(data.UserId)
+	if err != nil {
+		self.logger.Error(self.logCat,
+			"Could not get devices for user",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server Error", 500)
+		return
+	}
+
+	var reply []devList
+
+	for _, d := range deviceList {
+		reply = append(reply, devList{
+			ID:   d.ID,
+			Name: d.Name,
+			URL: fmt.Sprintf("%s://%s/0/ws/%s",
+				self.config.Get("ui.ws_proto", "ws"),
+				self.config.Get("ws_hostname", "localhost"),
+				d.ID)})
+	}
+	breply, err := json.Marshal(map[string][]devList{
+		"devices": reply})
+	if err != nil {
+		self.logger.Error(self.logCat,
+			"Could not marshal output",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server Error", 500)
+		return
+	}
+
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Write(breply)
+	return
+}
+
+// user login functions
+
+func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:Index"
-	// This should be handled by an nginx rule.
 
 	if strings.Contains(req.URL.Path, "/static/") {
 		self.Static(resp, req)
 		return
 	}
-	var data struct {
-		ProductName string
-		UserId      string
-		MapKey      string
-		DeviceList  []storage.DeviceList
-		Device      *storage.Device
-		Host        map[string]string
-	}
 	var err error
 
-	session, err := self.session.Get(req, SESSION_NAME)
+	session, err := sessionStore.Get(req, SESSION_NAME)
 	if err != nil {
-		self.logger.Error(self.logCat, "Could not initialize session",
+		self.logger.Error(self.logCat,
+			"Could not initialize session",
 			util.Fields{"error": err.Error()})
 	}
-
-	store, err := storage.Open(self.config, self.logger, self.metrics)
+	sessionInfo, err := self.getSessionInfo(resp, req, session)
+	initData, err := self.initData(resp, req, sessionInfo)
 	if err != nil {
-		self.logger.Error(self.logCat, "Could not open database",
+		self.logger.Error(self.logCat,
+			"Could not get inital data for index",
 			util.Fields{"error": err.Error()})
 		http.Error(resp, "Server error", 500)
 		return
+	}
+
+	tmpl, err := template.New("index.html").ParseFiles("static/index.html")
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not display index page",
+			util.Fields{"error": err.Error(),
+				"user": initData.UserId})
+		http.Error(resp, "Server error", 500)
+	}
+	if sessionInfo != nil {
+		session.Values["userId"] = sessionInfo.UserId
+		session.Values["user"] = sessionInfo.User
+		session.Values["deviceId"] = sessionInfo.DeviceId
+	} else {
+		self.clearSession(session)
+	}
+	if err = session.Save(req, resp); err != nil {
+		self.logger.Error(self.logCat,
+			"Could not save session",
+			util.Fields{"error": err.Error()})
+	}
+	if err = tmpl.Execute(resp, initData); err != nil {
+		self.logger.Error(self.logCat,
+			"Could not execute template",
+			util.Fields{"error": err.Error()})
+	}
+	self.metrics.Increment("page.index")
+	return
+}
+
+// Return the initData as a JSON object
+func (self *Handler) InitDataJson(resp http.ResponseWriter, req *http.Request) {
+	self.logCat = "handler:InitData"
+
+	var err error
+
+	session, err := sessionStore.Get(req, SESSION_NAME)
+	if err != nil {
+		self.logger.Error(self.logCat,
+			"Could not initialize session",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server Error", 500)
+		return
+	}
+
+	sessionInfo, err := self.getSessionInfo(resp, req, session)
+	if err != nil {
+		self.logger.Error(self.logCat,
+			"Could not get sessionInfo",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Not Authorized", 401)
+		return
+	}
+
+	initData, err := self.initData(resp, req, sessionInfo)
+	if err != nil {
+		self.logger.Error(self.logCat,
+			"Could not get initial data for index",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server Error", 500)
+		return
+	}
+	resp.Header().Set("Content-Type", "application/json")
+	reply, err := json.Marshal(initData)
+	if err == nil {
+		resp.Write([]byte(reply))
+		return
+	}
+	self.logger.Error(self.logCat,
+		"Could not marshal data to json",
+		util.Fields{"error": err.Error()})
+	http.Error(resp, "Server Error", 500)
+	return
+}
+
+// Get the old index page data block
+func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessionInfo *sessionInfoStruct) (data *initDataStruct, err error) {
+	/* Handle a user login to the web UI
+	 */
+	data = &initDataStruct{}
+	self.logCat = "handler:initData"
+
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		return nil, err
 	}
 	defer store.Close()
 
@@ -1139,44 +1315,34 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	data.Host["Hostname"] = self.config.Get("ws_hostname", "localhost")
 	data.Host["Client_id"] = self.config.Get("oauth.client_id", "none")
 	data.Host["Endpoint"] = self.config.Get("oauth.endpoint", "https://oauth.accounts.firefox.com/v1")
-    data.Host["Login"] = self.config.Get("oauth.login", data.Host["Endpoint"])
+	data.Host["Login"] = self.config.Get("oauth.login", data.Host["Endpoint"])
 	// TODO: generate "state" code thingy
 	data.Host["State"] = "somestate"
 
 	// get the cached session info (if present)
 	// will also resolve assertions and other bits to get user and dev info.
-	sessionInfo, err := self.getSessionInfo(resp, req, session)
-    fmt.Printf("### Session info: %+v, url: %s \n", sessionInfo, req.URL)
-	if err == nil {
+	if sessionInfo != nil {
 		// we have user info, use it.
 		data.UserId = sessionInfo.UserId
-        if sessionInfo.DeviceId == "" {
-            sessionInfo.DeviceId = getDevFromUrl(req.URL)
-        }
-        dev := getDevFromUrl(req.URL);
-        if sessionInfo.DeviceId == "" {
-            fmt.Printf("### Getting devices\n");
+		if sessionInfo.DeviceId == "" {
+			sessionInfo.DeviceId = getDevFromUrl(req.URL)
+		}
+		if sessionInfo.DeviceId == "" {
 			data.DeviceList, err = store.GetDevicesForUser(data.UserId)
 			if err != nil {
 				self.logger.Error(self.logCat, "Could not get user devices",
 					util.Fields{"error": err.Error(),
 						"user": data.UserId})
+				return nil, err
 			}
-			if len(data.DeviceList) > 0 {
-				sessionInfo.DeviceId = (data.DeviceList[0]).ID
-			}
-            fmt.Printf("### Devices %+v, Device %s", data.DeviceList, dev)
 		}
 		if sessionInfo.DeviceId != "" {
 			data.Device, err = store.GetDeviceInfo(sessionInfo.DeviceId)
 			if err != nil {
 				self.logger.Error(self.logCat, "Could not get device info",
 					util.Fields{"error": err.Error(),
-						"user": data.UserId})
-				if file, err := ioutil.ReadFile("static/error.html"); err == nil {
-					resp.Write(file)
-				}
-				return
+						"deviceid": sessionInfo.DeviceId})
+				return nil, err
 			}
 			data.Device.PreviousPositions, err = store.GetPositions(sessionInfo.DeviceId)
 			if err != nil {
@@ -1186,39 +1352,11 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 						"userId": data.UserId,
 						"user":   sessionInfo.User,
 						"device": sessionInfo.DeviceId})
-				return
+				return nil, err
 			}
 		}
 	}
-
-	// render the page from the template
-	tmpl, err := template.New("index.html").ParseFiles("static/index.html")
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not display index page",
-			util.Fields{"error": err.Error(),
-				"user": data.UserId})
-		if file, err := ioutil.ReadFile("static/error.html"); err == nil {
-			resp.Write(file)
-		}
-		return
-	}
-	if sessionInfo != nil {
-		session.Values["userId"] = sessionInfo.UserId
-		session.Values["user"] = sessionInfo.User
-		session.Values["deviceId"] = sessionInfo.DeviceId
-	} else {
-		if !session.IsNew {
-			self.clearSession(session)
-			session.Save(req, resp)
-		}
-	}
-	err = tmpl.Execute(resp, data)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not execute template",
-			util.Fields{"error": err.Error()})
-	}
-	self.metrics.Increment("page.index")
-	return
+	return data, nil
 }
 
 // Show the state of the user's devices.
@@ -1237,7 +1375,7 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	}
 	defer store.Close()
 
-	session, err := self.session.Get(req, SESSION_NAME)
+	session, err := sessionStore.Get(req, SESSION_NAME)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not get session info",
 			util.Fields{"error": err.Error()})
@@ -1257,6 +1395,8 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	if sessionInfo != nil {
 		session.Values["userId"] = sessionInfo.UserId
 		session.Values["deviceId"] = sessionInfo.DeviceId
+		session.Values["user"] = sessionInfo.User
+		session.Values["accessToken"] = sessionInfo.AccessToken
 	}
 	session.Save(req, resp)
 	// display the device info...
@@ -1314,7 +1454,7 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 
 func (self *Handler) getAccessToken(code string) (accessToken string, err error) {
 	token_url := self.config.Get("oauth.endpoint", OAUTH_ENDPOINT) + "/token"
-    fmt.Printf("### sending to %s\n", token_url)
+	fmt.Printf("### sending to %s\n", token_url)
 	vals := make(map[string]string)
 	vals["client_id"] = self.config.Get("oauth.client_id", "invalid")
 	vals["client_secret"] = self.config.Get("oauth.client_secret", "invalid")
@@ -1325,28 +1465,28 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 			util.Fields{"error": err.Error()})
 		return "", err
 	}
-    fmt.Printf("### args: %s\n", vd)
+	fmt.Printf("### args: %s\n", vd)
 	req, err := http.NewRequest("POST", token_url, bytes.NewBuffer(vd))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not get oauth token",
 			util.Fields{"code": code, "error": err.Error()})
 		return "", ErrOauth
 	}
-    req.Header.Add("Content-Type", "application/json")
-    cli := http.DefaultClient
-    res, err := cli.Do(req)
-    if err != nil {
-        self.logger.Error(self.logCat, "Access Token Fetch failed",
-            util.Fields{"error": err.Error()})
-        return "", err
-    }
+	req.Header.Add("Content-Type", "application/json")
+	cli := http.DefaultClient
+	res, err := cli.Do(req)
+	if err != nil {
+		self.logger.Error(self.logCat, "Access Token Fetch failed",
+			util.Fields{"error": err.Error()})
+		return "", err
+	}
 	reply, raw, err := parseBody(res.Body)
-    if code, ok := reply["code"]; ok && code.(float64) > 299.0 {
-        self.logger.Error(self.logCat, "FxA Access token failure",
-            util.Fields{"code": strconv.FormatFloat(code.(float64), 'f', 1, 64),
-                "body": raw})
-        return "", ErrOauth
-    }
+	if code, ok := reply["code"]; ok && code.(float64) > 299.0 {
+		self.logger.Error(self.logCat, "FxA Access token failure",
+			util.Fields{"code": strconv.FormatFloat(code.(float64), 'f', 1, 64),
+				"body": raw})
+		return "", ErrOauth
+	}
 	token, ok := reply["access_token"]
 	if !ok {
 		self.logger.Error(self.logCat, "OAuth Access token missing from reply",
@@ -1358,15 +1498,15 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 
 func (self *Handler) getUserEmail(accessToken string) (email string, err error) {
 	client := http.DefaultClient
-    url := self.config.Get("fxa.content.endpoint", CONTENT_ENDPOINT)+"/email"
-	req, err := http.NewRequest("GET",url, nil)
+	url := self.config.Get("fxa.content.endpoint", CONTENT_ENDPOINT) + "/email"
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not POST to get email",
 			util.Fields{"error": err.Error()})
 		return "", err
 	}
-	req.Header.Add("Authorization", "Bearer " + accessToken)
-    fmt.Printf("### Sending %+v", req)
+	req.Header.Add("Authorization", "Bearer "+accessToken)
+	fmt.Printf("### Sending %+v", req)
 	resp, err := client.Do(req)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not get user email",
@@ -1381,7 +1521,7 @@ func (self *Handler) getUserEmail(accessToken string) (email string, err error) 
 	}
 	if _, ok := buffer["email"]; !ok {
 		self.logger.Error(self.logCat, "Response did not contain email",
-        util.Fields{"body": raw})
+			util.Fields{"body": raw})
 		return "", ErrNoUser
 	}
 	return buffer["email"].(string), nil
@@ -1396,7 +1536,7 @@ func (self *Handler) genHash(input string) (output string) {
 func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "oauth"
 
-	session, err := self.session.Get(req, SESSION_NAME)
+	session, err := sessionStore.Get(req, SESSION_NAME)
 	fmt.Printf("### oauth session: %+v, err: %s\n", session, err)
 	if err == nil {
 		if _, ok := session.Values["accessToken"]; !ok {

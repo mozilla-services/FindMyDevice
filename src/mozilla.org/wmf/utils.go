@@ -95,7 +95,6 @@ func minInt(x, y int) int {
 // get the device id from the URL path
 func getDevFromUrl(u *url.URL) (devId string) {
 	if len(u.Path) < 10 || !strings.Contains(u.Path, "/") {
-        fmt.Printf("### path too short: %s\n", u.Path)
 		return ""
 	}
 	elements := strings.Split(u.Path, "/")
@@ -103,6 +102,5 @@ func getDevFromUrl(u *url.URL) (devId string) {
 	if len(devId) > 32 {
 		devId = devId[:32]
 	}
-    fmt.Printf("### devid: %s\n", devId)
 	return devId
 }

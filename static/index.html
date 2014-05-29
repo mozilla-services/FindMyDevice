@@ -43,10 +43,10 @@ this is a pretty crappy device picker. Obviously, it should be better.
         Please select which device you'd like to work with.</div>
     <ul id="devices">
 {{      range $device := .DeviceList}}
-        <li><a href="{{urlquery ($device.ID)}}">{{html ($device.Name)}}</a></li>
+<li><a href="{{urlquery ($device.ID)}}" data-id="{{$device.ID}}" class="devicePicker">{{html ($device.Name)}}</a></li>
 {{      end}}
 </ul>
-{{ end }}
+{{ else }}
 {{/* Otherwise, dump the Device info we have */}}
 {{if not .Device}}
     <div class="device">You have no device registered yet.</div>
@@ -87,6 +87,7 @@ this is a pretty crappy device picker. Obviously, it should be better.
         <div class="map" id="map_{{$device.ID}}"></div>
 {{end}}{{/* with device */}}
 {{end}}{{/* else userid */}}
+{{end}}
 <footer>
 <!-- completely optional Footery stuffs... -->
 </footer>
@@ -139,6 +140,7 @@ function deviceUpdate(devInfo) {
 function sendCommand(cmd) {
     // generate HAWK header
     var xhr = new XMLHttpRequest();
+    xhr.setRequestHeader("Cookie", document.cookie);
     xhr.onload = function(e) {
         console.debug("cmdResponse", e);
         try {
@@ -209,12 +211,14 @@ window.addEventListener("load",
                        Refresh the page wth the current ID?
                      */
                     {{if not .UserId}}
-                    form = ("<form method='POST' action='/' id='fs'>" +
-                    "<input type='hidden' name='assertion' value='" +
-                    assertion +
-                    "'/><input type='hidden' name='audience' "+
-                    "value='localhost'>" +
-                    "</form>");
+                    form = ("<form method='POST' action='" +
+                        document.location.pathname +
+                        "' id='fs'>" +
+                        "<input type='hidden' name='assertion' value='" +
+                        assertion +
+                        "'/><input type='hidden' name='audience' "+
+                        "value='localhost'>" +
+                        "</form>");
                     document.getElementById('browserid').innerHTML = form;
                     document.getElementById('fs').submit();
                     {{end}}

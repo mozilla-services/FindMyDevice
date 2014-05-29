@@ -151,7 +151,7 @@ def registerNew(config):
     # divy up based on scheme.
     regObj = {"assert": assertion,
               "pushurl": "http://example.com",
-              "deviceid": "test1"}
+              "deviceid": "deadbeef00000000decafbad00000000"}
     reply = send(trg, regObj, {})
     cred = reply.json()
     print "Credentials: "
