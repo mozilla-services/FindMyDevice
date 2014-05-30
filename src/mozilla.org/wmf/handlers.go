@@ -315,6 +315,8 @@ func (self *Handler) clearSession(sess *sessions.Session) (err error) {
 
 // get the user id from the session, or the assertion.
 func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (userid string, user string, err error) {
+    var email string
+
 	session, err := sessionStore.Get(req, SESSION_NAME)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not open session",
@@ -336,11 +338,11 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 				user = ru.(string)
 				ret = true
 			default:
-				user = ""
+				email = ""
 			}
 		}
 		if ret {
-			return userid, user, nil
+			return userid, email, nil
 		}
 	}
 	// Nothing in the session,
@@ -349,11 +351,11 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		return "", "", ErrAuthorization
 	}
 	if self.config.GetFlag("auth.persona") {
-		userid, user, err = self.verifyPersonaAssertion(auth)
+		userid, email, err = self.verifyPersonaAssertion(auth)
 	} else {
-		userid, user, err = self.verifyFxAAssertion(auth)
+		userid, email, err = self.verifyFxAAssertion(auth)
 	}
-	fmt.Printf("### assertion userid: %s\n", userid)
+    user = strings.SplitN(email, "@", 2)[0]
 	if err != nil {
 		return "", "", ErrAuthorization
 	}
@@ -538,7 +540,8 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 	var buffer = util.JsMap{}
 	var userid string
-	var user string
+	var email string
+    var user string
 	var pushUrl string
 	var deviceid string
 	var secret string
@@ -573,9 +576,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 		if assertion, ok := buffer["assert"]; ok {
 			if self.config.GetFlag("auth.persona") {
-				userid, user, err = self.verifyPersonaAssertion(assertion.(string))
+				userid, email, err = self.verifyPersonaAssertion(assertion.(string))
 			} else {
-				userid, user, err = self.verifyFxAAssertion(assertion.(string))
+				userid, email, err = self.verifyFxAAssertion(assertion.(string))
 			}
 			if err != nil || userid == "" {
 				http.Error(resp, "Unauthorized", 401)
@@ -662,7 +665,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	}
 	self.metrics.Increment("device.registration")
 	reply, err := json.Marshal(util.Fields{"deviceid": self.devId,
-		"secret": secret})
+		"secret": secret,
+        "email": email,
+    })
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not marshal reply",
 			util.Fields{"error": err.Error()})
