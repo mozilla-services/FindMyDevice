@@ -15,10 +15,9 @@
     <h1>{{.ProductName}}</h1>
     <div id="login">
         {{if not .UserId}}
-        <!--
-        <div id="fxa-login"><a href="{{.Host.Login}}/authorization?client_id={{.Host.Client_id}}&scope=profile:email&action=signin&state=somestate"><img src="https://login.persona.org/i/sign_in_blue.png" id="signin"></a></div>
-        -->
-        <div id="persona-login"><div id="browserid"><img src="https://login.persona.org/i/sign_in_blue.png" id="signin"></div></div>
+        <div id="fxa-login"><a href="{{.Host.Login}}?client_id={{.Host.Client_id}}&scope=profile:email&action=signin&state=somestate"><img src="https://login.persona.org/i/sign_in_blue.png" id="signin"></a></div>
+        <!--div id="persona-login"><div id="browserid"><img src="https://login.persona.org/i/sign_in_blue.png" id="signin"></div>
+        </div-->
         {{else}}
         <div id="persona-logout"><a href="/" id="signout">Logout</a></div>
         {{end}}

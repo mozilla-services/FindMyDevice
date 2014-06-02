@@ -151,7 +151,7 @@ func main() {
 	RESTMux.HandleFunc("/status/",
 		handlers.Status)
 	// Config option because there are other teams involved.
-	auth := config.Get("oauth.redir_uri", "/oauth/")
+	auth := config.Get("fxa.redir_uri", "/oauth/")
 	RESTMux.HandleFunc(auth, handlers.OAuthCallback)
 
 	WSMux.Handle(fmt.Sprintf("/%s/ws/", verRoot),

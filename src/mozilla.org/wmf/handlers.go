@@ -250,7 +250,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 
 	}
 	cli := http.Client{}
-	validatorUrl := self.config.Get("fxa.endpoint",
+	validatorUrl := self.config.Get("fxa.verifier",
 		"https://oauth.accounts.firefox.com/authorization")
 	fmt.Printf("### Sending to %s\n", validatorUrl)
 	args := make(map[string]string)
@@ -1479,8 +1479,7 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 }
 
 func (self *Handler) getAccessToken(code string) (accessToken string, err error) {
-	token_url := self.config.Get("fxa.endpoint", OAUTH_ENDPOINT) + "/token"
-	fmt.Printf("### sending to %s\n", token_url)
+    token_url := self.config.Get("fxa.token", OAUTH_ENDPOINT + "/v1/token")
 	vals := make(map[string]string)
 	vals["client_id"] = self.config.Get("fxa.client_id", "invalid")
 	vals["client_secret"] = self.config.Get("fxa.client_secret", "invalid")
@@ -1491,7 +1490,7 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 			util.Fields{"error": err.Error()})
 		return "", err
 	}
-	fmt.Printf("### args: %s\n", vd)
+	fmt.Printf("### sending to %s\n %s\n", token_url, vd)
 	req, err := http.NewRequest("POST", token_url, bytes.NewBuffer(vd))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not get oauth token",
@@ -1532,7 +1531,7 @@ func (self *Handler) getUserEmail(accessToken string) (email string, err error) 
 		return "", err
 	}
 	req.Header.Add("Authorization", "Bearer "+accessToken)
-	fmt.Printf("### Sending %+v", req)
+	fmt.Printf("### Sending email request to profile server\n%+v\n", req)
 	resp, err := client.Do(req)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not get user email",
