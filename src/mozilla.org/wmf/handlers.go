@@ -87,7 +87,8 @@ var ErrOauth = errors.New("OAuth Error")
 //Handler private functions
 
 // SUPER FAKE DO NOT EVER USE IN PRODUCTION FOR DEBUGGING ONLY!
-// Extract the user info from the assertion WITHOUT VERIFICATION
+// Extract the user info from the assertion WITHOUT VERIFICATIONS
+
 func (self *Handler) extractFromAssertion(assertion string) (userid, email string, err error) {
 	var ErrInvalidAssertion = errors.New("Invalid assertion")
 	bits := strings.Split(assertion, ".")
@@ -132,6 +133,8 @@ func (self *Handler) extractFromAssertion(assertion string) (userid, email strin
 // part of Handler for config & logging reasons
 func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email string, err error) {
 	var ok bool
+	var audience string
+
 	if assLen := len(assertion); assLen != len(strings.Map(assertionFilter, assertion)) {
 		self.logger.Error(self.logCat, "Assertion contains invalid characters.",
 			util.Fields{"assertion": assertion})
@@ -150,12 +153,28 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 			nil)
 		return self.extractFromAssertion(assertion)
 	}
+    // pull the audience out of the assertion, if it's present.
+	if self.config.GetFlag("auth.audience_from_assertion") {
+		bits := strings.Split(assertion, ".")
+		if len(bits) == 5 {
+			if data, err := base64.StdEncoding.DecodeString(bits[3] + "===="[:len(bits[3])%4]); err == nil {
+				dj := make(replyType)
+				if err = json.Unmarshal(data, &dj); err == nil {
+					if v, ok := dj["aud"]; ok {
+						audience = v.(string)
+					}
+				}
 
+			}
+		}
+	}
+	if audience == "" {
+		audience = self.config.Get("persona.audience",
+			"http://localhost:8080")
+	}
 	// Better verify for realz
 	validatorURL := self.config.Get("persona.verifier",
 		"https://verifier.login.persona.org/v2")
-	audience := self.config.Get("persona.audience",
-		"http://localhost:8080")
 	body, err := json.Marshal(
 		util.Fields{"assertion": assertion,
 			"audience": audience})
@@ -165,6 +184,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 			util.Fields{"error": err.Error()})
 		return "", "", ErrAuthorization
 	}
+	fmt.Printf("### Sending to %s\n%s\n", validatorURL, body)
 	req, err := http.NewRequest("POST", validatorURL, bytes.NewReader(body))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not POST assertion",
@@ -230,12 +250,14 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 
 	}
 	cli := http.Client{}
-	validatorUrl := self.config.Get("oauth.endpoint",
-		"https://oauth.accounts.firefox.com") + "/authorization"
+	validatorUrl := self.config.Get("fxa.endpoint",
+		"https://oauth.accounts.firefox.com/authorization")
 	fmt.Printf("### Sending to %s\n", validatorUrl)
 	args := make(map[string]string)
-	args["client_id"] = self.config.Get("oauth.client_id", "invalid")
+	args["client_id"] = self.config.Get("fxa.client_id", "invalid")
 	args["assertion"] = assertion
+	args["audience"] = self.config.Get("fxa.audience",
+		"htttps://oauth.accounts.firefox.com/v1")
 	args["state"] = "state"
 
 	argsj, err := json.Marshal(args)
@@ -315,7 +337,7 @@ func (self *Handler) clearSession(sess *sessions.Session) (err error) {
 
 // get the user id from the session, or the assertion.
 func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (userid string, user string, err error) {
-    var email string
+	var email string
 
 	session, err := sessionStore.Get(req, SESSION_NAME)
 	if err != nil {
@@ -355,7 +377,7 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 	} else {
 		userid, email, err = self.verifyFxAAssertion(auth)
 	}
-    user = strings.SplitN(email, "@", 2)[0]
+	user = strings.SplitN(email, "@", 2)[0]
 	if err != nil {
 		return "", "", ErrAuthorization
 	}
@@ -541,7 +563,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var buffer = util.JsMap{}
 	var userid string
 	var email string
-    var user string
+	var user string
 	var pushUrl string
 	var deviceid string
 	var secret string
@@ -666,8 +688,8 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	self.metrics.Increment("device.registration")
 	reply, err := json.Marshal(util.Fields{"deviceid": self.devId,
 		"secret": secret,
-        "email": email,
-    })
+		"email":  email,
+	})
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not marshal reply",
 			util.Fields{"error": err.Error()})
@@ -1317,9 +1339,9 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 	// host information (for websocket callback)
 	data.Host = make(map[string]string)
 	data.Host["Hostname"] = self.config.Get("ws_hostname", "localhost")
-	data.Host["Client_id"] = self.config.Get("oauth.client_id", "none")
-	data.Host["Endpoint"] = self.config.Get("oauth.endpoint", "https://oauth.accounts.firefox.com/v1")
-	data.Host["Login"] = self.config.Get("oauth.login", data.Host["Endpoint"])
+	data.Host["Client_id"] = self.config.Get("fxa.client_id", "none")
+	data.Host["Endpoint"] = self.config.Get("fxa.endpoint", "https://oauth.accounts.firefox.com/v1")
+	data.Host["Login"] = self.config.Get("fxa.login", data.Host["Endpoint"])
 	// TODO: generate "state" code thingy
 	data.Host["State"] = "somestate"
 
@@ -1457,11 +1479,11 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 }
 
 func (self *Handler) getAccessToken(code string) (accessToken string, err error) {
-	token_url := self.config.Get("oauth.endpoint", OAUTH_ENDPOINT) + "/token"
+	token_url := self.config.Get("fxa.endpoint", OAUTH_ENDPOINT) + "/token"
 	fmt.Printf("### sending to %s\n", token_url)
 	vals := make(map[string]string)
-	vals["client_id"] = self.config.Get("oauth.client_id", "invalid")
-	vals["client_secret"] = self.config.Get("oauth.client_secret", "invalid")
+	vals["client_id"] = self.config.Get("fxa.client_id", "invalid")
+	vals["client_secret"] = self.config.Get("fxa.client_secret", "invalid")
 	vals["code"] = code
 	vd, err := json.Marshal(vals)
 	if err != nil {
