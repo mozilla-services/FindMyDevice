@@ -7,13 +7,15 @@ package wmf
 import (
 	"mozilla.org/util"
 
+	"bytes"
 	"encoding/json"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"fmt"
 )
 
 //filters
@@ -35,18 +37,34 @@ func asciiOnly(r rune) rune {
 	}
 }
 
+func deviceIdFilter(r rune) rune {
+	if bytes.IndexRune([]byte("ABCDEFabcdef0123456789-"), r) < 0 {
+		return rune(-1)
+	}
+	return r
+}
+
+func assertionFilter(r rune) rune {
+	// wish that base64.go exported this publicly:
+	if bytes.IndexRune([]byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_~.="), r) < 0 {
+		return rune(-1)
+	}
+	return r
+}
+
 // parse a body and return the JSON
-func parseBody(rbody io.ReadCloser) (rep util.JsMap, err error) {
+func parseBody(rbody io.ReadCloser) (rep util.JsMap, raw string, err error) {
 	var body []byte
 	rep = util.JsMap{}
 	defer rbody.Close()
 	if body, err = ioutil.ReadAll(rbody.(io.Reader)); err != nil {
-		return nil, err
+		return nil, "", err
 	}
+	fmt.Printf("### parseBody: %s\n", body)
 	if err = json.Unmarshal(body, &rep); err != nil {
-		return nil, err
+		return nil, string(body), err
 	}
-	return rep, nil
+	return rep, string(body), nil
 }
 
 // Take an interface value and return if it's true or not.
@@ -73,26 +91,16 @@ func minInt(x, y int) int {
 	return y
 }
 
+//filter
 // get the device id from the URL path
 func getDevFromUrl(u *url.URL) (devId string) {
-	if !strings.Contains(u.Path, "/") {
+	if len(u.Path) < 10 || !strings.Contains(u.Path, "/") {
 		return ""
 	}
 	elements := strings.Split(u.Path, "/")
-    devId = strings.Map(deviceIdFilter, elements[len(elements)-1])
-    if len(devId) > 32 {
-        devId = devId[:32]
-    }
-    return devId
-}
-
-// get the user id info from the session. (userid/devid)
-func setSessionInfo(resp http.ResponseWriter, session *sessionInfo) (err error) {
-	if session != nil {
-		cookie := http.Cookie{Name: "user",
-			Value: session.UserId,
-			Path:  "/"}
-		http.SetCookie(resp, &cookie)
+	devId = strings.Map(deviceIdFilter, elements[len(elements)-1])
+	if len(devId) > 32 {
+		devId = devId[:32]
 	}
-	return err
+	return devId
 }
