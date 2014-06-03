@@ -41,6 +41,7 @@ type Handler struct {
 	logCat  string
 	accepts []string
 	hawk    *Hawk
+	session *sessions.Session
 }
 
 // Map of clientIDs to socket handlers
@@ -50,6 +51,10 @@ const (
 	SESSION_NAME     = "user"
 	OAUTH_ENDPOINT   = "https://oauth.accounts.firefox.com"
 	CONTENT_ENDPOINT = "https://accounts.firefox.com"
+	SESSION_USERID   = "userid"
+	SESSION_EMAIL    = "email"
+	SESSION_TOKEN    = "token"
+	SESSION_DEVICEID = "deviceid"
 )
 
 var (
@@ -66,7 +71,7 @@ type replyType map[string]interface{}
 type sessionInfoStruct struct {
 	UserId      string
 	DeviceId    string
-	User        string
+	Email       string
 	AccessToken string
 }
 
@@ -153,7 +158,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 			nil)
 		return self.extractFromAssertion(assertion)
 	}
-    // pull the audience out of the assertion, if it's present.
+	// pull the audience out of the assertion, if it's present.
 	if self.config.GetFlag("auth.audience_from_assertion") {
 		bits := strings.Split(assertion, ".")
 		if len(bits) == 5 {
@@ -184,7 +189,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 			util.Fields{"error": err.Error()})
 		return "", "", ErrAuthorization
 	}
-	fmt.Printf("### Sending to %s\n%s\n", validatorURL, body)
+	//fmt.Printf("### Sending to %s\n%s\n", validatorURL, body)
 	req, err := http.NewRequest("POST", validatorURL, bytes.NewReader(body))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not POST assertion",
@@ -252,7 +257,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	cli := http.Client{}
 	validatorUrl := self.config.Get("fxa.verifier",
 		"https://oauth.accounts.firefox.com/authorization")
-	fmt.Printf("### Sending to %s\n", validatorUrl)
+	// fmt.Printf("### Sending to %s\n", validatorUrl)
 	args := make(map[string]string)
 	args["client_id"] = self.config.Get("fxa.client_id", "invalid")
 	args["assertion"] = assertion
@@ -266,7 +271,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 			util.Fields{"error": err.Error()})
 		return "", "", err
 	}
-	fmt.Printf("### argsj : %s\n", argsj)
+	// fmt.Printf("### argsj : %s\n", argsj)
 	req, err := http.NewRequest("POST", validatorUrl, bytes.NewReader(argsj))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not POST verify assertion",
@@ -317,7 +322,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 			if err != nil {
 				return "", "", ErrOauth
 			}
-
+			// fmt.Printf("### Verified FxA assertion: %s, %s\n", accessToken, email)
 			return accessToken, email, nil
 		}
 	}
@@ -327,25 +332,47 @@ func (self *Handler) clearSession(sess *sessions.Session) (err error) {
 	if sess == nil {
 		return
 	}
-	delete(sess.Values, "userId")
-	delete(sess.Values, "deviceId")
-	delete(sess.Values, "user")
-	delete(sess.Values, "email")
-	delete(sess.Values, "accessToken")
+	delete(sess.Values, SESSION_USERID)
+	delete(sess.Values, SESSION_DEVICEID)
+	delete(sess.Values, SESSION_EMAIL)
+	delete(sess.Values, SESSION_TOKEN)
 	return
 }
 
 // get the user id from the session, or the assertion.
-func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (userid string, user string, err error) {
-	var email string
+func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (userid, email string, err error) {
 
-	session, err := sessionStore.Get(req, SESSION_NAME)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not open session",
-			util.Fields{"error": err.Error()})
+	//return "test+b2g", "test+b2g@unitedheroes.net", nil
+	var session *sessions.Session
+
+	if self.session != nil {
+		session = self.session
 	} else {
+		session, err = sessionStore.Get(req, SESSION_NAME)
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not open session",
+				util.Fields{"error": err.Error()})
+			// delete the current, invalid session
+			self.clearSession(session)
+			session.Options.MaxAge = 0
+			self.session = nil
+			session.Save(req, resp)
+		}
+	}
+	if session != nil {
+		// fmt.Printf("### Got session: %+v\n", session)
 		var ret = false
-		if ruid, ok := session.Values["userId"]; ok {
+		if ru, ok := session.Values[SESSION_EMAIL]; ok {
+			switch ru.(type) {
+			case string:
+				email = ru.(string)
+				userid = self.genHash(email)
+				ret = true
+			default:
+				email = ""
+			}
+		}
+		if ruid, ok := session.Values[SESSION_USERID]; ok {
 			switch ruid.(type) {
 			case string:
 				userid = ruid.(string)
@@ -354,65 +381,56 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 				userid = ""
 			}
 		}
-		if ru, ok := session.Values["user"]; ok {
-			switch ru.(type) {
-			case string:
-				user = ru.(string)
-				ret = true
-			default:
-				email = ""
-			}
-		}
 		if ret {
 			return userid, email, nil
 		}
 	}
 	// Nothing in the session,
 	var auth string
-	if auth = req.FormValue("assertion"); auth == "" {
-		return "", "", ErrAuthorization
+	if auth = req.FormValue("assertion"); auth != "" {
+		if self.config.GetFlag("auth.persona") {
+			userid, email, err = self.verifyPersonaAssertion(auth)
+		} else {
+			userid, email, err = self.verifyFxAAssertion(auth)
+		}
 	}
-	if self.config.GetFlag("auth.persona") {
-		userid, email, err = self.verifyPersonaAssertion(auth)
-	} else {
-		userid, email, err = self.verifyFxAAssertion(auth)
-	}
-	user = strings.SplitN(email, "@", 2)[0]
 	if err != nil {
 		return "", "", ErrAuthorization
 	}
+	// fmt.Printf("userid %s; email %s;\n", userid, email)
+	userid = self.genHash(email)
 	if userid != "" {
 		self.clearSession(session)
+		session.Options.MaxAge = 0
+		self.session = nil
 		session.Save(req, resp)
 	}
-	return userid, user, nil
+	return userid, email, nil
 }
 
 // set the user info into the session
 func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request, session *sessions.Session) (info *sessionInfoStruct, err error) {
 	var userid string
-	var user string
+	var email string
+	var accessToken string
 
 	dev := getDevFromUrl(req.URL)
-	userid, user, err = self.getUser(resp, req)
-
-	if userid == "" {
-		fields := util.Fields{}
-		if err != nil {
-			fields["error"] = err.Error()
-		}
-		self.logger.Error("handler", "Could not get user", fields)
-		return nil, ErrNoUser
+	userid, email, err = self.getUser(resp, req)
+	if err != nil {
+		return nil, err
 	}
-	accesstoken := ""
-	if token, ok := session.Values["accessToken"]; ok {
-		accesstoken = token.(string)
+	if userid == "" && email != "" {
+		userid = self.genHash(email)
 	}
+	if token, ok := session.Values[SESSION_TOKEN]; ok {
+		accessToken = token.(string)
+	}
+	// fmt.Printf("### session info : %s, %s, %s, %s\n", userid, email, accessToken, dev)
 	info = &sessionInfoStruct{
 		UserId:      userid,
-		User:        user,
+		Email:       email,
 		DeviceId:    dev,
-		AccessToken: accesstoken}
+		AccessToken: accessToken}
 	return
 }
 
@@ -606,9 +624,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 				http.Error(resp, "Unauthorized", 401)
 				return
 			}
-			self.logger.Debug(self.logCat, "Got user "+userid, nil)
-			user = strings.SplitN(user, "@", 2)[0]
-			session.Values["userId"] = userid
+			self.logger.Debug(self.logCat, "Got user "+email, nil)
+			session.Values[SESSION_USERID] = userid
+			session.Values[SESSION_EMAIL] = email
 			loggedIn = true
 		} else {
 			self.logger.Error(self.logCat, "Missing 'assert' value",
@@ -690,11 +708,13 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		"secret": secret,
 		"email":  email,
 	})
+	session.Values[SESSION_DEVICEID] = self.devId
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not marshal reply",
 			util.Fields{"error": err.Error()})
 		return
 	}
+	self.session = session
 	session.Save(req, resp)
 	resp.Write(reply)
 	return
@@ -716,7 +736,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	}
 	defer store.Close()
 
-	fmt.Printf("### req.URL: %s", req.URL)
+	// fmt.Printf("### req.URL: %s", req.URL)
 	deviceId := getDevFromUrl(req.URL)
 	if deviceId == "" {
 		self.logger.Error(self.logCat, "Invalid call (No device id)", nil)
@@ -1042,12 +1062,15 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	if userId == "" || err != nil {
 		self.logger.Error(self.logCat, "No userid", nil)
 		self.clearSession(session)
+		session.Options.MaxAge = 0
+		self.session = nil
 		session.Save(req, resp)
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
 
 	devRec, err := store.GetDeviceInfo(deviceId)
+	// fmt.Printf("### devices: %+v\n", devRec)
 	if err != nil || devRec == nil {
 		fields := util.Fields{"deviceId": deviceId}
 		if err != nil {
@@ -1058,6 +1081,8 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		}
 		self.logger.Error(self.logCat, "Could not get userid", fields)
 		self.clearSession(session)
+		session.Options.MaxAge = 0
+		self.session = nil
 		session.Save(req, resp)
 		http.Error(resp, "Unauthorized", 401)
 		return
@@ -1067,6 +1092,8 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 			util.Fields{"devrec": devRec.User,
 				"userid": userId})
 		self.clearSession(session)
+		session.Options.MaxAge = 0
+		self.session = nil
 		session.Save(req, resp)
 		http.Error(resp, "Unauthorized", 401)
 		return
@@ -1078,6 +1105,8 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 				"deviceId": deviceId,
 				"userId":   userId})
 		self.clearSession(session)
+		session.Options.MaxAge = 0
+		self.session = nil
 		session.Save(req, resp)
 		http.Error(resp, "Unauthorized", 401)
 		return
@@ -1228,20 +1257,24 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	var err error
+	var session *sessions.Session
 
-	session, err := sessionStore.Get(req, SESSION_NAME)
+	session, err = sessionStore.Get(req, SESSION_NAME)
 	if err != nil {
 		self.logger.Error(self.logCat,
 			"Could not initialize session",
 			util.Fields{"error": err.Error()})
 	}
+	// fmt.Printf("### Index:: session %+v\n", session)
 	sessionInfo, err := self.getSessionInfo(resp, req, session)
+	// fmt.Printf("### Index:: sessionInfo: %+v\n", sessionInfo)
 	initData, err := self.initData(resp, req, sessionInfo)
+	// fmt.Printf("### Index:: initData: %+v\n", initData)
 	if err != nil {
 		self.logger.Error(self.logCat,
 			"Could not get inital data for index",
 			util.Fields{"error": err.Error()})
-		http.Error(resp, "Server error", 500)
+		http.Error(resp, "Server error", 401)
 		return
 	}
 
@@ -1253,11 +1286,14 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "Server error", 500)
 	}
 	if sessionInfo != nil {
-		session.Values["userId"] = sessionInfo.UserId
-		session.Values["user"] = sessionInfo.User
-		session.Values["deviceId"] = sessionInfo.DeviceId
+		session.Values[SESSION_USERID] = sessionInfo.UserId
+		session.Values[SESSION_EMAIL] = sessionInfo.Email
+		session.Values[SESSION_DEVICEID] = sessionInfo.DeviceId
+		self.session = session
 	} else {
 		self.clearSession(session)
+		session.Options.MaxAge = 0
+		self.session = nil
 	}
 	if err = session.Save(req, resp); err != nil {
 		self.logger.Error(self.logCat,
@@ -1376,7 +1412,7 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 					"Could not get device's position information",
 					util.Fields{"error": err.Error(),
 						"userId": data.UserId,
-						"user":   sessionInfo.User,
+						"email":  sessionInfo.Email,
 						"device": sessionInfo.DeviceId})
 				return nil, err
 			}
@@ -1409,7 +1445,7 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	}
 	sessionInfo, err := self.getSessionInfo(resp, req, session)
 	if err != nil && err != ErrNoUser {
-		http.Error(resp, err.Error(), 500)
+		http.Error(resp, err.Error(), 401)
 		return
 	}
 	devInfo, err := store.GetDeviceInfo(sessionInfo.DeviceId)
@@ -1419,10 +1455,11 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	}
 	// add the user session cookie
 	if sessionInfo != nil {
-		session.Values["userId"] = sessionInfo.UserId
-		session.Values["deviceId"] = sessionInfo.DeviceId
-		session.Values["user"] = sessionInfo.User
-		session.Values["accessToken"] = sessionInfo.AccessToken
+		session.Values[SESSION_USERID] = sessionInfo.UserId
+		session.Values[SESSION_DEVICEID] = sessionInfo.DeviceId
+		session.Values[SESSION_EMAIL] = sessionInfo.Email
+		session.Values[SESSION_TOKEN] = sessionInfo.AccessToken
+		self.session = session
 	}
 	session.Save(req, resp)
 	// display the device info...
@@ -1479,7 +1516,7 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 }
 
 func (self *Handler) getAccessToken(code string) (accessToken string, err error) {
-    token_url := self.config.Get("fxa.token", OAUTH_ENDPOINT + "/v1/token")
+	token_url := self.config.Get("fxa.token", OAUTH_ENDPOINT+"/v1/token")
 	vals := make(map[string]string)
 	vals["client_id"] = self.config.Get("fxa.client_id", "invalid")
 	vals["client_secret"] = self.config.Get("fxa.client_secret", "invalid")
@@ -1490,7 +1527,7 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 			util.Fields{"error": err.Error()})
 		return "", err
 	}
-	fmt.Printf("### sending to %s\n %s\n", token_url, vd)
+	// fmt.Printf("### sending to %s\n %s\n", token_url, vd)
 	req, err := http.NewRequest("POST", token_url, bytes.NewBuffer(vd))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not get oauth token",
@@ -1531,7 +1568,7 @@ func (self *Handler) getUserEmail(accessToken string) (email string, err error) 
 		return "", err
 	}
 	req.Header.Add("Authorization", "Bearer "+accessToken)
-	fmt.Printf("### Sending email request to profile server\n%+v\n", req)
+	// fmt.Printf("### Sending email request to profile server\n%+v\n", req)
 	resp, err := client.Do(req)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not get user email",
@@ -1539,6 +1576,7 @@ func (self *Handler) getUserEmail(accessToken string) (email string, err error) 
 		return "", err
 	}
 	buffer, raw, err := parseBody(resp.Body)
+	// fmt.Printf("===> Raw %s\n", raw)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not parse body",
 			util.Fields{"error": err.Error()})
@@ -1549,6 +1587,7 @@ func (self *Handler) getUserEmail(accessToken string) (email string, err error) 
 			util.Fields{"body": raw})
 		return "", ErrNoUser
 	}
+	// fmt.Printf("### Got email! %s\n", buffer["email"].(string))
 	return buffer["email"].(string), nil
 }
 
@@ -1561,50 +1600,54 @@ func (self *Handler) genHash(input string) (output string) {
 func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "oauth"
 
-	session, err := sessionStore.Get(req, SESSION_NAME)
-	fmt.Printf("### oauth session: %+v, err: %s\n", session, err)
-	if err == nil {
-		if _, ok := session.Values["accessToken"]; !ok {
-			// get the "state", and "code"
-			state := req.FormValue("state")
-			code := req.FormValue("code")
-			// TODO: check "state" matches magic code thingy
-			if state == "" {
-				self.logger.Error(self.logCat, "No State", nil)
-				return
-			}
-			if code == "" {
-				self.logger.Error(self.logCat, "Missing code value", nil)
-				http.Error(resp, "Unauthorized", 401)
-				return
-			}
+	// Get the session so that we can save it.
+	session, _ := sessionStore.Get(req, SESSION_NAME)
+	// fmt.Printf("### oauth session: %+v, err: %s\n", session, err)
+	if _, ok := session.Values[SESSION_TOKEN]; !ok {
+		// get the "state", and "code"
+		state := req.FormValue("state")
+		code := req.FormValue("code")
+		// TODO: check "state" matches magic code thingy
+		if state == "" {
+			self.logger.Error(self.logCat, "No State", nil)
+			return
+		}
+		if code == "" {
+			self.logger.Error(self.logCat, "Missing code value", nil)
+			http.Error(resp, "Unauthorized", 401)
+			return
+		}
 
-			// fetch the token:
-			fmt.Printf("### Getting access token\n")
-			token, err := self.getAccessToken(code)
-			if err != nil {
-				self.logger.Error(self.logCat, "Could not get access token",
-					util.Fields{"error": err.Error()})
-				http.Error(resp, "Unauthorized", 401)
-				return
-			}
-			fmt.Printf("### store user token %s\n", token)
-			delete(session.Values, "email")
-			session.Values["accessToken"] = token
+		// fetch the token:
+		// fmt.Printf("### Getting access token\n")
+		token, err := self.getAccessToken(code)
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not get access token",
+				util.Fields{"error": err.Error()})
+			http.Error(resp, "Unauthorized", 401)
+			return
 		}
-		if _, ok := session.Values["email"]; !ok {
-			email, err := self.getUserEmail(session.Values["accessToken"].(string))
-			if err != nil {
-				self.logger.Error(self.logCat, "Could not get email",
-					util.Fields{"error": err.Error()})
-				http.Error(resp, "Unauthorized", 401)
-				return
-			}
-			session.Values["email"] = email
-			session.Save(req, resp)
-		}
+		// fmt.Printf("### store user token %s\n", token)
+		delete(session.Values, SESSION_EMAIL)
+		session.Values[SESSION_TOKEN] = token
 	}
-	self.Index(resp, req)
+	if _, ok := session.Values[SESSION_EMAIL]; !ok {
+		// fmt.Printf("### Getting user email from access token\n")
+		email, err := self.getUserEmail(session.Values[SESSION_TOKEN].(string))
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not get email",
+				util.Fields{"error": err.Error()})
+			http.Error(resp, "Unauthorized", 401)
+			return
+		}
+		session.Values[SESSION_EMAIL] = email
+		// fmt.Printf("### Saving session %+v\n", session)
+		// awesome. So saving the session apparently doesn't mean it's
+		// readable by subsequent session get calls.
+		self.session = session
+		session.Save(req, resp)
+	}
+	http.Redirect(resp, req, "/", http.StatusFound)
 	return
 }
 
