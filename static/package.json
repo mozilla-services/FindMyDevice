@@ -18,11 +18,11 @@
     "contributors": "git shortlog -s | cut -c8- | sort -f > CONTRIBUTORS",
     "clean": "rm -rf {node_modules,app/bower_components} && npm install --silent"
   },
-  "dependencies": {
-  },
+  "dependencies": {},
   "devDependencies": {
     "connect-livereload": "0.4.0",
     "grunt": "0.4.4",
+    "grunt-autoprefixer": "0.7.3",
     "grunt-bower-requirejs": "0.10.0",
     "grunt-contrib-clean": "0.5.0",
     "grunt-contrib-concat": "0.4.0",
@@ -34,6 +34,7 @@
     "grunt-contrib-jshint": "0.10.0",
     "grunt-contrib-uglify": "0.4.0",
     "grunt-contrib-watch": "0.6.1",
+    "grunt-copyright": "0.1.0",
     "grunt-jscs-checker": "0.4.3",
     "grunt-open": "0.2.3",
     "grunt-requirejs": "0.4.2",

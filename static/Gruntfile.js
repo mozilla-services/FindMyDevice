@@ -39,6 +39,21 @@ module.exports = function (grunt) {
   grunt.initConfig({
     yeoman: yeomanConfig,
 
+    // AUTOPREFIXER TASK
+    autoprefixer: {
+      options: {
+        browsers: ['> 1%', 'last 5 versions', 'ff >= 16', 'Explorer >= 8']
+      },
+      app: {
+        files: [{
+          expand: true,
+          cwd: '<%= yeoman.tmp %>/styles/',
+          src: '{,*/}*.css',
+          dest: '<%= yeoman.tmp %>/styles/'
+        }]
+      }
+    },
+
     // BOWER TASK
     bower: {
       all: {
@@ -113,6 +128,18 @@ module.exports = function (grunt) {
             'bower_components/typopro/web/TypoPRO-FiraSans/{,*/}*.*'
           ]
         }]
+      }
+    },
+
+    // COPYRIGHT TASK
+    copyright: {
+      app: {
+        options: {
+          pattern: 'This Source Code Form is subject to the terms of the Mozilla Public'
+        },
+        src: [
+          '<%= jshint.all %>'
+        ]
       }
     },
 
@@ -278,7 +305,10 @@ module.exports = function (grunt) {
       },
       sass: {
         files: ['<%= yeoman.app %>/styles/{,*/}*.scss'],
-        tasks: ['sass:dev'],
+        tasks: [
+          'sass:dev',
+          'autoprefixer'
+        ],
         options: {
           atBegin: true
         }
@@ -309,7 +339,7 @@ module.exports = function (grunt) {
   // BUILD TASK
   grunt.registerTask('build', [
     'clean:dist',
-    'sass',
+    'css',
     'useminPrepare',
     'requirejs',
     'imagemin',
@@ -322,6 +352,12 @@ module.exports = function (grunt) {
     'usemin'
   ]);
 
+  // CSS TASK
+  grunt.registerTask('css', [
+    'sass',
+    'autoprefixer'
+  ]);
+
   // DEFAULT TASK
   grunt.registerTask('default', [
     'lint',
@@ -332,7 +368,8 @@ module.exports = function (grunt) {
   // LINT TASK
   grunt.registerTask('lint', [
     'jscs',
-    'jshint'
+    'jshint',
+    'copyright'
   ]);
 
   // SERVE TASK
@@ -353,6 +390,7 @@ module.exports = function (grunt) {
     grunt.task.run([
       'clean:server',
       'sass:dev',
+      'autoprefixer',
       'connect:livereload',
       'open:server',
       'watch'
