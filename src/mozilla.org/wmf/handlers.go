@@ -41,7 +41,6 @@ type Handler struct {
 	logCat  string
 	accepts []string
 	hawk    *Hawk
-	session *sessions.Session
 }
 
 // Map of clientIDs to socket handlers
@@ -297,16 +296,16 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 		return "", "", err
 	}
 
-    // the response has either been a redirect or a validated assertion.
-    // fun times, fun times...
-    if idp, ok := buff["idpClaims"]; ok {
-        if email, ok := idp.(map[string]interface{})["fxa-verifiedEmail"]; ok {
-           return self.genHash(email.(string)), email.(string), nil
-        }
-    }
+	// the response has either been a redirect or a validated assertion.
+	// fun times, fun times...
+	if idp, ok := buff["idpClaims"]; ok {
+		if email, ok := idp.(map[string]interface{})["fxa-verifiedEmail"]; ok {
+			return self.genHash(email.(string)), email.(string), nil
+		}
+	}
 	// get the "redirect" url. We're not going to redirect, just get the code.
 	if redir, ok := buff["redirect"]; !ok {
-        fmt.Printf("### Redirect: %s\n", raw)
+		fmt.Printf("### Redirect: %s\n", raw)
 		self.logger.Error(self.logCat, "FxA verification did not return redirect",
 			nil)
 		return "", "", err
@@ -351,22 +350,15 @@ func (self *Handler) clearSession(sess *sessions.Session) (err error) {
 // get the user id from the session, or the assertion.
 func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (userid, email string, err error) {
 
-	//return "test+b2g", "test+b2g@unitedheroes.net", nil
 	var session *sessions.Session
 
-	if self.session != nil {
-		session = self.session
-	} else {
-		session, err = sessionStore.Get(req, SESSION_NAME)
-		if err != nil {
-			self.logger.Error(self.logCat, "Could not open session",
-				util.Fields{"error": err.Error()})
-			// delete the current, invalid session
-			self.clearSession(session)
-			session.Options.MaxAge = 0
-			self.session = nil
-			session.Save(req, resp)
-		}
+	session, err = sessionStore.Get(req, SESSION_NAME)
+	fmt.Printf("### Your session is: %+v\n", session.Values)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open session",
+			util.Fields{"error": err.Error()})
+		// delete the current, invalid session
+		return "", "", err
 	}
 	if session != nil {
 		// fmt.Printf("### Got session: %+v\n", session)
@@ -390,6 +382,7 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 				userid = ""
 			}
 		}
+		// return the contents of the session.
 		if ret {
 			return userid, email, nil
 		}
@@ -407,12 +400,8 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		return "", "", ErrAuthorization
 	}
 	// fmt.Printf("userid %s; email %s;\n", userid, email)
-	userid = self.genHash(email)
-	if userid != "" {
-		self.clearSession(session)
-		session.Options.MaxAge = 0
-		self.session = nil
-		session.Save(req, resp)
+	if userid == "" && email != "" {
+		userid = self.genHash(email)
 	}
 	return userid, email, nil
 }
@@ -428,19 +417,24 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	if err != nil {
 		return nil, err
 	}
-	if userid == "" && email != "" {
-		userid = self.genHash(email)
+	if userid == "" {
+		if email != "" {
+			userid = self.genHash(email)
+		} else {
+			// No userid? No session.
+			return nil, ErrNoUser
+		}
 	}
 	if token, ok := session.Values[SESSION_TOKEN]; ok {
 		accessToken = token.(string)
 	}
-	// fmt.Printf("### session info : %s, %s, %s, %s\n", userid, email, accessToken, dev)
+	fmt.Printf("### session info : %s, %s, %s, %s\n", userid, email, accessToken, dev)
 	info = &sessionInfoStruct{
 		UserId:      userid,
 		Email:       email,
 		DeviceId:    dev,
 		AccessToken: accessToken}
-	return
+	return info, nil
 }
 
 // log the device's position reply
@@ -596,6 +590,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var secret string
 	var accepts string
 	var lockable bool
+	var loggedIn bool
 	var err error
 	var raw string
 
@@ -621,7 +616,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		http.Error(resp, "No body", http.StatusBadRequest)
 	} else {
-		loggedIn := false
+		loggedIn = false
 
 		if assertion, ok := buffer["assert"]; ok {
 			if self.config.GetFlag("auth.persona") {
@@ -689,7 +684,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 		// create the new device record
 		var devId string
-        user = strings.SplitN(email, "@", 2)[0]
+		user = strings.SplitN(email, "@", 2)[0]
 		if devId, err = store.RegisterDevice(
 			userid,
 			storage.Device{
@@ -724,7 +719,6 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			util.Fields{"error": err.Error()})
 		return
 	}
-	self.session = session
 	session.Save(req, resp)
 	resp.Write(reply)
 	return
@@ -1072,8 +1066,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	if userId == "" || err != nil {
 		self.logger.Error(self.logCat, "No userid", nil)
 		self.clearSession(session)
-		session.Options.MaxAge = 0
-		self.session = nil
+		session.Options.MaxAge = -1
 		session.Save(req, resp)
 		http.Error(resp, "Unauthorized", 401)
 		return
@@ -1091,8 +1084,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		}
 		self.logger.Error(self.logCat, "Could not get userid", fields)
 		self.clearSession(session)
-		session.Options.MaxAge = 0
-		self.session = nil
+		session.Options.MaxAge = -1
 		session.Save(req, resp)
 		http.Error(resp, "Unauthorized", 401)
 		return
@@ -1102,8 +1094,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 			util.Fields{"devrec": devRec.User,
 				"userid": userId})
 		self.clearSession(session)
-		session.Options.MaxAge = 0
-		self.session = nil
+		session.Options.MaxAge = -1
 		session.Save(req, resp)
 		http.Error(resp, "Unauthorized", 401)
 		return
@@ -1115,8 +1106,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 				"deviceId": deviceId,
 				"userId":   userId})
 		self.clearSession(session)
-		session.Options.MaxAge = 0
-		self.session = nil
+		session.Options.MaxAge = -1
 		session.Save(req, resp)
 		http.Error(resp, "Unauthorized", 401)
 		return
@@ -1277,9 +1267,9 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	}
 	// fmt.Printf("### Index:: session %+v\n", session)
 	sessionInfo, err := self.getSessionInfo(resp, req, session)
-	// fmt.Printf("### Index:: sessionInfo: %+v\n", sessionInfo)
+	fmt.Printf("### Index:: sessionInfo: %+v\n", sessionInfo)
 	initData, err := self.initData(resp, req, sessionInfo)
-	// fmt.Printf("### Index:: initData: %+v\n", initData)
+	fmt.Printf("### Index:: initData: %+v\n", initData)
 	if err != nil {
 		self.logger.Error(self.logCat,
 			"Could not get inital data for index",
@@ -1299,16 +1289,11 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		session.Values[SESSION_USERID] = sessionInfo.UserId
 		session.Values[SESSION_EMAIL] = sessionInfo.Email
 		session.Values[SESSION_DEVICEID] = sessionInfo.DeviceId
-		self.session = session
-	} else {
-		self.clearSession(session)
-		session.Options.MaxAge = 0
-		self.session = nil
-	}
-	if err = session.Save(req, resp); err != nil {
-		self.logger.Error(self.logCat,
-			"Could not save session",
-			util.Fields{"error": err.Error()})
+		if err = session.Save(req, resp); err != nil {
+			self.logger.Error(self.logCat,
+				"Could not save session",
+				util.Fields{"error": err.Error()})
+		}
 	}
 	if err = tmpl.Execute(resp, initData); err != nil {
 		self.logger.Error(self.logCat,
@@ -1455,6 +1440,8 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	}
 	sessionInfo, err := self.getSessionInfo(resp, req, session)
 	if err != nil && err != ErrNoUser {
+		session.Options.MaxAge = -1
+		session.Save(req, resp)
 		http.Error(resp, err.Error(), 401)
 		return
 	}
@@ -1469,7 +1456,6 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 		session.Values[SESSION_DEVICEID] = sessionInfo.DeviceId
 		session.Values[SESSION_EMAIL] = sessionInfo.Email
 		session.Values[SESSION_TOKEN] = sessionInfo.AccessToken
-		self.session = session
 	}
 	session.Save(req, resp)
 	// display the device info...
@@ -1487,7 +1473,7 @@ func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
 	reply := replyType{
 		"status":     "ok",
 		"goroutines": runtime.NumGoroutine(),
-		"version":    req.URL.Path[len("/status/"):],
+		"version":    self.config.Get("VERSION", "unknown"),
 	}
 	rep, _ := json.Marshal(reply)
 	resp.Write(rep)
@@ -1654,7 +1640,6 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 		// fmt.Printf("### Saving session %+v\n", session)
 		// awesome. So saving the session apparently doesn't mean it's
 		// readable by subsequent session get calls.
-		self.session = session
 		session.Save(req, resp)
 	}
 	http.Redirect(resp, req, "/", http.StatusFound)
