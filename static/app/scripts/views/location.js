@@ -76,7 +76,7 @@ define([
             type: 'Feature',
             geometry: {
               type: 'Point',
-              // These are purprosely reversed in this context
+              // These are purposely reversed in this context
               coordinates: [longitude, latitude]
             },
             properties: {}
