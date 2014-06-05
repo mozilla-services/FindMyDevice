@@ -44,12 +44,20 @@ module.exports = function (grunt) {
       options: {
         browsers: ['> 1%', 'last 5 versions', 'ff >= 16', 'Explorer >= 8']
       },
-      app: {
+      dist: {
         files: [{
           expand: true,
           cwd: '<%= yeoman.tmp %>/styles/',
           src: '{,*/}*.css',
           dest: '<%= yeoman.tmp %>/styles/'
+        }]
+      },
+      dev: {
+        files: [{
+          expand: true,
+          cwd: '<%= yeoman.app %>/styles/',
+          src: '{,*/}*.css',
+          dest: '<%= yeoman.app %>/styles/'
         }]
       }
     },
@@ -149,7 +157,9 @@ module.exports = function (grunt) {
         options: {
           'csslintrc': '.csslintrc'
         },
-        src: ['<%= yeoman.tmp %>/styles/**/*.css']
+        src: [
+          '{<%= yeoman.tmp %>,<%= yeoman.app %>}/styles/**/*.css'
+        ]
       }
     },
 
@@ -317,7 +327,7 @@ module.exports = function (grunt) {
         files: ['<%= yeoman.app %>/styles/{,*/}*.scss'],
         tasks: [
           'sass:dev',
-          'autoprefixer'
+          'autoprefixer:dev'
         ],
         options: {
           atBegin: true
