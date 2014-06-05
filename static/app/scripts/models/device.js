@@ -9,6 +9,11 @@ define([
   'use strict';
 
   var Device = Backbone.Model.extend({
+    // Convert attributes to lowercase
+    parse: function(resp, xhr) {
+      return { id: resp.ID, name: resp.Name, url: resp.URL };
+    },
+
     onWebSocketUpdate: function(message) {
       var data = JSON.parse(message.data);
 
@@ -33,7 +38,7 @@ define([
 
     listenForUpdates: function() {
       // TODO: replace this with something configurable
-      this.socket = new WebSocket('ws://' + window.location.hostname + ':8080/0/ws/' + this.id);
+      this.socket = new WebSocket(this.get('url'));
       this.socket.onmessage = this.onWebSocketUpdate.bind(this);
     },
 

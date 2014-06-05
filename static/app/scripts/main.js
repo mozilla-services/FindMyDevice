@@ -28,26 +28,27 @@ require.config({
 });
 
 require([
+  'jquery',
   'backbone',
-  'router'
-], function (Backbone, Router) {
-  Backbone.history.start();
+  'router',
+  'collections/devices'
+], function ($, Backbone, Router, Devices) {
+  // Bring on the globals
+  window.devices = new Devices();
+
+  // Fetch devices from the server
+  window.devices.fetch().then(function() {
+    window.currentDevice = window.devices.at(0);
+
+    // Now that we have devices we can start
+    Backbone.history.start();
+  });
 
   // Temporary logout handing
   $(document).on('click', 'a.signout', function(event) {
     event.preventDefault();
 
-    navigator.id.watch({
-      onlogin: function() {
-        // we're not handling login here.
-      },
-
-      onlogout: function() {
-        document.cookie="user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
-        document.location = '/';
-      }
-    });
-
-    navigator.id.logout();
+    document.cookie = "user=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.location = '/';
   })
 });
