@@ -169,7 +169,7 @@ func (self *Storage) Init() (err error) {
 		"create or replace function update_time() returns trigger as $$ begin new.lastexchange = now(); return new; end; $$ language 'plpgsql';",
 		"drop trigger if exists update_le on deviceinfo;",
 		"create trigger update_le before update on deviceinfo for each row execute procedure update_time();",
-		"create table if not exists meta (key string, value string);",
+		"create table if not exists meta (key varchar, value varchar);",
 		"create index on meta (key);",
 		"set time zone utc;",
 	}

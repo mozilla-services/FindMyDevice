@@ -296,8 +296,17 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 				"body":  raw})
 		return "", "", err
 	}
+
+    // the response has either been a redirect or a validated assertion.
+    // fun times, fun times...
+    if idp, ok := buff["idpClaims"]; ok {
+        if email, ok := idp.(map[string]interface{})["fxa-verifiedEmail"]; ok {
+           return self.genHash(email.(string)), email.(string), nil
+        }
+    }
 	// get the "redirect" url. We're not going to redirect, just get the code.
 	if redir, ok := buff["redirect"]; !ok {
+        fmt.Printf("### Redirect: %s\n", raw)
 		self.logger.Error(self.logCat, "FxA verification did not return redirect",
 			nil)
 		return "", "", err
@@ -323,7 +332,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 				return "", "", ErrOauth
 			}
 			// fmt.Printf("### Verified FxA assertion: %s, %s\n", accessToken, email)
-			return accessToken, email, nil
+			return self.genHash(email), email, nil
 		}
 	}
 }
@@ -680,6 +689,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 		// create the new device record
 		var devId string
+        user = strings.SplitN(email, "@", 2)[0]
 		if devId, err = store.RegisterDevice(
 			userid,
 			storage.Device{
