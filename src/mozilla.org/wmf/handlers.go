@@ -466,10 +466,13 @@ func (self *Handler) updatePage(devId string, args map[string]interface{}, logPo
 				location.Altitude = arg.(float64)
 			case "ti":
 				location.Time = int64(arg.(float64))
+                if location.Time == 0 {
+                    continue
+                }
 			case "ha":
 				locked = isTrue(arg)
-				location.Lockable = !locked
-				if err = store.SetDeviceLockable(devId, !locked); err != nil {
+				location.Lockable = locked
+				if err = store.SetDeviceLockable(devId, locked); err != nil {
 					return err
 				}
 			}
