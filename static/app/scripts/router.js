@@ -16,15 +16,6 @@ define([
       '': 'showIndex'
     },
 
-    initialize: function() {
-      // Convert our embedded globals to models
-      if (window.currentDevice) {
-        window.currentDevice = new Device(window.currentDevice);
-      }
-
-      window.currentUser = new Backbone.Model(window.currentUser);
-    },
-
     showIndex: function() {
       if (window.currentDevice) {
         this.showLocation();
