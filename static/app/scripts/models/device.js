@@ -20,13 +20,16 @@ define([
       if (data) {
         var updatedAttributes = {};
 
-        updatedAttributes.time = data.Time;
         updatedAttributes.lockable = data.Lockable;
 
         if (data.Latitude > 0) {
           updatedAttributes.latitude = data.Latitude;
           updatedAttributes.longitude = data.Longitude;
           updatedAttributes.altitude = data.Altitude;
+        }
+
+        if (data.Time > 0) {
+          updatedAttributes.time = new Date(data.Time);
         }
 
         console.log('device:updated', this.get('id'), updatedAttributes, message.data);
@@ -37,7 +40,6 @@ define([
     },
 
     listenForUpdates: function() {
-      // TODO: replace this with something configurable
       this.socket = new WebSocket(this.get('url'));
       this.socket.onmessage = this.onWebSocketUpdate.bind(this);
     },
