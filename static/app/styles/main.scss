@@ -61,6 +61,8 @@ a {
 }
 
 #stage {
+  padding-bottom: 39px; // starts content above footer
+  padding-top: 47px; // starts content below header
   position: relative;
 
   header {
@@ -244,14 +246,6 @@ a {
       }
     }
   }
-}
-
-.leaflet-top {
-  top: 45px;
-}
-
-.leaflet-bottom {
-  bottom: 30px;
 }
 
 @import "media_queries";

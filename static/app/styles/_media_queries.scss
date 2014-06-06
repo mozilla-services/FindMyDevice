@@ -2,6 +2,9 @@
 
 @media only screen and (min-width: 768px) {
   #stage {
+    padding-bottom: 0; // remove padding on the bottom for footer
+    padding-top: 94px; // starts content below combined header and footer
+
     footer {
       background: $footer-background-color--desktop;
       bottom: auto;
@@ -43,14 +46,6 @@
         }
       }
     }
-  }
-
-  .leaflet-top {
-    top: 95px;
-  }
-
-  .leaflet-bottom {
-    bottom: 0;
   }
 }
 
