@@ -39,6 +39,29 @@ module.exports = function (grunt) {
   grunt.initConfig({
     yeoman: yeomanConfig,
 
+    // AUTOPREFIXER TASK
+    autoprefixer: {
+      options: {
+        browsers: ['> 1%', 'last 5 versions', 'ff >= 16', 'Explorer >= 8']
+      },
+      dist: {
+        files: [{
+          expand: true,
+          cwd: '<%= yeoman.tmp %>/styles/',
+          src: '{,*/}*.css',
+          dest: '<%= yeoman.tmp %>/styles/'
+        }]
+      },
+      dev: {
+        files: [{
+          expand: true,
+          cwd: '<%= yeoman.app %>/styles/',
+          src: '{,*/}*.css',
+          dest: '<%= yeoman.app %>/styles/'
+        }]
+      }
+    },
+
     // BOWER TASK
     bower: {
       all: {
@@ -113,6 +136,30 @@ module.exports = function (grunt) {
             'bower_components/typopro/web/TypoPRO-FiraSans/{,*/}*.*'
           ]
         }]
+      }
+    },
+
+    // COPYRIGHT TASK
+    copyright: {
+      app: {
+        options: {
+          pattern: 'This Source Code Form is subject to the terms of the Mozilla Public'
+        },
+        src: [
+          '<%= jshint.all %>'
+        ]
+      }
+    },
+
+    // CSSLINT TASK
+    csslint: {
+      strict: {
+        options: {
+          'csslintrc': '.csslintrc'
+        },
+        src: [
+          '{<%= yeoman.tmp %>,<%= yeoman.app %>}/styles/**/*.css'
+        ]
       }
     },
 
@@ -278,7 +325,10 @@ module.exports = function (grunt) {
       },
       sass: {
         files: ['<%= yeoman.app %>/styles/{,*/}*.scss'],
-        tasks: ['sass:dev'],
+        tasks: [
+          'sass:dev',
+          'autoprefixer:dev'
+        ],
         options: {
           atBegin: true
         }
@@ -309,7 +359,7 @@ module.exports = function (grunt) {
   // BUILD TASK
   grunt.registerTask('build', [
     'clean:dist',
-    'sass',
+    'css',
     'useminPrepare',
     'requirejs',
     'imagemin',
@@ -322,6 +372,13 @@ module.exports = function (grunt) {
     'usemin'
   ]);
 
+  // CSS TASK
+  grunt.registerTask('css', [
+    'sass',
+    'autoprefixer',
+    'csslint'
+  ]);
+
   // DEFAULT TASK
   grunt.registerTask('default', [
     'lint',
@@ -332,7 +389,8 @@ module.exports = function (grunt) {
   // LINT TASK
   grunt.registerTask('lint', [
     'jscs',
-    'jshint'
+    'jshint',
+    'copyright'
   ]);
 
   // SERVE TASK
@@ -353,6 +411,7 @@ module.exports = function (grunt) {
     grunt.task.run([
       'clean:server',
       'sass:dev',
+      'autoprefixer',
       'connect:livereload',
       'open:server',
       'watch'

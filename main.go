@@ -136,14 +136,16 @@ func main() {
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/state/", verRoot),
 		handlers.State)
 	// Static files (served by nginx in production)
-	RESTMux.HandleFunc("/bower_components/",
-		handlers.Static)
-	RESTMux.HandleFunc("/images/",
-		handlers.Static)
-	RESTMux.HandleFunc("/scripts/",
-		handlers.Static)
-	RESTMux.HandleFunc("/styles/",
-		handlers.Static)
+	if config.GetFlag("use_insecure_static") {
+		RESTMux.HandleFunc("/bower_components/",
+			handlers.Static)
+		RESTMux.HandleFunc("/images/",
+			handlers.Static)
+		RESTMux.HandleFunc("/scripts/",
+			handlers.Static)
+		RESTMux.HandleFunc("/styles/",
+			handlers.Static)
+	}
 	// Metrics
 	RESTMux.HandleFunc("/metrics/",
 		handlers.Metrics)
