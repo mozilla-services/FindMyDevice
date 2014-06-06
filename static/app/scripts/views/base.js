@@ -28,39 +28,25 @@ define(
       },
 
       /**
-      * Basic object presenter using model's attributes. This should be overridden by subclasses
-      * wishing to provide custom presentation.
+      * Gets context from model's attributes. Can be overridden to provide custom context for template.
       *
-      * @property {Function} presenter
+      * @method getContext
+      * @return {Object} context
       */
-      presenter: function(model) {
-        return model ? model.attributes : null;
-      },
-
-      /**
-      * Applies configured presenter to local model or collection.
-      *
-      * @method getPresentation
-      * @return {Object}
-      */
-      getPresentation: function() {
-        var presentation;
+      getContext: function() {
+        var context;
 
         if (this.model) {
-          presentation = new this.presenter(this.model);
-        } else if (this.collection) {
-          var presentedCollection = this.collection.collect(function(i) {
-            return new this.presenter(i);
-          }.bind(this));
-
-          presentation = { collection: presentedCollection };
+          context = this.model.attributes;
+        } else {
+          context = {};
         }
 
-        return presentation;
+        return context;
       },
 
       /**
-      * Renders by combining template and presentation and inserting into the associated element.
+      * Renders by combining template and context and inserting into the associated element.
       *
       * @method render
       * @return {BaseView} this
@@ -69,9 +55,9 @@ define(
       render: function() {
         this.destroySubviews();
 
-        var presentation = this.getPresentation();
+        var context = this.getContext();
 
-        this.$el.html(this.template(presentation));
+        this.$el.html(this.template(context));
 
         this.afterRender();
 

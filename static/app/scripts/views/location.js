@@ -42,7 +42,7 @@ define([
     openLostMode: function (event) {
       event.stopPropagation();
 
-      ModalManager.open(new LostModeView(), $(event.target).closest('span.button'));
+      ModalManager.open(new LostModeView({ device: this.model }), $(event.target).closest('span.button'));
     },
 
     openErase: function (event) {

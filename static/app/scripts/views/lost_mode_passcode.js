@@ -19,7 +19,6 @@ define([
     },
 
     initialize: function(options) {
-      this.phoneNumber = options.phoneNumber;
       this.note = options.note;
     },
 
@@ -27,14 +26,28 @@ define([
       ModalManager.pop();
     },
 
+    isValid: function() {
+      if (this.passcode1 === this.passcode2) {
+        return true;
+      } else {
+        // Show custom error on second passcode field
+        this.$('.passcode[name=passcode-2]')[0].setCustomValidity('Passcodes must match.');
+
+        return false;
+      }
+    },
+
     activate: function(event) {
       event.preventDefault();
 
-      this.passcode = this.$('.passcode').val();
+      this.passcode1 = this.$('.passcode[name=passcode-1]').val();
+      this.passcode2 = this.$('.passcode[name=passcode-2]').val();
 
-      currentDevice.sendCommand(new LockCommand({ code: this.passcode, message: this.note }));
+      if (this.isValid()) {
+        currentDevice.sendCommand(new LockCommand({ code: this.passcode2, message: this.note }));
 
-      ModalManager.close();
+        ModalManager.close();
+      }
     }
   });
 
