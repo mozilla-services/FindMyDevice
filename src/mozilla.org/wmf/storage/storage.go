@@ -471,9 +471,11 @@ func (self *Storage) GcPosition(devId string) (err error) {
 	// because I didn't have enough reasons to drink.
 	// Delete old records (except the latest one) so we always have
 	// at least one position record.
-	statement := "delete from position where id in (select id from (select id, row_number() over (order by time desc) RowNumber from position where time < (now() - interval '1500 seconds') ) tt where RowNumber > 1);"
+	// Added bonus: The following string causes the var replacer to
+	// get confused and toss an error, so yes, currently this uses inline
+	// replacement.
+	statement := fmt.Sprintf("delete from position where id in (select id from (select id, row_number() over (order by time desc) RowNumber from position where time < (now() - interval '%d seconds') ) tt where RowNumber > 1);", self.defExpry)
 	st, err := dbh.Prepare(statement)
-    // TODO: fix to use self.defExpy
 	_, err = st.Exec()
 	st.Close()
 	if err != nil {

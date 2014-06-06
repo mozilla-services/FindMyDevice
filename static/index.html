@@ -139,7 +139,7 @@ function deviceUpdate(devInfo) {
 function sendCommand(cmd) {
     // generate HAWK header
     var xhr = new XMLHttpRequest();
-    xhr.setRequestHeader("Cookie", document.cookie);
+    //xhr.setRequestHeader("Cookie", document.cookie);
     xhr.onload = function(e) {
         console.debug("cmdResponse", e);
         try {
@@ -195,6 +195,7 @@ window.addEventListener("load",
         if (body.dataset.user) {
             email = body.dataset.user;
         }
+        /*
         navigator.id.watch({
                 loggedInUser:email,
                 onlogout: function(e){
@@ -206,9 +207,9 @@ window.addEventListener("load",
                 },
                 onlogin: function(assertion) {
                     body.style.cursor = "auto";
-                    /* TODO: Send the assertion.
-                       Refresh the page wth the current ID?
-                     */
+                    // TODO: Send the assertion.
+                    //  Refresh the page wth the current ID?
+                    //
                     {{if not .UserId}}
                     form = ("<form method='POST' action='" +
                         document.location.pathname +
@@ -223,6 +224,7 @@ window.addEventListener("load",
                     {{end}}
                 }
         })
+        */
         if (document.getElementById("signin")) {
         document.getElementById("signin").addEventListener("click",
                 function(){

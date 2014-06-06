@@ -353,7 +353,7 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 	var session *sessions.Session
 
 	session, err = sessionStore.Get(req, SESSION_NAME)
-	fmt.Printf("### Your session is: %+v\n", session.Values)
+	// fmt.Printf("### Your session is: %+v\n", session.Values)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not open session",
 			util.Fields{"error": err.Error()})
@@ -428,7 +428,6 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	if token, ok := session.Values[SESSION_TOKEN]; ok {
 		accessToken = token.(string)
 	}
-	fmt.Printf("### session info : %s, %s, %s, %s\n", userid, email, accessToken, dev)
 	info = &sessionInfoStruct{
 		UserId:      userid,
 		Email:       email,
@@ -452,38 +451,43 @@ func (self *Handler) updatePage(devId string, args map[string]interface{}, logPo
 
 	// Only record a location if there is one.
 	// Device reports OK:false on errors
-	if b, ok := args["ok"]; ok && b.(bool) {
-		for key, arg := range args {
-			if len(key) < 2 {
-				continue
-			}
-			switch k := strings.ToLower(key[:2]); k {
-			case "la":
-				location.Latitude = arg.(float64)
-			case "lo":
-				location.Longitude = arg.(float64)
-			case "al":
-				location.Altitude = arg.(float64)
-			case "ti":
-				location.Time = int64(arg.(float64))
-                if location.Time == 0 {
-                    continue
-                }
-			case "ha":
-				locked = isTrue(arg)
-				location.Lockable = locked
-				if err = store.SetDeviceLockable(devId, locked); err != nil {
-					return err
-				}
-			}
+	if b, ok := args["ok"]; ok {
+		if b.(bool) != true {
+			// Not Ok.
+			return nil
 		}
-		if logPosition {
-			if err = store.SetDeviceLocation(devId, location); err != nil {
+	}
+	for key, arg := range args {
+		if len(key) < 2 {
+			continue
+		}
+		switch k := strings.ToLower(key[:2]); k {
+		case "la":
+			location.Latitude = arg.(float64)
+		case "lo":
+			location.Longitude = arg.(float64)
+		case "al":
+			location.Altitude = arg.(float64)
+		case "ti":
+			location.Time = int64(arg.(float64))
+			if location.Time == 0 {
+				return nil
+			}
+			// has_lockcode
+		case "ha":
+			locked = !isTrue(arg)
+			location.Lockable = locked
+			if err = store.SetDeviceLockable(devId, locked); err != nil {
 				return err
 			}
-			// because go sql locking.
-			store.GcPosition(devId)
 		}
+	}
+	if logPosition {
+		if err = store.SetDeviceLocation(devId, location); err != nil {
+			return err
+		}
+		// because go sql locking.
+		store.GcPosition(devId)
 	}
 	if client, ok := Clients[devId]; ok {
 		js, _ := json.Marshal(location)
@@ -858,21 +862,13 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			}
 			// handle the client response
 			switch c {
-			case "l", "r", "m", "e":
+			case "l", "r", "m", "e", "h":
 				err = store.Touch(deviceId)
 				self.updatePage(deviceId,
 					margs, false)
-			case "h":
-				// has_code is a boolean
-				argl := make(replyType)
-				argl[string(cmd)] = isTrue(args)
-				self.updatePage(deviceId, argl, false)
 			case "t":
-				// track
-				margs := args.(map[string]interface{})
 				err = self.updatePage(deviceId,
 					margs, true)
-				// store tracking info.
 			case "q":
 				// User has quit, nuke what we know.
 				if self.config.GetFlag("cmd.q.allow") {
@@ -939,6 +935,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		return
 	}
 	rargs := *args
+	var vs string
 	switch c {
 	case "l":
 		if v, ok = rargs["c"]; ok {
@@ -947,10 +944,16 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 			if err != nil {
 				max = 9999
 			}
-			vs := v.(string)
+			switch v.(type) {
+			case string:
+				vs = v.(string)
+			case int64:
+			case float64:
+				vs = strconv.FormatInt(int64(v.(int64)), 10)
+			}
 			// make sure that the lock code is a valid four digit string.
 			// otherwise we may lock users out of their phones.
-			rargs["c"] = fmt.Sprintf("%04s", self.rangeCheck(
+			rargs["c"] = fmt.Sprintf("%04d", self.rangeCheck(
 				strings.Map(digitsOnly, vs[:minInt(4, len(vs))]),
 				0, max))
 		}
@@ -961,7 +964,6 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		}
 	case "r", "t":
 		if v, ok = rargs["d"]; ok {
-			vs := ""
 			max, err := strconv.ParseInt(
 				self.config.Get("cmd."+c+".max",
 					"10500"), 10, 64)
@@ -1270,9 +1272,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	}
 	// fmt.Printf("### Index:: session %+v\n", session)
 	sessionInfo, err := self.getSessionInfo(resp, req, session)
-	fmt.Printf("### Index:: sessionInfo: %+v\n", sessionInfo)
 	initData, err := self.initData(resp, req, sessionInfo)
-	fmt.Printf("### Index:: initData: %+v\n", initData)
 	if err != nil {
 		self.logger.Error(self.logCat,
 			"Could not get inital data for index",
@@ -1575,7 +1575,6 @@ func (self *Handler) getUserEmail(accessToken string) (email string, err error) 
 		return "", err
 	}
 	buffer, raw, err := parseBody(resp.Body)
-	// fmt.Printf("===> Raw %s\n", raw)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not parse body",
 			util.Fields{"error": err.Error()})

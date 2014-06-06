@@ -28,6 +28,24 @@ import time
 import urlparse
 import pdb
 
+import websocket
+
+def on_close(ws):
+    print "## closed"
+
+def on_error(ws, error):
+    print "!! error:: " + error
+    exit()
+
+def on_message(ws, message):
+    print "<<< Rcv'd:: " + ws.state + ">> " + message
+
+def on_open(ws):
+    print "## Opened"
+
+def listener(devid):
+    ws = websocket.WebSocketApp("ws://localhost:8080/0/ws/"+devid)
+    ws.run_forever()
 
 def genHash(body, ctype="application/json"):
     """ Generate a HAWK hash from the body of the sent message
@@ -117,7 +135,7 @@ def newLocation():
     utc = int(time.time())
     lat = 37.3883 + geoWalk()
     lon = -122.0615 + geoWalk()
-    return {"t": {"la": lat, "lo": lon, "ti": utc, "ha": True}}
+    return {"ok": True, "t": {"la": lat, "lo": lon, "ti": utc, "ha": True}}
 
 
 def getConfig(argv):
@@ -156,6 +174,7 @@ def registerNew(config):
     cred = reply.json()
     print "Credentials: "
     pprint(cred)
+    #listener("deadbeef00000000decafbad00000000")
     return sendCmd(config, cred, newLocation()), cred
 
 
