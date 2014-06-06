@@ -1,6 +1,6 @@
-# wmf
+# fmd
 
-Where's My Fox (large server)
+Find My Device (large server)
 
 This server is still under development.
 
@@ -22,16 +22,8 @@ You will need:
 
 ## Running:
 
-GOPATH needs to be set to the root install directory. e.g.
+`GOPATH` needs to be set to the root install directory. e.g.
 
 ```sh
 $ GOPATH=`pwd` go run main.go
 ```
-
-## TODO:
-
-- Add i18n support for display based on request language
-- Add final name
-- Nick's go at layout
-- Add multi-host support for updates.
-    - route updates to connected server?

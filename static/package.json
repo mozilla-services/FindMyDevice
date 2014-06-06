@@ -1,8 +1,8 @@
 {
-  "name": "wmf",
+  "name": "fmd",
   "version": "0.0.0",
   "author": "Mozilla (https://mozilla.org/)",
-  "description": "",
+  "description": "Find My Device",
   "keywords": [],
   "repository": {
     "type": "git",
