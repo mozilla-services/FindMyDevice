@@ -20,7 +20,8 @@ define([
       if (data) {
         var updatedAttributes = {};
 
-        updatedAttributes.lockable = data.Lockable;
+        // HACK: Remapping this until it's fixed on the server side (#60)
+        updatedAttributes.hasPasscode = data.Lockable;
 
         if (data.Latitude > 0) {
           updatedAttributes.latitude = data.Latitude;
@@ -34,7 +35,7 @@ define([
 
         console.log('device:updated', this.get('id'), updatedAttributes, message.data);
 
-        // Set the new attributes all at once so that we only get one change event
+        // Set the new attributes all at once so there's only one change event
         this.set(updatedAttributes);
       }
     },

@@ -6,24 +6,44 @@ define([
   'views/base',
   'stache!templates/lost_mode',
   'lib/modal_manager',
-  'views/lost_mode_passcode'
-], function (BaseView, LostModeTemplate, ModalManager, LostModePasscodeView) {
+  'views/lost_mode_passcode',
+  'models/lock_command'
+], function (BaseView, LostModeTemplate, ModalManager, LostModePasscodeView, LockCommand) {
   'use strict';
 
   var LostModeView = BaseView.extend({
     template: LostModeTemplate,
 
     events: {
-      'submit form': 'next'
+      'click .activate': 'activate',
+      'click .next': 'next'
+    },
+
+    initialize: function(options) {
+      this.device = options.device;
+    },
+
+    getContext: function() {
+      return {
+        note: this.note,
+        hasPasscode: this.device.get('hasPasscode')
+      };
+    },
+
+    activate: function(event) {
+      event.preventDefault();
+
+      currentDevice.sendCommand(new LockCommand({ message: this.note }));
+
+      ModalManager.close();
     },
 
     next: function(event) {
       event.preventDefault();
 
-      var phoneNumber = this.$('.phone-number').val();
-      var note = this.$('.note').val();
+      this.note = this.$('.note').val();
 
-      ModalManager.push(new LostModePasscodeView({ phoneNumber: phoneNumber, note: note + '\n\n' + phoneNumber }));
+      ModalManager.push(new LostModePasscodeView({ note: this.note }));
     }
   });
 
