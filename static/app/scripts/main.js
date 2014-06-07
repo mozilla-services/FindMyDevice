@@ -38,7 +38,7 @@ require([
 
   // Fetch devices from the server
   window.devices.fetch().then(function() {
-    window.currentDevice = window.devices.at(0);
+    window.currentDevice = window.devices.last();
 
     // Now that we have devices we can start
     Backbone.history.start();
