@@ -439,7 +439,7 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 // log the device's position reply
 func (self *Handler) updatePage(devId string, args map[string]interface{}, logPosition bool) (err error) {
 	var location storage.Position
-	var locked bool
+	var hasPasscode bool
 
 	store, err := storage.Open(self.config, self.logger, self.metrics)
 	if err != nil {
@@ -475,9 +475,8 @@ func (self *Handler) updatePage(devId string, args map[string]interface{}, logPo
 			}
 			// has_lockcode
 		case "ha":
-			locked = !isTrue(arg)
-			location.Lockable = locked
-			if err = store.SetDeviceLockable(devId, locked); err != nil {
+			hasPasscode = isTrue(arg)
+			if err = store.SetDeviceLock(devId, hasPasscode); err != nil {
 				return err
 			}
 		}
@@ -596,7 +595,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var deviceid string
 	var secret string
 	var accepts string
-	var lockable bool
+	var hasPasscode bool
 	var loggedIn bool
 	var err error
 	var raw string
@@ -668,11 +667,11 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			}
 		}
 		if val, ok := buffer["has_passcode"]; !ok {
-			lockable = true
+			hasPasscode = true
 		} else {
-			lockable, err = strconv.ParseBool(val.(string))
+			hasPasscode, err = strconv.ParseBool(val.(string))
 			if err != nil {
-				lockable = false
+				hasPasscode = false
 			}
 		}
 		if val, ok := buffer["accepts"]; ok {
@@ -699,7 +698,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 				Name:     user,
 				Secret:   secret,
 				PushUrl:  pushUrl,
-				Lockable: lockable,
+				HasPasscode: hasPasscode,
 				Accepts:  accepts,
 			}); err != nil {
 			self.logger.Error(self.logCat, "Error Registering device", nil)

@@ -36,7 +36,6 @@ type Position struct {
 	Longitude float64
 	Altitude  float64
 	Time      int64
-	Lockable  bool
 }
 
 // Device information
@@ -45,7 +44,7 @@ type Device struct {
 	User              string // userID
 	Name              string
 	PreviousPositions []Position
-	Lockable          bool   // is device lockable
+	HasPasscode       bool   // is device lockable
 	LoggedIn          bool   // is the device logged in
 	Secret            string // HAWK secret
 	PushUrl           string // SimplePush URL
@@ -214,7 +213,7 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 	}
 	if _, err = dbh.Exec(statement,
 		string(dev.ID),
-		dev.Lockable,
+		dev.HasPasscode,
 		dev.LoggedIn,
 		dbNow(),
 		dev.Secret,
@@ -248,7 +247,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 
 	var deviceId, userId, pushUrl, name, secret, lestr, accesstoken []uint8
 	var lastexchange float64
-	var lockable, loggedIn bool
+	var hasPasscode, loggedIn bool
 	var statement, accepts string
 
 	dbh := self.db
@@ -263,7 +262,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 	}
 	defer stmt.Close()
 	row := stmt.QueryRow(devId)
-	err = row.Scan(&deviceId, &userId, &name, &lockable,
+	err = row.Scan(&deviceId, &userId, &name, &hasPasscode,
 		&loggedIn, &pushUrl, &accepts, &secret, &lestr, &accesstoken)
 	switch {
 	case err == sql.ErrNoRows:
@@ -283,7 +282,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		User:         string(userId),
 		Name:         string(name),
 		Secret:       string(secret),
-		Lockable:     lockable,
+		HasPasscode:  hasPasscode,
 		LoggedIn:     bloggedIn,
 		LastExchange: int32(lastexchange),
 		PushUrl:      string(pushUrl),
@@ -426,7 +425,7 @@ func (self *Storage) SetAccessToken(devId, token string) (err error) {
 }
 
 // Shorthand function to set the lock state for a device.
-func (self *Storage) SetDeviceLockable(devId string, state bool) (err error) {
+func (self *Storage) SetDeviceLock(devId string, state bool) (err error) {
 	dbh := self.db
 
 	statement := "update deviceInfo set lockable = $1, lastexchange = now()  where deviceId =$2"
