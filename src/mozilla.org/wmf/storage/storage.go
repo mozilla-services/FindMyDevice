@@ -155,6 +155,7 @@ func (self *Storage) Init() (err error) {
 	cmds := []string{
 		"create table if not exists userToDeviceMap (userId varchar, deviceId varchar, name varchar, date date);",
 		"create index on userToDeviceMap (userId);",
+		"create index on userToDeviceMap (deviceId);",
 		"create unique index on userToDeviceMap (userId, deviceId);",
 
 		"create table if not exists deviceInfo (deviceId varchar unique, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar, pushurl varchar, accepts varchar, accesstoken varchar);",
@@ -359,15 +360,32 @@ func (self *Storage) GetPending(devId string) (cmd string, err error) {
 	return cmd, nil
 }
 
+func (self *Storage) GetUserFromDevice(deviceId string) (userId, name string, err error) {
+
+	dbh := self.db
+	statement := "select userId, name from userToDeviceMap where deviceId = $1 limit 1;"
+	rows, err := dbh.Query(statement, deviceId)
+	if err == nil {
+		for rows.Next() {
+			err = rows.Scan(&userId, &name)
+			if err != nil {
+				self.logger.Error(self.logCat,
+					"Could not get user for device",
+					util.Fields{"error": err.Error(),
+						"user": deviceId})
+				return "", "", err
+			}
+			return userId, name, nil
+		}
+	}
+	return "", "", ErrUnknownDevice
+}
+
 // Get all known devices for this user.
 func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err error) {
 	var data []DeviceList
 
 	dbh := self.db
-	if err != nil {
-		return nil, err
-	}
-
 	statement := "select deviceId, coalesce(name,deviceId) from userToDeviceMap where userId = $1 order by date;"
 	rows, err := dbh.Query(statement, userId)
 	if err == nil {

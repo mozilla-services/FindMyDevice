@@ -156,7 +156,7 @@ def getConfig(argv):
     return config
 
 
-def registerNew(config):
+def registerNew(config, cred):
     """ Register a new fake device
     """
     tmpl = config.get("urls", "reg")
@@ -164,15 +164,23 @@ def registerNew(config):
         scheme=config.get("main", "scheme"),
         host=config.get("main", "host"))
     assertion = config.get("main", "assertion")
-    if assertion is None:
-        assertion = ""
     # divy up based on scheme.
-    regObj = {"assert": assertion,
-              "pushurl": "http://example.com",
-              "deviceid": "deadbeef00000000decafbad00000000"}
-    reply = send(trg, regObj, {})
+    # New Assertion?
+    if (True):
+        regObj = {"assert": assertion,
+                  "pushurl": "http://example.com",
+                  "deviceid": "deadbeef00000000decafbad00000000"}
+        # no HAWK
+        reply = send(trg, regObj, {})
+    else:
+        pdb.set_trace()
+        # Repeating here, because live tests use different values
+        regObj = {"pushurl": "http://example.com",
+                  "deviceid": "deadbeef00000000decafbad00000000"}
+        # with HAWK
+        reply = send(trg, regObj, cred)
     cred = reply.json()
-    print "Credentials: "
+    print "### Returned Credentials: "
     pprint(cred)
     #listener("deadbeef00000000decafbad00000000")
     return sendCmd(config, cred, newLocation()), cred
@@ -278,7 +286,7 @@ def main(argv):
         cred = json.loads(creds)
     # register a new device
     print "Registering client... \n"
-    cmd, cred = registerNew(config)
+    cmd, cred = registerNew(config, cred)
     while cmd is not None:
         # Burn through the command queue.
         print "Processing commands...\n"

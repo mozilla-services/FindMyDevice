@@ -188,7 +188,9 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 			util.Fields{"error": err.Error()})
 		return "", "", ErrAuthorization
 	}
-	//fmt.Printf("### Sending to %s\n%s\n", validatorURL, body)
+	if self.config.GetFlag("auth.show_assertion") {
+		fmt.Printf("### Validating Assertion:\n %s\n", body)
+	}
 	req, err := http.NewRequest("POST", validatorURL, bytes.NewReader(body))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not POST assertion",
@@ -270,7 +272,9 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 			util.Fields{"error": err.Error()})
 		return "", "", err
 	}
-	// fmt.Printf("### argsj : %s\n", argsj)
+	if self.config.GetFlag("auth.show_assertion") {
+		fmt.Printf("### Validating Assertion:\n %s\n", argsj)
+	}
 	req, err := http.NewRequest("POST", validatorUrl, bytes.NewReader(argsj))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not POST verify assertion",
@@ -539,6 +543,53 @@ func (self *Handler) rangeCheck(s string, min, max int64) int64 {
 	return val
 }
 
+func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *storage.Device) bool {
+	var err error
+
+	if devRec == nil {
+		self.logger.Error(self.logCat, "Could not validate Hawk header: devRec is nil", nil)
+		return false
+	}
+
+	if self.config.GetFlag("hawk.disabled") {
+		return true
+	}
+	// Remote Hawk
+	rhawk := Hawk{logger: self.logger}
+	// Local Hawk
+	lhawk := Hawk{logger: self.logger}
+	// Get the remote signature from the header
+	err = rhawk.ParseAuthHeader(req, self.logger)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not parse Hawk header",
+			util.Fields{"error": err.Error()})
+		return false
+	}
+
+	// Generate the comparator signature from what we know.
+	lhawk.Nonce = rhawk.Nonce
+	lhawk.Time = rhawk.Time
+	//lhawk.Hash = rhawk.Hash
+
+	err = lhawk.GenerateSignature(req, rhawk.Extra, string(body),
+		devRec.Secret)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not verify sig",
+			util.Fields{"error": err.Error()})
+		return false
+	}
+	// Do they match?
+	if !lhawk.Compare(rhawk.Signature) {
+		self.logger.Error(self.logCat, "Cmd:Invalid Hawk Signature",
+			util.Fields{
+				"expecting": lhawk.Signature,
+				"got":       rhawk.Signature,
+			})
+		return false
+	}
+	return true
+}
+
 //Handler Public Functions
 
 func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics) *Handler {
@@ -571,7 +622,9 @@ func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Me
 	sessionStore.Options = &sessions.Options{
 		Domain: config.Get("session.domain", "localhost"),
 		Path:   "/",
-		MaxAge: 3600 * 24,
+		// Do not set a max age by default.
+		// This confuses gorilla, which winds up setting two "user" cookies.
+		//MaxAge: 3600 * 24,
 	}
 
 	// Initialize the data store once. This creates tables and
@@ -593,6 +646,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var user string
 	var pushUrl string
 	var deviceid string
+	var devRec *storage.Device
 	var secret string
 	var accepts string
 	var hasPasscode bool
@@ -602,12 +656,8 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 	self.logCat = "handler:Register"
 	resp.Header().Set("Content-Type", "application/json")
-	session, err := sessionStore.Get(req, SESSION_NAME)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not open session",
-			util.Fields{"error": err.Error()})
-		return
-	}
+	// Do not set a session here. Use HAWK and URL to validate future
+	// calls from the device.
 
 	store, err := storage.Open(self.config, self.logger, self.metrics)
 	if err != nil {
@@ -624,6 +674,20 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	} else {
 		loggedIn = false
 
+		if val, ok := buffer["deviceid"]; !ok || len(val.(string)) == 0 {
+			deviceid, _ = util.GenUUID4()
+		} else {
+			deviceid = strings.Map(deviceIdFilter, val.(string))
+			if len(deviceid) > 32 {
+				deviceid = deviceid[:32]
+			}
+			devRec, err = store.GetDeviceInfo(deviceid)
+			if err != nil {
+				self.logger.Warn(self.logCat, "Could not get info for deviceid",
+					util.Fields{"deviceid": deviceid,
+						"error": err.Error()})
+			}
+		}
 		if assertion, ok := buffer["assert"]; ok {
 			if self.config.GetFlag("auth.persona") {
 				userid, email, err = self.verifyPersonaAssertion(assertion.(string))
@@ -635,14 +699,24 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 				return
 			}
 			self.logger.Debug(self.logCat, "Got user "+email, nil)
-			session.Values[SESSION_USERID] = userid
-			session.Values[SESSION_EMAIL] = email
 			loggedIn = true
 		} else {
-			self.logger.Error(self.logCat, "Missing 'assert' value",
+			self.logger.Warn(self.logCat, "Missing 'assert' value",
 				util.Fields{"body": raw})
+			// Use HAWK + deviceid to determine if this is a re-registration.
+			// TODO:::
+			if hv := self.verifyHawkHeader(req, []byte(raw), devRec); devRec != nil && hv {
+				self.logger.Info(self.logCat,
+					"Hawk Verified, getting user info ...\n",
+					nil)
+				if userid, user, err = store.GetUserFromDevice(deviceid); err == nil {
+					fmt.Printf("### Got Userid %s, name %s\n ", userid, user)
+					loggedIn = true
+				}
+			} else {
+				self.logger.Warn(self.logCat, "Failed Hawk Header Check", nil)
+			}
 		}
-
 		if !loggedIn {
 			self.logger.Error(self.logCat, "Not logged in", nil)
 			http.Error(resp, "Unauthorized", 401)
@@ -658,14 +732,6 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		}
 		//ALWAYS generate a new secret on registration!
 		secret = GenNonce(16)
-		if val, ok := buffer["deviceid"]; !ok || len(val.(string)) == 0 {
-			deviceid, err = util.GenUUID4()
-		} else {
-			deviceid = strings.Map(deviceIdFilter, val.(string))
-			if len(deviceid) > 32 {
-				deviceid = deviceid[:32]
-			}
-		}
 		if val, ok := buffer["has_passcode"]; !ok {
 			hasPasscode = true
 		} else {
@@ -690,16 +756,18 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 		// create the new device record
 		var devId string
-		user = strings.SplitN(email, "@", 2)[0]
+		if user == "" {
+			user = strings.SplitN(email, "@", 2)[0]
+		}
 		if devId, err = store.RegisterDevice(
 			userid,
 			storage.Device{
-				ID:       deviceid,
-				Name:     user,
-				Secret:   secret,
-				PushUrl:  pushUrl,
+				ID:          deviceid,
+				Name:        user,
+				Secret:      secret,
+				PushUrl:     pushUrl,
 				HasPasscode: hasPasscode,
-				Accepts:  accepts,
+				Accepts:     accepts,
 			}); err != nil {
 			self.logger.Error(self.logCat, "Error Registering device", nil)
 			http.Error(resp, "Bad Request", 400)
@@ -719,13 +787,12 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		"secret": secret,
 		"email":  email,
 	})
-	session.Values[SESSION_DEVICEID] = self.devId
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not marshal reply",
 			util.Fields{"error": err.Error()})
 		return
 	}
-	session.Save(req, resp)
+	//fmt.Printf("### Sending reply %s\n", reply)
 	resp.Write(reply)
 	return
 }
@@ -784,39 +851,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	}
 	//validate the Hawk header
 	if self.config.GetFlag("hawk.disabled") == false {
-		// Remote Hawk
-		rhawk := Hawk{logger: self.logger}
-		// Local Hawk
-		lhawk := Hawk{logger: self.logger}
-		// Get the remote signature from the header
-		err = rhawk.ParseAuthHeader(req, self.logger)
-		if err != nil {
-			self.logger.Error(self.logCat, "Could not parse Hawk header",
-				util.Fields{"error": err.Error()})
-			http.Error(resp, "Unauthorized", 401)
-			return
-		}
-
-		// Generate the comparator signature from what we know.
-		lhawk.Nonce = rhawk.Nonce
-		lhawk.Time = rhawk.Time
-		//lhawk.Hash = rhawk.Hash
-
-		err = lhawk.GenerateSignature(req, rhawk.Extra, string(body),
-			devRec.Secret)
-		if err != nil {
-			self.logger.Error(self.logCat, "Could not verify sig",
-				util.Fields{"error": err.Error()})
-			http.Error(resp, "Unauthorized", 401)
-			return
-		}
-		// Do they match?
-		if !lhawk.Compare(rhawk.Signature) {
-			self.logger.Error(self.logCat, "Cmd:Invalid Hawk Signature",
-				util.Fields{
-					"expecting": lhawk.Signature,
-					"got":       rhawk.Signature,
-				})
+		if !self.verifyHawkHeader(req, body, devRec) {
 			http.Error(resp, "Unauthorized", 401)
 			return
 		}
@@ -1265,7 +1300,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 
 	session, err = sessionStore.Get(req, SESSION_NAME)
 	if err != nil {
-		self.logger.Error(self.logCat,
+		self.logger.Warn(self.logCat,
 			"Could not initialize session",
 			util.Fields{"error": err.Error()})
 	}
