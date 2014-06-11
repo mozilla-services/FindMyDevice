@@ -441,7 +441,7 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 }
 
 // log the device's position reply
-func (self *Handler) updatePage(devId string, args map[string]interface{}, logPosition bool) (err error) {
+func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, logPosition bool) (err error) {
 	var location storage.Position
 	var hasPasscode bool
 
@@ -492,8 +492,10 @@ func (self *Handler) updatePage(devId string, args map[string]interface{}, logPo
 		// because go sql locking.
 		store.GcPosition(devId)
 	}
+	location.Cmd = storage.Unstructured{cmd: args}
 	if client, ok := Clients[devId]; ok {
 		js, _ := json.Marshal(location)
+		fmt.Printf(">>> %s\n", js)
 		client.Write(js)
 	}
 	return nil
@@ -879,14 +881,14 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 
 		for cmd, args := range reply {
 			var margs replyType
-			c := strings.ToLower(string(cmd[0]))
+			c := strings.ToLower(string(cmd))
 			if !strings.Contains(devRec.Accepts, c) {
 				self.logger.Warn(self.logCat, "Unacceptable Command",
 					util.Fields{"unacceptable": c,
 						"acceptable": devRec.Accepts})
 				continue
 			}
-			self.metrics.Increment("cmd.received." + string(c))
+			self.metrics.Increment("cmd.received." + string(c[0]))
 			// Normalize the args.
 			switch args.(type) {
 			case bool:
@@ -895,14 +897,12 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				margs = args.(map[string]interface{})
 			}
 			// handle the client response
-			switch c {
+			switch string(c[0]) {
 			case "l", "r", "m", "e", "h":
 				err = store.Touch(deviceId)
-				self.updatePage(deviceId,
-					margs, false)
+				self.updatePage(deviceId, c, margs, false)
 			case "t":
-				err = self.updatePage(deviceId,
-					margs, true)
+				err = self.updatePage(deviceId, c, margs, true)
 			case "q":
 				// User has quit, nuke what we know.
 				if self.config.GetFlag("cmd.q.allow") {

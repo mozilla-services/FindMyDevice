@@ -36,6 +36,7 @@ type Position struct {
 	Longitude float64
 	Altitude  float64
 	Time      int64
+	Cmd       map[string]interface{}
 }
 
 // Device information
