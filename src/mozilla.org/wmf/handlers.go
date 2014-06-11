@@ -361,7 +361,7 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not open session",
 			util.Fields{"error": err.Error()})
-		// delete the current, invalid session
+		// delete the current, invalid session?
 		return "", "", err
 	}
 	if session != nil {
@@ -882,13 +882,14 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		for cmd, args := range reply {
 			var margs replyType
 			c := strings.ToLower(string(cmd))
-			if !strings.Contains(devRec.Accepts, c) {
+            cs := string(c[0])
+			if !strings.Contains(devRec.Accepts, cs) {
 				self.logger.Warn(self.logCat, "Unacceptable Command",
-					util.Fields{"unacceptable": c,
+					util.Fields{"unacceptable": cs,
 						"acceptable": devRec.Accepts})
 				continue
 			}
-			self.metrics.Increment("cmd.received." + string(c[0]))
+			self.metrics.Increment("cmd.received." + cs)
 			// Normalize the args.
 			switch args.(type) {
 			case bool:
