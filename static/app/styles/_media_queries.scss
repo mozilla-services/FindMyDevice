@@ -3,16 +3,16 @@
 @media only screen and (min-width: 768px) {
   #stage {
     padding-bottom: 0; // remove padding on the bottom for footer
-    padding-top: 94px; // starts content below combined header and footer
+    padding-top: $header-height + $footer-height--desktop;
 
     footer {
       background: $footer-background-color--desktop;
       bottom: auto;
       color: $footer-text-color--desktop;
-      height: 47px;
+      height: $footer-height--desktop;
       padding-left: 26px; // 34px - 8px for button padding
       text-align: left;
-      top: 47px;
+      top: $header-height;
 
       .button {
         height: 47px;
