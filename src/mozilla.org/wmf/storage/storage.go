@@ -132,6 +132,7 @@ func Open(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics)
 	}
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
+        panic("Storage is unavailable: " + err.Error() + "\n")
 		return nil, err
 	}
 	db.SetMaxIdleConns(100)
