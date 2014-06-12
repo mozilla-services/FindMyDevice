@@ -33,6 +33,8 @@ a {
     font-weight: bold; }
 
 #stage {
+  padding-bottom: 39px;
+  padding-top: 47px;
   position: relative; }
   #stage header {
     background: #f4f4f4;
@@ -155,46 +157,39 @@ a {
         #modal .buttons button.primary:active {
           background: #3f88d5; }
 
-.leaflet-top {
-  top: 45px; }
-
-.leaflet-bottom {
-  bottom: 30px; }
-
 /* Desktop */
 @media only screen and (min-width: 768px) {
-  #stage footer {
-    background: #e7e7e7;
-    bottom: auto;
-    color: #333;
-    height: 47px;
-    padding-left: 26px;
-    text-align: left;
-    top: 47px; }
-    #stage footer .button {
+  #stage {
+    padding-bottom: 0;
+    padding-top: 94px; }
+    #stage footer {
+      background: #e7e7e7;
+      bottom: auto;
+      color: #333;
       height: 47px;
-      width: auto; }
-      #stage footer .button a {
-        background: url("../images/icon-sound.png") no-repeat left 50%;
-        display: inline-block;
-        font-size: 13px;
+      padding-left: 26px;
+      text-align: left;
+      top: 47px; }
+      #stage footer .button {
         height: 47px;
-        padding: 15px 12px 0 40px;
-        text-indent: 0;
         width: auto; }
-        #stage footer .button a:hover {
-          background-color: #d9d9d9; }
-      #stage footer .button.play-sound a {
-        background-image: url("../images/icon-sound.png"); }
-      #stage footer .button.lost-mode a {
-        background-image: url("../images/icon-lock.png");
-        margin: 0; }
-      #stage footer .button.erase a {
-        background-image: url("../images/icon-erase.png"); }
-  .leaflet-top {
-    top: 95px; }
-  .leaflet-bottom {
-    bottom: 0; } }
+        #stage footer .button a {
+          background: url("../images/icon-sound.png") no-repeat left 50%;
+          display: inline-block;
+          font-size: 13px;
+          height: 47px;
+          padding: 15px 12px 0 40px;
+          text-indent: 0;
+          width: auto; }
+          #stage footer .button a:hover {
+            background-color: #d9d9d9; }
+        #stage footer .button.play-sound a {
+          background-image: url("../images/icon-sound.png"); }
+        #stage footer .button.lost-mode a {
+          background-image: url("../images/icon-lock.png");
+          margin: 0; }
+        #stage footer .button.erase a {
+          background-image: url("../images/icon-erase.png"); } }
 
 @media only screen and (max-width: 768px) {
   #modal {
