@@ -176,7 +176,7 @@ func (self *Storage) Init() (err error) {
 		"create trigger update_le before update on deviceinfo for each row execute procedure update_time();",
 		"create table if not exists meta (key varchar, value varchar);",
 		"create index on meta (key);",
-		"create table if not exists nonce (key varchar, value varchar, time timestamp);",
+		"create table if not exists nonce (key varchar, val varchar, time timestamp);",
 		"create index on nonce (key);",
 		"create index on nonce (time);",
 		"set time zone utc;",
