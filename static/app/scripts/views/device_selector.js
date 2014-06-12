@@ -4,15 +4,24 @@
 
 define([
   'views/base',
-  'stache!templates/device_selector'
-], function (BaseView, DeviceSelectorTemplate) {
+  'stache!templates/device_selector',
+  'lib/modal_manager'
+], function (BaseView, DeviceSelectorTemplate, ModalManager) {
   'use strict';
 
   var DeviceSelectorView = BaseView.extend({
     template: DeviceSelectorTemplate,
 
+    events: {
+      'click a': 'close'
+    },
+
     initialize: function (options) {
       this.currentDevice = options.currentDevice;
+    },
+
+    close: function (event) {
+      ModalManager.close();
     },
 
     getContext: function () {
@@ -20,7 +29,7 @@ define([
       var currentDevice = this.currentDevice;
 
       return {
-        devices: window.devices.collect(function (d) { return d.attributes }),
+        devices: window.devices.collect(function (d) { return d.attributes; }),
         isCurrentDevice: function () {
           // The device (this) is a bare object in this context
           return this.id === currentDevice.get('id');
