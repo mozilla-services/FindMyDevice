@@ -20,8 +20,7 @@ define([
       if (data) {
         var updatedAttributes = {};
 
-        // HACK: Remapping this until it's fixed on the server side (#60)
-        updatedAttributes.hasPasscode = data.Lockable;
+        updatedAttributes.hasPasscode = data.HasPasscode;
 
         if (data.Latitude > 0) {
           updatedAttributes.latitude = data.Latitude;
