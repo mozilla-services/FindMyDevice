@@ -11,7 +11,7 @@ define([
   var ModalManager = {
     TARGET_PADDING_TOP: 5,
 
-    initialize: function() {
+    initialize: function () {
       this._views = [];
       this.$modal = $('#modal');
 
@@ -19,19 +19,19 @@ define([
       $(document).on('click', _.bind(this._closeOnClick, this));
     },
 
-    open: function(view, target) {
+    open: function (view, target) {
       this._destroyViews();
 
       this.push(view, target);
     },
 
-    push: function(view, target) {
+    push: function (view, target) {
       this._views.push(view);
 
       this._show(target);
     },
 
-    pop: function() {
+    pop: function () {
       var view = this._views.pop();
 
       if (view) {
@@ -45,19 +45,19 @@ define([
       }
     },
 
-    close: function() {
+    close: function () {
       this._destroyViews();
 
       this._hide();
     },
 
-    _destroyViews: function() {
+    _destroyViews: function () {
       _.invoke(this._views, 'destroy');
 
       this._views = [];
     },
 
-    _show: function(target) {
+    _show: function (target) {
       var view = _.last(this._views);
 
       view.render();
@@ -79,11 +79,11 @@ define([
       this.$modal.html(view.el).fadeIn();
     },
 
-    _hide: function() {
+    _hide: function () {
       this.$modal.fadeOut();
     },
 
-    _closeOnClick: function(event) {
+    _closeOnClick: function (event) {
       if (this.$modal.is(':visible')) {
         var $target = $(event.target);
 

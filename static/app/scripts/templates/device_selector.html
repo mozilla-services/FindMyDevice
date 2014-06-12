@@ -1,0 +1,13 @@
+<section>
+  <ul>
+    {{#devices}}
+      <li>
+        {{#isCurrentDevice}}
+          {{name}}
+        {{/isCurrentDevice}}
+        {{^isCurrentDevice}}
+          <a href="#devices/{{id}}">{{name}}</a></li>
+        {{/isCurrentDevice}}
+    {{/devices}}
+  </ul>
+</section>

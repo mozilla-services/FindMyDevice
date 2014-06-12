@@ -8,11 +8,11 @@ define([
   'use strict';
 
   var Command = Backbone.Model.extend({
-    asJSON: function() {
+    asJSON: function () {
       return this.attributes;
     },
 
-    toJSON: function() {
+    toJSON: function () {
       return JSON.stringify(this.asJSON());
     }
   });

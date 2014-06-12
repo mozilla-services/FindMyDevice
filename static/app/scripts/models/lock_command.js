@@ -8,7 +8,7 @@ define([
   'use strict';
 
   var LockCommand = Command.extend({
-    asJSON: function() {
+    asJSON: function () {
       return {
         l: {
           c: this.get('code'),

@@ -17,7 +17,7 @@ define([
       'click button.erase': 'confirmErase'
     },
 
-    confirmErase: function(event) {
+    confirmErase: function (event) {
       ModalManager.push(new EraseConfirmationView());
     }
   });

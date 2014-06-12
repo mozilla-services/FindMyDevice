@@ -18,11 +18,11 @@ define([
       'click button.erase': 'erase'
     },
 
-    cancel: function(event) {
+    cancel: function (event) {
       ModalManager.close();
     },
 
-    erase: function(event) {
+    erase: function (event) {
       currentDevice.sendCommand(new EraseCommand());
 
       ModalManager.close();
