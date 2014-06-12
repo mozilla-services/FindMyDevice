@@ -8,7 +8,7 @@ define([
   'use strict';
 
   var EraseCommand = Command.extend({
-    asJSON: function() {
+    asJSON: function () {
       return {
         e: {}
       };

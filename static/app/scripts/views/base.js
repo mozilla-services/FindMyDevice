@@ -7,7 +7,7 @@ define(
     'underscore',
     'backbone'
   ],
-  function(_, Backbone) {
+  function (_, Backbone) {
     'use strict';
 
     /**
@@ -21,7 +21,7 @@ define(
     * @param {Object} options configuration options passed along to Backbone.View
     */
     var BaseView = Backbone.View.extend({
-      constructor: function(options) {
+      constructor: function (options) {
         this.subviews = [];
 
         Backbone.View.call(this, options);
@@ -33,7 +33,7 @@ define(
       * @method getContext
       * @return {Object} context
       */
-      getContext: function() {
+      getContext: function () {
         var context;
 
         if (this.model) {
@@ -52,7 +52,7 @@ define(
       * @return {BaseView} this
       * @chainable
       */
-      render: function() {
+      render: function () {
         this.destroySubviews();
 
         var context = this.getContext();
@@ -70,11 +70,11 @@ define(
       *
       * @method afterRender
       */
-      afterRender: function() {
+      afterRender: function () {
         // Implement in subclasses
       },
 
-      afterInsert: function() {
+      afterInsert: function () {
         // Implement in subclasses
       },
 
@@ -85,8 +85,8 @@ define(
       * @param {Backbone.View} ItemView view for rendering each item in the collection
       * @param {String} selector jQuery selector to insert the collected elements
       */
-      renderCollection: function(ItemView, selector) {
-        var els = this.collection.collect(function(item) {
+      renderCollection: function (ItemView, selector) {
+        var els = this.collection.collect(function (item) {
           return this.trackSubview(new ItemView({ model: item })).render().el;
         }.bind(this));
 
@@ -101,7 +101,7 @@ define(
       * @param {String} selector jQuery selector for the element to be assigned
       * @return {BaseView} this
       */
-      assign: function(view, selector) {
+      assign: function (view, selector) {
         view.setElement(this.$(selector));
         view.render();
       },
@@ -112,7 +112,7 @@ define(
       *
       * @method destroy
       */
-      destroy: function() {
+      destroy: function () {
         if (this.beforeDestroy) {
           this.beforeDestroy();
         }
@@ -129,7 +129,7 @@ define(
       * @param {BaseView} view to track
       * @return {BaseView} tracked view
       */
-      trackSubview: function(view) {
+      trackSubview: function (view) {
         if (!_.contains(this.subviews, view)) {
           this.subviews.push(view);
         }
@@ -142,7 +142,7 @@ define(
       *
       * @method destroySubviews
       */
-      destroySubviews: function() {
+      destroySubviews: function () {
         _.invoke(this.subviews, 'destroy');
 
         this.subviews = [];

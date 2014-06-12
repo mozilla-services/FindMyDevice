@@ -19,18 +19,18 @@ define([
       'click .next': 'next'
     },
 
-    initialize: function(options) {
+    initialize: function (options) {
       this.device = options.device;
     },
 
-    getContext: function() {
+    getContext: function () {
       return {
         note: this.note,
         hasPasscode: this.device.get('hasPasscode')
       };
     },
 
-    activate: function(event) {
+    activate: function (event) {
       event.preventDefault();
 
       currentDevice.sendCommand(new LockCommand({ message: this.note }));
@@ -38,7 +38,7 @@ define([
       ModalManager.close();
     },
 
-    next: function(event) {
+    next: function (event) {
       event.preventDefault();
 
       this.note = this.$('.note').val();

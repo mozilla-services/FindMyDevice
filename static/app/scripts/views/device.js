@@ -5,32 +5,38 @@
 define([
   'backbone',
   'views/base',
-  'stache!templates/location',
+  'stache!templates/device',
   'models/device',
   'models/track_command',
   'lib/modal_manager',
+  'views/device_selector',
   'views/play_sound',
   'views/lost_mode',
   'views/erase'
-], function (Backbone, BaseView, LocationTemplate, Device, TrackCommand, ModalManager, PlaySoundView, LostModeView, EraseView) {
+], function (Backbone, BaseView, DeviceTemplate, Device, TrackCommand, ModalManager, DeviceSelectorView, PlaySoundView, LostModeView, EraseView) {
   'use strict';
 
-  var LocationView = BaseView.extend({
-    template: LocationTemplate,
+  var DeviceView = BaseView.extend({
+    template: DeviceTemplate,
 
     events: {
+      'click h1': 'openDeviceSelector',
       'click span.play-sound': 'openPlaySound',
       'click span.lost-mode': 'openLostMode',
       'click span.erase': 'openErase'
     },
 
-    initialize: function() {
-      this.model = currentDevice;
-
+    initialize: function () {
       // Listen for model changes
       this.listenTo(this.model, 'change:latitude', this.updateMapPosition);
 
       this.startTracking();
+    },
+
+    openDeviceSelector: function () {
+      event.stopPropagation();
+
+      ModalManager.open(new DeviceSelectorView({ currentDevice: this.model }), $(event.target));
     },
 
     openPlaySound: function (event) {
@@ -59,13 +65,17 @@ define([
       new L.Control.Zoom({ position: 'topright' }).addTo(this.map);
     },
 
-    startTracking: function() {
-      currentDevice.listenForUpdates();
-
-      currentDevice.sendCommand(new TrackCommand({ duration: 60, period: 10 }));
+    beforeDestroy: function () {
+      this.model.stopListening();
     },
 
-    updateMapPosition: function() {
+    startTracking: function () {
+      this.model.listenForUpdates();
+
+      this.model.sendCommand(new TrackCommand({ duration: 60, period: 10 }));
+    },
+
+    updateMapPosition: function () {
       var latitude = this.model.get('latitude');
       var longitude = this.model.get('longitude');
 
@@ -94,5 +104,5 @@ define([
     }
   });
 
-  return LocationView;
+  return DeviceView;
 });

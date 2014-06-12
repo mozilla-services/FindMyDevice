@@ -6,36 +6,45 @@ define([
   'jquery',
   'backbone',
   'models/device',
-  'views/location',
+  'views/device',
   'views/device_not_found'
-], function ($, Backbone, Device, LocationView, DeviceNotFoundView) {
+], function ($, Backbone, Device, DeviceView, DeviceNotFoundView) {
   'use strict';
 
   var Router = Backbone.Router.extend({
     routes: {
-      '': 'showIndex'
+      '': 'showIndex',
+      'devices/:id': 'showDevice'
     },
 
-    showIndex: function() {
-      if (window.currentDevice) {
-        this.showLocation();
+    showIndex: function () {
+      if (window.devices.length > 0) {
+        // Navigate to the device
+        this.navigate('devices/' + window.devices.last().get('id'), { trigger: true });
       } else {
         this.showDeviceNotFound();
       }
     },
 
-    showLocation: function() {
-      this.setStage(new LocationView());
+    showDevice: function (id) {
+      this.setStage(new DeviceView({ model: window.devices.get(id) }));
     },
 
-    showDeviceNotFound: function() {
+    showDeviceNotFound: function () {
       this.setStage(new DeviceNotFoundView());
     },
 
-    setStage: function(view) {
-      $('#stage').html(view.render().el);
+    setStage: function (view) {
+      // Destroy the current view before replacing it
+      if (this.currentView) {
+        this.currentView.destroy();
+      }
 
-      view.afterInsert();
+      this.currentView = view;
+
+      $('#stage').html(this.currentView.render().el);
+
+      this.currentView.afterInsert();
     }
   });
 

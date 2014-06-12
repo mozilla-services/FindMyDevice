@@ -18,15 +18,15 @@ define([
       'submit form': 'activate'
     },
 
-    initialize: function(options) {
+    initialize: function (options) {
       this.note = options.note;
     },
 
-    back: function(event) {
+    back: function (event) {
       ModalManager.pop();
     },
 
-    isValid: function() {
+    isValid: function () {
       if (this.passcode1 === this.passcode2) {
         return true;
       } else {
@@ -37,7 +37,7 @@ define([
       }
     },
 
-    activate: function(event) {
+    activate: function (event) {
       event.preventDefault();
 
       this.passcode1 = this.$('.passcode[name=passcode-1]').val();

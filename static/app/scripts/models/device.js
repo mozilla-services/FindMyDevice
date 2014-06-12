@@ -10,11 +10,11 @@ define([
 
   var Device = Backbone.Model.extend({
     // Convert attributes to lowercase
-    parse: function(resp, xhr) {
+    parse: function (resp, xhr) {
       return { id: resp.ID, name: resp.Name, url: resp.URL };
     },
 
-    onWebSocketUpdate: function(message) {
+    onWebSocketUpdate: function (message) {
       var data = JSON.parse(message.data);
 
       if (data) {
@@ -39,12 +39,16 @@ define([
       }
     },
 
-    listenForUpdates: function() {
+    listenForUpdates: function () {
       this.socket = new WebSocket(this.get('url'));
       this.socket.onmessage = this.onWebSocketUpdate.bind(this);
     },
 
-    sendCommand: function(command) {
+    stopListening: function () {
+      this.socket.close();
+    },
+
+    sendCommand: function (command) {
       return $.ajax({
         data: command.toJSON(),
         dataType: 'json',

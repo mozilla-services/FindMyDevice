@@ -8,7 +8,7 @@ define([
   'use strict';
 
   var TrackCommand = Command.extend({
-    asJSON: function() {
+    asJSON: function () {
       return {
         t: {
           d: this.get('duration'),

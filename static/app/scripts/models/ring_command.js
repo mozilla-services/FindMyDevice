@@ -8,7 +8,7 @@ define([
   'use strict';
 
   var RingCommand = Command.extend({
-    asJSON: function() {
+    asJSON: function () {
       return {
         r: {
           d: this.get('duration'),

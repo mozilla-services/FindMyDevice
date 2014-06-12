@@ -14,7 +14,7 @@ define([
     url: '/0/devices/',
 
     // Extract root devices array
-    parse: function(resp, xhr) {
+    parse: function (resp, xhr) {
       return resp.devices;
     }
   });
