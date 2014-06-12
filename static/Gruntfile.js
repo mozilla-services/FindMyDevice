@@ -132,8 +132,7 @@ module.exports = function (grunt) {
             '*.{ico,txt}',
             '.htaccess',
             'images/{,*/}*.{webp,gif}',
-            'styles/fonts/{,*/}*.*',
-            'bower_components/typopro/web/TypoPRO-FiraSans/{,*/}*.*'
+            'styles/fonts/{,*/}*.*'
           ]
         }]
       }
@@ -168,6 +167,7 @@ module.exports = function (grunt) {
       dist: {
         files: {
           '<%= yeoman.dist %>/styles/main.css': [
+            '<%= yeoman.app %>/bower_components/normalize-css/normalize.css',
             '<%= yeoman.tmp %>/styles/{,*/}*.css',
             '<%= yeoman.app %>/styles/{,*/}*.css'
           ]
@@ -245,26 +245,21 @@ module.exports = function (grunt) {
     // REQUIREJS TASK
     requirejs: {
       dist: {
-        // Options: https://github.com/jrburke/r.js/blob/master/build/example.build.js
         options: {
+          almond: true,
           baseUrl: '<%= yeoman.app %>/scripts',
-          optimize: 'none',
-          paths: {
-            'templates': '../../app/scripts/templates',
-            'jquery': '../../app/bower_components/jquery/jquery',
-            'underscore': '../../app/bower_components/underscore/underscore',
-            'backbone': '../../app/bower_components/backbone/backbone'
-          },
-          // TODO: Figure out how to make sourcemaps work with grunt-usemin
-          // https://github.com/yeoman/grunt-usemin/issues/30
-          //generateSourceMaps: true,
-          // required to support SourceMaps
-          // http://requirejs.org/docs/errors.html#sourcemapcomments
+          dir: '<%= yeoman.dist %>/scripts',
+          mainConfigFile: '<%= yeoman.app %>/scripts/main.js',
+          name: 'main',
           preserveLicenseComments: false,
-          useStrict: true,
-          wrap: true
-          //stubModules: ['text', 'stache']
-          //uglify2: {} // https://github.com/mishoo/UglifyJS2
+          removeCombined: true,
+          replaceRequireScript: [{
+            files: ['<%= yeoman.dist %>/index.html'],
+            module: 'main',
+            modulePath: '/scripts/almond' // `almond: true` causes the output file to be named almond.js
+          }],
+          stubModules: ['text', 'stache'],
+          useStrict: true
         }
       }
     },
@@ -361,13 +356,13 @@ module.exports = function (grunt) {
     'clean:dist',
     'css',
     'useminPrepare',
-    'requirejs',
     'imagemin',
     'htmlmin',
     'concat',
     'cssmin',
     'uglify',
     'copy',
+    'requirejs',
     'rev',
     'usemin'
   ]);
