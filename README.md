@@ -11,7 +11,8 @@ https://wiki.mozilla.org/Services/WheresMyFox#Server_API_Reference.2FDocumentati
 You will need:
 
 - A postgres database
-- golang 1.3
+- golang 1.3 or greater
+- node.js & npm
 
 ## How to install:
 

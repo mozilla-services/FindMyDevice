@@ -7,12 +7,15 @@ package storage
 import (
 	"mozilla.org/util"
 
+	"crypto/md5"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	_ "github.com/lib/pq"
+	"io"
 	"strconv"
-	//	"strings"
+	"strings"
 	"time"
 )
 
@@ -172,6 +175,9 @@ func (self *Storage) Init() (err error) {
 		"create trigger update_le before update on deviceinfo for each row execute procedure update_time();",
 		"create table if not exists meta (key varchar, value varchar);",
 		"create index on meta (key);",
+		"create table if not exists nonce (key varchar, value varchar, time timestamp);",
+		"create index on nonce (key);",
+		"create index on nonce (time);",
 		"set time zone utc;",
 	}
 
@@ -571,4 +577,75 @@ func (self *Storage) setMeta(key, val string) (err error) {
 
 func (self *Storage) Close() {
 	self.db.Close()
+}
+
+/* Nonce handler.
+   Anything that can be killed, can be overkilled.
+*/
+
+func (self *Storage) genSig(key, val string) string {
+	// Yes, this is using woefully insecure MD5. That's ok.
+	// Collisions should be rare enough and this is more
+	// paranoid security than is really required.
+	sig := md5.New()
+	io.WriteString(sig, key+"."+val)
+	return hex.EncodeToString(sig.Sum(nil))
+}
+
+// Generate a nonce for OAuth checks
+func (self *Storage) GetNonce() (string, error) {
+	var statement string
+	dbh := self.db
+
+	key, _ := util.GenUUID4()
+	val, _ := util.GenUUID4()
+	statement = "insert into nonce (key, val, time) values ($1, $2, current_timestamp);"
+
+	if _, err := dbh.Exec(statement, key, val); err != nil {
+		return "", err
+	}
+	ret := key + "." + self.genSig(key, val)
+	return ret, nil
+}
+
+// Does the user's nonce match?
+func (self *Storage) CheckNonce(nonce string) (bool, error) {
+	var statement string
+	dbh := self.db
+
+	// gc nonces before checking.
+	statement = "delete from nonce where time < current_timestamp - interval '5 minutes';"
+	dbh.Exec(statement)
+
+	keysig := strings.SplitN(nonce, ".", 2)
+	if len(keysig) != 2 {
+		self.logger.Warn(self.logCat,
+			"Invalid nonce",
+			util.Fields{"nonce": nonce})
+		return false, nil
+	}
+	statement = "select val from nonce where key = $1 limit 1;"
+	rows, err := dbh.Query(statement, keysig[0])
+	if err == nil {
+		for rows.Next() {
+			var val string
+			err = rows.Scan(&val)
+			if err == nil {
+				dbh.Exec("delete from nonce where key = $1;", keysig[0])
+				sig := self.genSig(keysig[0], val)
+				return sig == keysig[1], nil
+			}
+			self.logger.Error(self.logCat,
+				"Nonce check error",
+				util.Fields{"error": err.Error()})
+			return false, err
+		}
+		// Not found
+		return false, nil
+	}
+	// An error happened.
+	self.logger.Error(self.logCat,
+		"Nonce check error",
+		util.Fields{"error": err.Error()})
+	return false, err
 }

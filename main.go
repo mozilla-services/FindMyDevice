@@ -56,6 +56,8 @@ func main() {
 		return
 	}
 	config.SetDefault("VERSION", VERSION)
+	sock_secret, _ := util.GenUUID4()
+	config.SetDefault("ws.socket_secret", sock_secret)
 
 	// Rest Config
 	errChan := make(chan error)
@@ -152,6 +154,13 @@ func main() {
 	// Operations call
 	RESTMux.HandleFunc("/status/",
 		handlers.Status)
+	//Signin
+	// set state nonce & check if valid at signin
+	RESTMux.HandleFunc("/signin/",
+		handlers.Signin)
+	//Signout
+	RESTMux.HandleFunc("/signout/",
+		handlers.Signout)
 	// Config option because there are other teams involved.
 	auth := config.Get("fxa.redir_uri", "/oauth/")
 	RESTMux.HandleFunc(auth, handlers.OAuthCallback)

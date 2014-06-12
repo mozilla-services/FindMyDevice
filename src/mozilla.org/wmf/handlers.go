@@ -48,6 +48,7 @@ type ClientMap map[string]*WWS
 
 const (
 	SESSION_NAME     = "user"
+	SESSION_LOGIN    = "login"
 	OAUTH_ENDPOINT   = "https://oauth.accounts.firefox.com"
 	CONTENT_ENDPOINT = "https://accounts.firefox.com"
 	SESSION_USERID   = "userid"
@@ -706,7 +707,6 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			self.logger.Warn(self.logCat, "Missing 'assert' value",
 				util.Fields{"body": raw})
 			// Use HAWK + deviceid to determine if this is a re-registration.
-			// TODO:::
 			if hv := self.verifyHawkHeader(req, []byte(raw), devRec); devRec != nil && hv {
 				self.logger.Info(self.logCat,
 					"Hawk Verified, getting user info ...\n",
@@ -882,7 +882,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		for cmd, args := range reply {
 			var margs replyType
 			c := strings.ToLower(string(cmd))
-            cs := string(c[0])
+			cs := string(c[0])
 			if !strings.Contains(devRec.Accepts, cs) {
 				self.logger.Warn(self.logCat, "Unacceptable Command",
 					util.Fields{"unacceptable": cs,
@@ -1264,12 +1264,14 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 	var reply []devList
 
 	for _, d := range deviceList {
+		sig := self.genSig(req, d.ID)
 		reply = append(reply, devList{
 			ID:   d.ID,
 			Name: d.Name,
-			URL: fmt.Sprintf("%s://%s/0/ws/%s",
+			URL: fmt.Sprintf("%s://%s/0/ws/%s/%s",
 				self.config.Get("ui.ws_proto", "ws"),
 				self.config.Get("ws_hostname", "localhost"),
+				sig,
 				d.ID)})
 	}
 	breply, err := json.Marshal(map[string][]devList{
@@ -1408,11 +1410,6 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 	// host information (for websocket callback)
 	data.Host = make(map[string]string)
 	data.Host["Hostname"] = self.config.Get("ws_hostname", "localhost")
-	data.Host["Client_id"] = self.config.Get("fxa.client_id", "none")
-	data.Host["Endpoint"] = self.config.Get("fxa.endpoint", "https://oauth.accounts.firefox.com/v1")
-	data.Host["Login"] = self.config.Get("fxa.login", data.Host["Endpoint"])
-	// TODO: generate "state" code thingy
-	data.Host["State"] = "somestate"
 
 	// get the cached session info (if present)
 	// will also resolve assertions and other bits to get user and dev info.
@@ -1629,10 +1626,39 @@ func (self *Handler) genHash(input string) (output string) {
 }
 
 func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) {
+	var nonce string
 	self.logCat = "oauth"
 
 	// Get the session so that we can save it.
 	session, _ := sessionStore.Get(req, SESSION_NAME)
+	loginSession, _ := sessionStore.Get(req, SESSION_LOGIN)
+
+	if ni, ok := loginSession.Values["nonce"]; !ok {
+		// No nonce, no service
+		self.logger.Error(self.logCat, "Missing nonce", nil)
+		http.Error(resp, "Unauthorized", 401)
+		return
+	} else {
+		nonce = ni.(string)
+	}
+
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		return
+	}
+	defer store.Close()
+
+	if ok, err := store.CheckNonce(nonce); !ok || err != nil {
+		self.logger.Error(self.logCat, "Invalid Nonce", nil)
+		http.Error(resp, "Unauthorized", 401)
+		return
+	}
+	// Nuke the login session cookie
+	loginSession.Options.MaxAge = -1
+	loginSession.Save(req, resp)
+
 	// fmt.Printf("### oauth session: %+v, err: %s\n", session, err)
 	if _, ok := session.Values[SESSION_TOKEN]; !ok {
 		// get the "state", and "code"
@@ -1641,6 +1667,12 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 		// TODO: check "state" matches magic code thingy
 		if state == "" {
 			self.logger.Error(self.logCat, "No State", nil)
+			http.Error(resp, "Unauthorized", 401)
+			return
+		}
+		if state != strings.SplitN(nonce, ".", 2)[0] {
+			self.logger.Error(self.logCat, "Invalid nonce", nil)
+			http.Error(resp, "Unauthorized", 401)
 			return
 		}
 		if code == "" {
@@ -1677,6 +1709,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 		// readable by subsequent session get calls.
 		session.Save(req, resp)
 	}
+	self.metrics.Increment("page.signin.success")
 	http.Redirect(resp, req, "/", http.StatusFound)
 	return
 }
@@ -1697,6 +1730,26 @@ func rmClient(id string) {
 	}
 }
 
+// A simple signature generator for WS connections (tied to device and remote IP)
+func (self *Handler) genSig(req *http.Request, devId string) (ret string) {
+	addr := strings.SplitN(req.RemoteAddr, ":", 2)[0]
+	remote := fmt.Sprintf("%s:%s:%s",
+		addr,
+		devId,
+		self.config.Get("ws.socket_secret", "insecure"))
+	sig := self.genHash(remote)
+	return sig
+}
+
+// Check the simple WS signature against the second to last item
+func (self *Handler) checkSig(req *http.Request, devId string) (ok bool) {
+	bits := strings.Split(req.URL.Path, "/")
+	// remember, leading "/" counts.
+	gotsig := bits[len(bits)-2]
+	testsig := self.genSig(req, devId)
+	return testsig == gotsig
+}
+
 // Handle Websocket processing.
 func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	self.logCat = "handler:Socket"
@@ -1709,6 +1762,11 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	defer store.Close()
 
 	self.devId = getDevFromUrl(ws.Request().URL)
+	if !self.checkSig(ws.Request(), self.devId) {
+		self.logger.Error(self.logCat, "Unauthorized access.",
+			nil)
+		return
+	}
 	devRec, err := store.GetDeviceInfo(self.devId)
 	if err != nil {
 		self.logger.Error(self.logCat, "Invalid Device for socket",
@@ -1764,4 +1822,75 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	self.metrics.Decrement("page.socket")
 	self.metrics.Timer("page.socket", time.Now().Unix()-sock.Born.Unix())
 	rmClient(deviceId)
+}
+
+func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not open database",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	defer store.Close()
+
+	session, _ := sessionStore.Get(req, SESSION_LOGIN)
+	if session.Values["nonce"], err = store.GetNonce(); err != nil {
+		self.logger.Error(self.logCat,
+			"Could not assign nonce",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	prefix := "fxa"
+	if self.config.GetFlag("auth.persona") {
+		prefix = "persona"
+	}
+	redirUrlTemplate := self.config.Get(prefix+".login_url",
+		"{{.Host}}?client_id={{.ClientId}}&scope=profile:email&state={{.State}}&action=signin")
+	tmpl, err := template.New("Login").Parse(redirUrlTemplate)
+	if err != nil {
+		self.logger.Error(self.logCat,
+			"Could not handle login template",
+			util.Fields{"error": err.Error(),
+				"template": redirUrlTemplate})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	// fill the template using an anonymous struct.
+	// (if this works, I'm a bit grossed out by go)
+	var buffer = new(bytes.Buffer)
+
+	err = tmpl.Execute(buffer, struct {
+		Host     string
+		ClientId string
+		State    string
+	}{
+		self.config.Get(prefix+".login", "http://localhost/"),
+		self.config.Get(prefix+".client_id", ""),
+		strings.SplitN(session.Values["nonce"].(string), ".", 2)[0],
+	})
+	if err != nil {
+		self.logger.Error(self.logCat,
+			"Could not fill out template",
+			util.Fields{"error": err.Error(),
+				"template": redirUrlTemplate})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+
+	session.Save(req, resp)
+	http.Redirect(resp, req, buffer.String(), http.StatusFound)
+	self.metrics.Increment("page.signin.attempt")
+	return
+}
+
+func (self *Handler) Signout(resp http.ResponseWriter, req *http.Request) {
+	for _, name := range []string{SESSION_LOGIN, SESSION_NAME} {
+		session, _ := sessionStore.Get(req, name)
+		session.Options.MaxAge = -1
+		session.Save(req, resp)
+	}
+	self.metrics.Increment("page.signout.success")
+	http.Redirect(resp, req, "/", http.StatusFound)
 }
