@@ -42,7 +42,7 @@ define([
     openPlaySound: function (event) {
       event.stopPropagation();
 
-      ModalManager.open(new PlaySoundView(), $(event.target).closest('span.button'));
+      ModalManager.open(new PlaySoundView({ device: this.model }), $(event.target).closest('span.button'));
     },
 
     openLostMode: function (event) {
@@ -54,7 +54,7 @@ define([
     openErase: function (event) {
       event.stopPropagation();
 
-      ModalManager.open(new EraseView(), $(event.target).closest('span.button'));
+      ModalManager.open(new EraseView({ device: this.model }), $(event.target).closest('span.button'));
     },
 
     afterInsert: function () {

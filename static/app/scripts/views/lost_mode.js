@@ -33,7 +33,7 @@ define([
     activate: function (event) {
       event.preventDefault();
 
-      currentDevice.sendCommand(new LockCommand({ message: this.note }));
+      this.device.sendCommand(new LockCommand({ message: this.note }));
 
       ModalManager.close();
     },
@@ -43,7 +43,7 @@ define([
 
       this.note = this.$('.note').val();
 
-      ModalManager.push(new LostModePasscodeView({ note: this.note }));
+      ModalManager.push(new LostModePasscodeView({ device: this.device, note: this.note }));
     }
   });
 

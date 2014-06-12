@@ -19,6 +19,7 @@ define([
     },
 
     initialize: function (options) {
+      this.device = options.device;
       this.note = options.note;
     },
 
@@ -44,7 +45,7 @@ define([
       this.passcode2 = this.$('.passcode[name=passcode-2]').val();
 
       if (this.isValid()) {
-        currentDevice.sendCommand(new LockCommand({ code: this.passcode2, message: this.note }));
+        this.device.sendCommand(new LockCommand({ code: this.passcode2, message: this.note }));
 
         ModalManager.close();
       }

@@ -17,8 +17,12 @@ define([
       'click button.play-sound': 'playSound'
     },
 
+    initialize: function (options) {
+      this.device = options.device;
+    },
+
     playSound: function (event) {
-      currentDevice.sendCommand(new RingCommand({ duration: 30, period: 5 }));
+      this.device.sendCommand(new RingCommand({ duration: 30, period: 5 }));
 
       ModalManager.close();
     }
