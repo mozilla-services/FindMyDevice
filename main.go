@@ -13,17 +13,17 @@ import (
 	// Only add the following for devel.
 	//	_ "net/http/pprof"
 
-	"bytes"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"runtime"
 	"runtime/pprof"
 	"strings"
 	"syscall"
+    "bytes"
+    "os/exec"
 )
 
 var opts struct {
@@ -44,7 +44,8 @@ const (
 	VERSION = "0.7"
 )
 
-//
+// get the latest version from git.
+// If this isn't a git install, report "Unknown"
 func getCodeVersion() string {
 	var buffer = new(bytes.Buffer)
 	cmd := exec.Command("git", "log", "-1")
@@ -71,9 +72,9 @@ func main() {
 		log.Fatal("Could not read config file %s: %s", opts.ConfigFile, err.Error())
 		return
 	}
-	fullVers := fmt.Sprintf("%s-%s", config.Get("VERSION", VERSION),
-		getCodeVersion())
-	config.Override("VERSION", fullVers)
+    fullVers := fmt.Sprintf("%s-%s", config.Get("VERSION", VERSION),
+            getCodeVersion())
+    config.Override("VERSION", fullVers)
 	sock_secret, _ := util.GenUUID4()
 	config.SetDefault("ws.socket_secret", sock_secret)
 

@@ -1294,7 +1294,8 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:Index"
 
-	if strings.Contains(req.URL.Path, "/static/") {
+    docRoot := self.config.Get("document_root", "./static/app")
+	if strings.Index(req.URL.Path, "/static") == 0 {
 		self.Static(resp, req)
 		return
 	}
@@ -1318,7 +1319,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	tmpl, err := template.New("index.html").ParseFiles("static/app/index.html")
+	tmpl, err := template.New("index.html").ParseFiles(docRoot + "/index.html")
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not display index page",
 			util.Fields{"error": err.Error(),
@@ -1523,7 +1524,9 @@ func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	http.ServeFile(resp, req, "./static/app/"+req.URL.Path)
+    docRoot := self.config.Get("document_root", "static/app/")
+
+	http.ServeFile(resp, req, docRoot+req.URL.Path)
 }
 
 // Display the current metrics as a JSON snapshot

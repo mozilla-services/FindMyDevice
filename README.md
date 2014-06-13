@@ -18,6 +18,9 @@ You will need:
 
 - set `GOPATH` to the root install directory (e.g. ``export GOPATH=`pwd` ``)
 - run `./install.bash`
+  - for Production level installs, you will need to also run:
+    `grunt build` in the ./static library. This will create a
+    ./static/dist directory containing prebuilt items.
 - copy [config-example.ini](config-sample.ini) to config.ini
 - modify config.ini to reflect your system and preferences.
 
