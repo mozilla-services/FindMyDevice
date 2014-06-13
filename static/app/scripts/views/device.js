@@ -33,7 +33,7 @@ define([
       this.startTracking();
     },
 
-    openDeviceSelector: function () {
+    openDeviceSelector: function (event) {
       event.stopPropagation();
 
       ModalManager.open(new DeviceSelectorView({ currentDevice: this.model }), $(event.target));
