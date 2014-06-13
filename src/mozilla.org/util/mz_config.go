@@ -76,6 +76,15 @@ func (self *MzConfig) SetDefault(key string, val string) string {
 	return self.config[key].(string)
 }
 
+func (self *MzConfig) Override(key string, val string) string {
+	var old string
+	if v, ok := self.config[key]; ok {
+		old = v.(string)
+	}
+	self.config[key] = val
+	return old
+}
+
 /* Test for a boolean flag. Missing flags are false.
  */
 func (self *MzConfig) GetFlag(key string) bool {

@@ -13,10 +13,12 @@ import (
 	// Only add the following for devel.
 	//	_ "net/http/pprof"
 
+	"bytes"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"runtime"
 	"runtime/pprof"
@@ -39,8 +41,22 @@ var (
 
 const (
 	// VERSION is the version number for system.
-	VERSION = "0.6"
+	VERSION = "0.7"
 )
+
+//
+func getCodeVersion() string {
+	var buffer = new(bytes.Buffer)
+	cmd := exec.Command("git", "log", "-1")
+	cmd.Stdout = buffer
+	err := cmd.Run()
+	if err != nil {
+		log.Printf("Could not get Git Version: %s", err.Error())
+		return "Unknown"
+	}
+	vers := strings.Split(strings.Split(buffer.String(), "\n")[0], " ")[1]
+	return vers
+}
 
 func main() {
 	flags.ParseArgs(&opts, os.Args)
@@ -55,7 +71,9 @@ func main() {
 		log.Fatal("Could not read config file %s: %s", opts.ConfigFile, err.Error())
 		return
 	}
-	config.SetDefault("VERSION", VERSION)
+	fullVers := fmt.Sprintf("%s-%s", config.Get("VERSION", VERSION),
+		getCodeVersion())
+	config.Override("VERSION", fullVers)
 	sock_secret, _ := util.GenUUID4()
 	config.SetDefault("ws.socket_secret", sock_secret)
 
