@@ -1735,12 +1735,26 @@ func rmClient(id string) {
 
 // A simple signature generator for WS connections (tied to device and remote IP)
 func (self *Handler) genSig(req *http.Request, devId string) (ret string) {
-	addr := strings.SplitN(req.RemoteAddr, ":", 2)[0]
+    var addr string
+
+    if ! self.config.GetFlag("ws.use_signatures") {
+        return "tbd"
+    }
+
+    fmt.Printf("### X-Real-IP:       %s\n", req.Header.Get("X-Real-IP"))
+    fmt.Printf("### X-Forwarded-For: %s\n", req.Header.Get("X-Forwarded-For"))
+    fmt.Printf("### Remote:          %s\n", req.RemoteAddr)
+    if addr = req.Header.Get("X-Real-IP"); addr == "" {
+        addr = req.RemoteAddr
+    }
+	addr = strings.SplitN(addr, ":", 2)[0]
+    fmt.Printf("### Using addr      %s\n", addr)
 	remote := fmt.Sprintf("%s:%s:%s",
 		addr,
 		devId,
 		self.config.Get("ws.socket_secret", "insecure"))
-	sig := self.genHash(remote)
+    //sig := self.genHash(remote)
+    sig := remote
 	return sig
 }
 
