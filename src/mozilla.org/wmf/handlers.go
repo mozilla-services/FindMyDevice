@@ -1294,7 +1294,7 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:Index"
 
-    docRoot := self.config.Get("document_root", "./static/app")
+	docRoot := self.config.Get("document_root", "./static/app")
 	if strings.Index(req.URL.Path, "/static") == 0 {
 		self.Static(resp, req)
 		return
@@ -1524,7 +1524,7 @@ func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-    docRoot := self.config.Get("document_root", "static/app/")
+	docRoot := self.config.Get("document_root", "static/app/")
 
 	http.ServeFile(resp, req, docRoot+req.URL.Path)
 }
@@ -1896,4 +1896,43 @@ func (self *Handler) Signout(resp http.ResponseWriter, req *http.Request) {
 	}
 	self.metrics.Increment("page.signout.success")
 	http.Redirect(resp, req, "/", http.StatusFound)
+}
+
+// Validate a given assertion (useful for client)
+func (self *Handler) Validate(resp http.ResponseWriter, req *http.Request) {
+	var reply = util.JsMap{"valid": false}
+
+	self.logCat = "handler:Validate"
+	resp.Header().Set("Content-Type", "application/json")
+
+    // Looking for the body of the request to contain a JSON object with
+    // {assert: ... }
+	if buffer, raw, err := parseBody(req.Body); err == nil {
+		if assert, ok := buffer["assert"]; ok {
+			if userid, _, err := self.verifyFxAAssertion(assert.(string)); err == nil {
+				reply["valid"] = true
+				reply["uid"] = userid
+			} else {
+				self.logger.Error(self.logCat,
+					"Could not verify assertion",
+					util.Fields{"error": err.Error()})
+			}
+		} else {
+			self.logger.Error(self.logCat,
+				"No assert found in body of POST", nil)
+		}
+	} else {
+		self.logger.Error(self.logCat, "Could not parse body",
+			util.Fields{"body": raw, "error": err.Error()})
+	}
+
+    // OK, write out the reply object (if you can)
+    // as {valid: (true|false), [uid: ... ]}
+	if response, err := json.Marshal(reply); err == nil {
+		resp.Write(response)
+	} else {
+		self.logger.Error(self.logCat, "Could not write reply",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server Error", 500)
+	}
 }

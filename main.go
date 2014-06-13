@@ -194,6 +194,8 @@ func main() {
 	// e.g. http://host/0/data/0123deviceid
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/data/", verRoot),
 		handlers.InitDataJson)
+	RESTMux.HandleFunc(fmt.Sprintf("/%s/validate/", verRoot),
+		handlers.Validate)
 	RESTMux.HandleFunc("/",
 		handlers.Index)
 
