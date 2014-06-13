@@ -135,6 +135,16 @@ module.exports = function (grunt) {
             'styles/fonts/{,*/}*.*',
             'bower_components/typopro/web/TypoPRO-FiraSans/{,*/}*.*'
           ]
+        },
+        // Copy these files into tmp so that concat can find them
+        {
+          expand: true,
+          dot: true,
+          cwd: '<%= yeoman.app %>',
+          dest: '<%= yeoman.tmp %>',
+          src: [
+            'bower_components/normalize-css/normalize.css'
+          ]
         }]
       }
     },
@@ -245,26 +255,21 @@ module.exports = function (grunt) {
     // REQUIREJS TASK
     requirejs: {
       dist: {
-        // Options: https://github.com/jrburke/r.js/blob/master/build/example.build.js
         options: {
+          almond: true,
           baseUrl: '<%= yeoman.app %>/scripts',
-          optimize: 'none',
-          paths: {
-            'templates': '../../app/scripts/templates',
-            'jquery': '../../app/bower_components/jquery/jquery',
-            'underscore': '../../app/bower_components/underscore/underscore',
-            'backbone': '../../app/bower_components/backbone/backbone'
-          },
-          // TODO: Figure out how to make sourcemaps work with grunt-usemin
-          // https://github.com/yeoman/grunt-usemin/issues/30
-          //generateSourceMaps: true,
-          // required to support SourceMaps
-          // http://requirejs.org/docs/errors.html#sourcemapcomments
+          dir: '<%= yeoman.dist %>/scripts',
+          mainConfigFile: '<%= yeoman.app %>/scripts/main.js',
+          name: 'main',
           preserveLicenseComments: false,
-          useStrict: true,
-          wrap: true
-          //stubModules: ['text', 'stache']
-          //uglify2: {} // https://github.com/mishoo/UglifyJS2
+          removeCombined: true,
+          replaceRequireScript: [{
+            files: ['<%= yeoman.dist %>/index.html'],
+            module: 'main',
+            modulePath: '/scripts/almond' // `almond: true` causes the output file to be named almond.js
+          }],
+          stubModules: ['text', 'stache'],
+          useStrict: true
         }
       }
     },
@@ -361,13 +366,13 @@ module.exports = function (grunt) {
     'clean:dist',
     'css',
     'useminPrepare',
-    'requirejs',
     'imagemin',
     'htmlmin',
+    'copy',
     'concat',
     'cssmin',
     'uglify',
-    'copy',
+    'requirejs',
     'rev',
     'usemin'
   ]);
