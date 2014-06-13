@@ -132,7 +132,18 @@ module.exports = function (grunt) {
             '*.{ico,txt}',
             '.htaccess',
             'images/{,*/}*.{webp,gif}',
-            'styles/fonts/{,*/}*.*'
+            'styles/fonts/{,*/}*.*',
+            'bower_components/typopro/web/TypoPRO-FiraSans/{,*/}*.*'
+          ]
+        },
+        // Copy these files into tmp so that concat can find them
+        {
+          expand: true,
+          dot: true,
+          cwd: '<%= yeoman.app %>',
+          dest: '<%= yeoman.tmp %>',
+          src: [
+            'bower_components/normalize-css/normalize.css'
           ]
         }]
       }
@@ -167,7 +178,6 @@ module.exports = function (grunt) {
       dist: {
         files: {
           '<%= yeoman.dist %>/styles/main.css': [
-            '<%= yeoman.app %>/bower_components/normalize-css/normalize.css',
             '<%= yeoman.tmp %>/styles/{,*/}*.css',
             '<%= yeoman.app %>/styles/{,*/}*.css'
           ]
@@ -358,10 +368,10 @@ module.exports = function (grunt) {
     'useminPrepare',
     'imagemin',
     'htmlmin',
+    'copy',
     'concat',
     'cssmin',
     'uglify',
-    'copy',
     'requirejs',
     'rev',
     'usemin'

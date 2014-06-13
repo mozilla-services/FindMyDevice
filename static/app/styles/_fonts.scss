@@ -1,0 +1,47 @@
+/* TypoPRO Fira Sans Bold */
+@font-face {
+  font-family: 'TypoPRO Fira Sans';
+  src: url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Bold.eot?#iefix') format('embedded-opentype'),
+       url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Bold.woff') format('woff'),
+       url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Bold.ttf')  format('truetype');
+  font-style:   normal;
+  font-weight:  bold;
+  font-stretch: normal;
+  font-variant: normal;
+}
+
+/* TypoPRO Fira Sans Bold Italic */
+@font-face {
+  font-family: 'TypoPRO Fira Sans';
+  src: url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BoldItalic.eot?#iefix') format('embedded-opentype'),
+       url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BoldItalic.woff') format('woff'),
+       url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BoldItalic.ttf')  format('truetype');
+  font-style:   italic;
+  font-weight:  bold;
+  font-stretch: normal;
+  font-variant: normal;
+}
+
+/* TypoPRO Fira Sans */
+@font-face {
+  font-family: 'TypoPRO Fira Sans';
+  src: url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Regular.eot?#iefix') format('embedded-opentype'),
+       url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Regular.woff') format('woff'),
+       url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Regular.ttf')  format('truetype');
+  font-style:   normal;
+  font-weight:  normal;
+  font-stretch: normal;
+  font-variant: normal;
+}
+
+/* TypoPRO Fira Sans Italic */
+@font-face {
+  font-family: 'TypoPRO Fira Sans';
+  src: url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-RegularItalic.eot?#iefix') format('embedded-opentype'),
+       url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-RegularItalic.woff') format('woff'),
+       url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-RegularItalic.ttf')  format('truetype');
+  font-style:   italic;
+  font-weight:  normal;
+  font-stretch: normal;
+  font-variant: normal;
+}
