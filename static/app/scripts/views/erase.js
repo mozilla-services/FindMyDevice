@@ -17,8 +17,12 @@ define([
       'click button.erase': 'confirmErase'
     },
 
+    initialize: function (options) {
+      this.device = options.device;
+    },
+
     confirmErase: function (event) {
-      ModalManager.push(new EraseConfirmationView());
+      ModalManager.push(new EraseConfirmationView({ device: this.device }));
     }
   });
 
