@@ -57,14 +57,6 @@ define([
       ModalManager.open(new EraseView({ device: this.model }), $(event.target).closest('span.button'));
     },
 
-    afterInsert: function () {
-      // Setup the map
-      this.map = L.mapbox.map('map', 'nchapman.hejm93ej', { zoomControl: false });
-
-      // Position zoom controls
-      new L.Control.Zoom({ position: 'topright' }).addTo(this.map);
-    },
-
     beforeDestroy: function () {
       this.model.stopListening();
     },
@@ -79,8 +71,15 @@ define([
       var latitude = this.model.get('latitude');
       var longitude = this.model.get('longitude');
 
-      // Create the marker if it doesn't exist
-      if (!this.marker) {
+      // Setup the map if it doesn't exist
+      if (!this.map) {
+        // Setup the map
+        this.map = L.mapbox.map('map', 'nchapman.hejm93ej', { zoomControl: false });
+
+        // Position zoom controls
+        new L.Control.Zoom({ position: 'topright' }).addTo(this.map);
+
+        // Create marker
         this.marker = L.marker([latitude, longitude], {
           icon: L.mapbox.marker.icon({
             type: 'Feature',

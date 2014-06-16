@@ -37,6 +37,24 @@
   font-stretch: normal;
   font-variant: normal; }
 
+@-webkit-keyframes spin {
+  from {
+    -webkit-transform: rotate(0deg);
+    transform: rotate(0deg); }
+
+  to {
+    -webkit-transform: rotate(360deg);
+    transform: rotate(360deg); } }
+
+@keyframes spin {
+  from {
+    -webkit-transform: rotate(0deg);
+    transform: rotate(0deg); }
+
+  to {
+    -webkit-transform: rotate(360deg);
+    transform: rotate(360deg); } }
+
 /* Border box all the things */
 *, *:before, *:after {
   -webkit-box-sizing: border-box;
@@ -51,7 +69,9 @@ html, body, #stage, #stage > div, #map {
   width: 100%; }
 
 a {
-  cursor: pointer; }
+  color: #79c8ee;
+  cursor: pointer;
+  text-decoration: none; }
 
 .hero {
   color: #333;
@@ -76,7 +96,6 @@ a {
     background: #f4f4f4;
     height: 47px;
     left: 0;
-    padding: 0 34px;
     position: absolute;
     top: 0;
     width: 100%;
@@ -89,18 +108,60 @@ a {
       height: 32px;
       margin-top: -16px;
       position: absolute;
-      top: 50%; }
+      text-align: center;
+      top: 50%;
+      width: 100%; }
     #stage header .signout {
-      color: #8a8b97;
-      font-style: italic;
       margin-top: -9px;
       position: absolute;
       right: 20px;
       top: 50%; }
+  #stage #map {
+    background: url("../images/bg.png") no-repeat 50% 50%, -webkit-linear-gradient(270deg, #f4f4f4, #fff);
+    background: url("../images/bg.png") no-repeat 50% 50%, linear-gradient(180deg, #f4f4f4, #fff);
+    position: relative; }
+    #stage #map .locating {
+      height: 200px;
+      left: 50%;
+      margin-left: -100px;
+      margin-top: -100px;
+      position: absolute;
+      text-align: center;
+      top: 50%;
+      width: 200px; }
+      #stage #map .locating h2 {
+        font-size: 14px;
+        font-weight: normal; }
+        #stage #map .locating h2::before {
+          -webkit-animation-name: spin;
+          animation-name: spin;
+          -webkit-animation-duration: 1500ms;
+          animation-duration: 1500ms;
+          -webkit-animation-iteration-count: infinite;
+          animation-iteration-count: infinite;
+          -webkit-animation-timing-function: linear;
+          animation-timing-function: linear;
+          background: url("../images/radar-spinner.png") no-repeat;
+          content: '';
+          display: block;
+          height: 139px;
+          margin: 0 auto 25px auto;
+          width: 140px; }
+    #stage #map .brand {
+      background: url("../images/firefoxos.png") no-repeat;
+      bottom: 38px;
+      height: 28px;
+      left: 38px;
+      position: absolute;
+      text-indent: -1000em;
+      width: 137px;
+      z-index: 1000; }
+    #stage #map.leaflet-container .locating {
+      display: none; }
   #stage footer {
-    background: #242426;
+    background: #fff;
     bottom: 0;
-    color: #f2f1ec;
+    color: #56565a;
     height: 39px;
     left: 0;
     position: absolute;
@@ -112,7 +173,8 @@ a {
       height: 39px;
       width: 33%; }
       #stage footer .button a {
-        background: url("../images/icon-sound-white.png") no-repeat 50% 50%;
+        background: url("../images/icon-sound.png") no-repeat 50% 50%;
+        color: #56565a;
         display: block;
         font-size: 13px;
         height: 39px;
@@ -122,11 +184,11 @@ a {
         #stage footer .button a:active {
           background-color: #6f7181; }
       #stage footer .button.play-sound a {
-        background-image: url("../images/icon-sound-white.png"); }
+        background-image: url("../images/icon-sound.png"); }
       #stage footer .button.lost-mode a {
-        background-image: url("../images/icon-lock-white.png"); }
+        background-image: url("../images/icon-lock.png"); }
       #stage footer .button.erase a {
-        background-image: url("../images/icon-erase-white.png"); }
+        background-image: url("../images/icon-erase.png"); }
 
 #modal {
   background: #fff;
@@ -201,9 +263,9 @@ a {
     #stage header h1 {
       cursor: pointer; }
     #stage footer {
-      background: #e7e7e7;
+      background: #fff;
       bottom: auto;
-      color: #333;
+      color: #56565a;
       height: 47px;
       padding-left: 26px;
       text-align: left;
@@ -214,13 +276,13 @@ a {
         #stage footer .button a {
           background: url("../images/icon-sound.png") no-repeat left 50%;
           display: inline-block;
-          font-size: 13px;
+          font-size: 14px;
           height: 47px;
-          padding: 15px 12px 0 40px;
+          padding: 16px 12px 0 40px;
           text-indent: 0;
           width: auto; }
           #stage footer .button a:hover {
-            background-color: #d9d9d9; }
+            background-color: #ebebeb; }
         #stage footer .button.play-sound a {
           background-image: url("../images/icon-sound.png"); }
         #stage footer .button.lost-mode a {
