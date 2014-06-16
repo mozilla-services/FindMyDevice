@@ -97,7 +97,7 @@ func getDevFromUrl(u *url.URL) (devId string) {
 	if len(u.Path) < 10 || !strings.Contains(u.Path, "/") {
 		return ""
 	}
-	elements := strings.Split(u.Path, "/")
+	elements := strings.Split(strings.TrimRight(u.Path, "/"), "/")
 	devId = strings.Map(deviceIdFilter, elements[len(elements)-1])
 	if len(devId) > 32 {
 		devId = devId[:32]
