@@ -43,9 +43,6 @@ type Handler struct {
 	hawk    *Hawk
 }
 
-// Map of clientIDs to socket handlers
-type ClientMap map[string]*WWS
-
 const (
 	SESSION_NAME     = "user"
 	SESSION_LOGIN    = "login"
@@ -56,13 +53,6 @@ const (
 	SESSION_TOKEN    = "token"
 	SESSION_DEVICEID = "deviceid"
 )
-
-var (
-	muClient sync.Mutex
-	Clients  = make(ClientMap)
-)
-
-var sessionStore *sessions.CookieStore
 
 // Generic reply structure (useful for JSON responses)
 type replyType map[string]interface{}
@@ -84,10 +74,40 @@ type initDataStruct struct {
 	Host        map[string]string
 }
 
-var ErrInvalidReply = errors.New("Invalid Command Response")
-var ErrAuthorization = errors.New("Needs Authorization")
-var ErrNoUser = errors.New("No User")
-var ErrOauth = errors.New("OAuth Error")
+// Map of clientIDs to socket handlers
+type ClientMap map[string]*WWS
+
+//Errors
+var (
+	ErrInvalidReply  = errors.New("Invalid Command Response")
+	ErrAuthorization = errors.New("Needs Authorization")
+	ErrNoUser        = errors.New("No User")
+	ErrOauth         = errors.New("OAuth Error")
+)
+
+// package globals
+var (
+	muClient     sync.Mutex
+	Clients      = make(ClientMap)
+	sessionStore *sessions.CookieStore
+)
+
+// Client Mapping functions
+// Add a new trackable client.
+func addClient(id string, sock *WWS) {
+	defer muClient.Unlock()
+	muClient.Lock()
+	Clients[id] = sock
+}
+
+// remove a trackable client
+func rmClient(id string) {
+	defer muClient.Unlock()
+	muClient.Lock()
+	if _, ok := Clients[id]; ok {
+		delete(Clients, id)
+	}
+}
 
 //Handler private functions
 
@@ -352,6 +372,68 @@ func (self *Handler) clearSession(sess *sessions.Session) (err error) {
 	return
 }
 
+// Get the old index page data block
+func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessionInfo *sessionInfoStruct) (data *initDataStruct, err error) {
+	/* Handle a user login to the web UI
+	 */
+	data = &initDataStruct{}
+	self.logCat = "handler:initData"
+
+	store, err := storage.Open(self.config, self.logger, self.metrics)
+	if err != nil {
+		return nil, err
+	}
+	defer store.Close()
+
+	// Get this from the config file?
+	data.ProductName = self.config.Get("productname", "Find My Device")
+
+	data.MapKey = self.config.Get("mapbox.key", "")
+
+	// host information (for websocket callback)
+	data.Host = make(map[string]string)
+	data.Host["Hostname"] = self.config.Get("ws_hostname", "localhost")
+
+	// get the cached session info (if present)
+	// will also resolve assertions and other bits to get user and dev info.
+	if sessionInfo != nil {
+		// we have user info, use it.
+		data.UserId = sessionInfo.UserId
+		if sessionInfo.DeviceId == "" {
+			sessionInfo.DeviceId = getDevFromUrl(req.URL)
+		}
+		if sessionInfo.DeviceId == "" {
+			data.DeviceList, err = store.GetDevicesForUser(data.UserId)
+			if err != nil {
+				self.logger.Error(self.logCat, "Could not get user devices",
+					util.Fields{"error": err.Error(),
+						"user": data.UserId})
+				return nil, err
+			}
+		}
+		if sessionInfo.DeviceId != "" {
+			data.Device, err = store.GetDeviceInfo(sessionInfo.DeviceId)
+			if err != nil {
+				self.logger.Error(self.logCat, "Could not get device info",
+					util.Fields{"error": err.Error(),
+						"deviceid": sessionInfo.DeviceId})
+				return nil, err
+			}
+			data.Device.PreviousPositions, err = store.GetPositions(sessionInfo.DeviceId)
+			if err != nil {
+				self.logger.Error(self.logCat,
+					"Could not get device's position information",
+					util.Fields{"error": err.Error(),
+						"userId": data.UserId,
+						"email":  sessionInfo.Email,
+						"device": sessionInfo.DeviceId})
+				return nil, err
+			}
+		}
+	}
+	return data, nil
+}
+
 // get the user id from the session, or the assertion.
 func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (userid, email string, err error) {
 
@@ -546,6 +628,7 @@ func (self *Handler) rangeCheck(s string, min, max int64) int64 {
 	return val
 }
 
+// Verify the HAWK header value from the client
 func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *storage.Device) bool {
 	var err error
 
@@ -591,6 +674,115 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 		return false
 	}
 	return true
+}
+
+// A simple signature generator for WS connections
+// Unfortunately, remote IP is not reliable for WS.
+func (self *Handler) genSig(req *http.Request, devId string) (ret string) {
+	session, _ := sessionStore.Get(req, SESSION_NAME)
+	sig := self.genHash(session.Values["deviceid"].(string) +
+		session.Values["userid"].(string))
+	/*
+	   fmt.Printf("@@@ Remote Addr: %s, %s, %s\n",
+	       req.RemoteAddr,
+	       req.Header.Get("X-Real-IP"),
+	       req.Header.Get("X-Forwarded-For"))
+	   fmt.Printf("### Generating sig nonce: %s\n", sig)
+	*/
+	return sig
+}
+
+// Check the simple WS signature against the second to last item
+func (self *Handler) checkSig(req *http.Request, devId string) (ok bool) {
+	bits := strings.Split(req.URL.Path, "/")
+	// remember, leading "/" counts.
+	gotsig := bits[len(bits)-2]
+	testsig := self.genSig(req, devId)
+	return testsig == gotsig
+}
+
+// get the OAuth2 Access token
+func (self *Handler) getAccessToken(code string) (accessToken string, err error) {
+	token_url := self.config.Get("fxa.token", OAUTH_ENDPOINT+"/v1/token")
+	vals := make(map[string]string)
+	vals["client_id"] = self.config.Get("fxa.client_id", "invalid")
+	vals["client_secret"] = self.config.Get("fxa.client_secret", "invalid")
+	vals["code"] = code
+	vd, err := json.Marshal(vals)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not marshal vals to json",
+			util.Fields{"error": err.Error()})
+		return "", err
+	}
+	// fmt.Printf("### sending to %s\n %s\n", token_url, vd)
+	req, err := http.NewRequest("POST", token_url, bytes.NewBuffer(vd))
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not get oauth token",
+			util.Fields{"code": code, "error": err.Error()})
+		return "", ErrOauth
+	}
+	req.Header.Add("Content-Type", "application/json")
+	cli := http.DefaultClient
+	res, err := cli.Do(req)
+	if err != nil {
+		self.logger.Error(self.logCat, "Access Token Fetch failed",
+			util.Fields{"error": err.Error()})
+		return "", err
+	}
+	reply, raw, err := parseBody(res.Body)
+	if code, ok := reply["code"]; ok && code.(float64) > 299.0 {
+		self.logger.Error(self.logCat, "FxA Access token failure",
+			util.Fields{"code": strconv.FormatFloat(code.(float64), 'f', 1, 64),
+				"body": raw})
+		return "", ErrOauth
+	}
+	token, ok := reply["access_token"]
+	if !ok {
+		self.logger.Error(self.logCat, "OAuth Access token missing from reply",
+			util.Fields{"code": code})
+		return "", ErrOauth
+	}
+	return token.(string), nil
+}
+
+// Get the user's Email from the profile server using the OAuth2 access token
+func (self *Handler) getUserEmail(accessToken string) (email string, err error) {
+	client := http.DefaultClient
+	url := self.config.Get("fxa.content.endpoint", CONTENT_ENDPOINT) + "/email"
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not POST to get email",
+			util.Fields{"error": err.Error()})
+		return "", err
+	}
+	req.Header.Add("Authorization", "Bearer "+accessToken)
+	// fmt.Printf("### Sending email request to profile server\n%+v\n", req)
+	resp, err := client.Do(req)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not get user email",
+			util.Fields{"error": err.Error()})
+		return "", err
+	}
+	buffer, raw, err := parseBody(resp.Body)
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not parse body",
+			util.Fields{"error": err.Error()})
+		return "", err
+	}
+	if _, ok := buffer["email"]; !ok {
+		self.logger.Error(self.logCat, "Response did not contain email",
+			util.Fields{"body": raw})
+		return "", ErrNoUser
+	}
+	// fmt.Printf("### Got email! %s\n", buffer["email"].(string))
+	return buffer["email"].(string), nil
+}
+
+// Generate a hash from the string.
+func (self *Handler) genHash(input string) (output string) {
+	hasher := sha256.New()
+	hasher.Write([]byte(input))
+	return hex.EncodeToString(hasher.Sum(nil))
 }
 
 //Handler Public Functions
@@ -1373,7 +1565,8 @@ func (self *Handler) InitDataJson(resp http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		self.logger.Error(self.logCat,
 			"Could not get initial data for index",
-			util.Fields{"error": err.Error()})
+			util.Fields{"error": err.Error(),
+				"sessionInfo": fmt.Sprintf("%+v", sessionInfo)})
 		http.Error(resp, "Server Error", 500)
 		return
 	}
@@ -1388,68 +1581,6 @@ func (self *Handler) InitDataJson(resp http.ResponseWriter, req *http.Request) {
 		util.Fields{"error": err.Error()})
 	http.Error(resp, "Server Error", 500)
 	return
-}
-
-// Get the old index page data block
-func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessionInfo *sessionInfoStruct) (data *initDataStruct, err error) {
-	/* Handle a user login to the web UI
-	 */
-	data = &initDataStruct{}
-	self.logCat = "handler:initData"
-
-	store, err := storage.Open(self.config, self.logger, self.metrics)
-	if err != nil {
-		return nil, err
-	}
-	defer store.Close()
-
-	// Get this from the config file?
-	data.ProductName = self.config.Get("productname", "Find My Device")
-
-	data.MapKey = self.config.Get("mapbox.key", "")
-
-	// host information (for websocket callback)
-	data.Host = make(map[string]string)
-	data.Host["Hostname"] = self.config.Get("ws_hostname", "localhost")
-
-	// get the cached session info (if present)
-	// will also resolve assertions and other bits to get user and dev info.
-	if sessionInfo != nil {
-		// we have user info, use it.
-		data.UserId = sessionInfo.UserId
-		if sessionInfo.DeviceId == "" {
-			sessionInfo.DeviceId = getDevFromUrl(req.URL)
-		}
-		if sessionInfo.DeviceId == "" {
-			data.DeviceList, err = store.GetDevicesForUser(data.UserId)
-			if err != nil {
-				self.logger.Error(self.logCat, "Could not get user devices",
-					util.Fields{"error": err.Error(),
-						"user": data.UserId})
-				return nil, err
-			}
-		}
-		if sessionInfo.DeviceId != "" {
-			data.Device, err = store.GetDeviceInfo(sessionInfo.DeviceId)
-			if err != nil {
-				self.logger.Error(self.logCat, "Could not get device info",
-					util.Fields{"error": err.Error(),
-						"deviceid": sessionInfo.DeviceId})
-				return nil, err
-			}
-			data.Device.PreviousPositions, err = store.GetPositions(sessionInfo.DeviceId)
-			if err != nil {
-				self.logger.Error(self.logCat,
-					"Could not get device's position information",
-					util.Fields{"error": err.Error(),
-						"userId": data.UserId,
-						"email":  sessionInfo.Email,
-						"device": sessionInfo.DeviceId})
-				return nil, err
-			}
-		}
-	}
-	return data, nil
 }
 
 // Show the state of the user's devices.
@@ -1547,87 +1678,6 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(reply)
 }
 
-func (self *Handler) getAccessToken(code string) (accessToken string, err error) {
-	token_url := self.config.Get("fxa.token", OAUTH_ENDPOINT+"/v1/token")
-	vals := make(map[string]string)
-	vals["client_id"] = self.config.Get("fxa.client_id", "invalid")
-	vals["client_secret"] = self.config.Get("fxa.client_secret", "invalid")
-	vals["code"] = code
-	vd, err := json.Marshal(vals)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not marshal vals to json",
-			util.Fields{"error": err.Error()})
-		return "", err
-	}
-	// fmt.Printf("### sending to %s\n %s\n", token_url, vd)
-	req, err := http.NewRequest("POST", token_url, bytes.NewBuffer(vd))
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not get oauth token",
-			util.Fields{"code": code, "error": err.Error()})
-		return "", ErrOauth
-	}
-	req.Header.Add("Content-Type", "application/json")
-	cli := http.DefaultClient
-	res, err := cli.Do(req)
-	if err != nil {
-		self.logger.Error(self.logCat, "Access Token Fetch failed",
-			util.Fields{"error": err.Error()})
-		return "", err
-	}
-	reply, raw, err := parseBody(res.Body)
-	if code, ok := reply["code"]; ok && code.(float64) > 299.0 {
-		self.logger.Error(self.logCat, "FxA Access token failure",
-			util.Fields{"code": strconv.FormatFloat(code.(float64), 'f', 1, 64),
-				"body": raw})
-		return "", ErrOauth
-	}
-	token, ok := reply["access_token"]
-	if !ok {
-		self.logger.Error(self.logCat, "OAuth Access token missing from reply",
-			util.Fields{"code": code})
-		return "", ErrOauth
-	}
-	return token.(string), nil
-}
-
-func (self *Handler) getUserEmail(accessToken string) (email string, err error) {
-	client := http.DefaultClient
-	url := self.config.Get("fxa.content.endpoint", CONTENT_ENDPOINT) + "/email"
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not POST to get email",
-			util.Fields{"error": err.Error()})
-		return "", err
-	}
-	req.Header.Add("Authorization", "Bearer "+accessToken)
-	// fmt.Printf("### Sending email request to profile server\n%+v\n", req)
-	resp, err := client.Do(req)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not get user email",
-			util.Fields{"error": err.Error()})
-		return "", err
-	}
-	buffer, raw, err := parseBody(resp.Body)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not parse body",
-			util.Fields{"error": err.Error()})
-		return "", err
-	}
-	if _, ok := buffer["email"]; !ok {
-		self.logger.Error(self.logCat, "Response did not contain email",
-			util.Fields{"body": raw})
-		return "", ErrNoUser
-	}
-	// fmt.Printf("### Got email! %s\n", buffer["email"].(string))
-	return buffer["email"].(string), nil
-}
-
-func (self *Handler) genHash(input string) (output string) {
-	hasher := sha256.New()
-	hasher.Write([]byte(input))
-	return hex.EncodeToString(hasher.Sum(nil))
-}
-
 func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) {
 	var nonce string
 	self.logCat = "oauth"
@@ -1715,56 +1765,6 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 	self.metrics.Increment("page.signin.success")
 	http.Redirect(resp, req, "/", http.StatusFound)
 	return
-}
-
-// Add a new trackable client.
-func addClient(id string, sock *WWS) {
-	defer muClient.Unlock()
-	muClient.Lock()
-	Clients[id] = sock
-}
-
-// remove a trackable client
-func rmClient(id string) {
-	defer muClient.Unlock()
-	muClient.Lock()
-	if _, ok := Clients[id]; ok {
-		delete(Clients, id)
-	}
-}
-
-// A simple signature generator for WS connections (tied to device and remote IP)
-func (self *Handler) genSig(req *http.Request, devId string) (ret string) {
-    var addr string
-
-    if ! self.config.GetFlag("ws.use_signatures") {
-        return "tbd"
-    }
-
-    fmt.Printf("### X-Real-IP:       %s\n", req.Header.Get("X-Real-IP"))
-    fmt.Printf("### X-Forwarded-For: %s\n", req.Header.Get("X-Forwarded-For"))
-    fmt.Printf("### Remote:          %s\n", req.RemoteAddr)
-    if addr = req.Header.Get("X-Real-IP"); addr == "" {
-        addr = req.RemoteAddr
-    }
-	addr = strings.SplitN(addr, ":", 2)[0]
-    fmt.Printf("### Using addr      %s\n", addr)
-	remote := fmt.Sprintf("%s:%s:%s",
-		addr,
-		devId,
-		self.config.Get("ws.socket_secret", "insecure"))
-    //sig := self.genHash(remote)
-    sig := remote
-	return sig
-}
-
-// Check the simple WS signature against the second to last item
-func (self *Handler) checkSig(req *http.Request, devId string) (ok bool) {
-	bits := strings.Split(req.URL.Path, "/")
-	// remember, leading "/" counts.
-	gotsig := bits[len(bits)-2]
-	testsig := self.genSig(req, devId)
-	return testsig == gotsig
 }
 
 // Handle Websocket processing.
@@ -1919,8 +1919,8 @@ func (self *Handler) Validate(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:Validate"
 	resp.Header().Set("Content-Type", "application/json")
 
-    // Looking for the body of the request to contain a JSON object with
-    // {assert: ... }
+	// Looking for the body of the request to contain a JSON object with
+	// {assert: ... }
 	if buffer, raw, err := parseBody(req.Body); err == nil {
 		if assert, ok := buffer["assert"]; ok {
 			if userid, _, err := self.verifyFxAAssertion(assert.(string)); err == nil {
@@ -1940,8 +1940,8 @@ func (self *Handler) Validate(resp http.ResponseWriter, req *http.Request) {
 			util.Fields{"body": raw, "error": err.Error()})
 	}
 
-    // OK, write out the reply object (if you can)
-    // as {valid: (true|false), [uid: ... ]}
+	// OK, write out the reply object (if you can)
+	// as {valid: (true|false), [uid: ... ]}
 	if response, err := json.Marshal(reply); err == nil {
 		resp.Write(response)
 	} else {
