@@ -543,43 +543,47 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 			// Not Ok.
 			return nil
 		}
-	}
-	for key, arg := range args {
-		if len(key) < 2 {
-			continue
-		}
-		switch k := strings.ToLower(key[:2]); k {
-		case "la":
-			location.Latitude = arg.(float64)
-		case "lo":
-			location.Longitude = arg.(float64)
-		case "al":
-			location.Altitude = arg.(float64)
-		case "ti":
-			location.Time = int64(arg.(float64))
-			if location.Time == 0 {
-				return nil
+
+		for key, arg := range args {
+			if len(key) < 2 {
+				continue
 			}
-			// has_lockcode
-		case "ha":
-			hasPasscode = isTrue(arg)
-			if err = store.SetDeviceLock(devId, hasPasscode); err != nil {
+			switch k := strings.ToLower(key[:2]); k {
+			case "la":
+				location.Latitude = arg.(float64)
+			case "lo":
+				location.Longitude = arg.(float64)
+			case "al":
+				location.Altitude = arg.(float64)
+			case "ti":
+				location.Time = int64(arg.(float64))
+				if location.Time == 0 {
+					return nil
+				}
+				// has_lockcode
+			case "ha":
+				hasPasscode = isTrue(arg)
+				if err = store.SetDeviceLock(devId, hasPasscode); err != nil {
+					return err
+				}
+			}
+		}
+		if logPosition {
+			if err = store.SetDeviceLocation(devId, location); err != nil {
 				return err
 			}
+			// because go sql locking.
+			store.GcPosition(devId)
 		}
-	}
-	if logPosition {
-		if err = store.SetDeviceLocation(devId, location); err != nil {
-			return err
-		}
-		// because go sql locking.
-		store.GcPosition(devId)
 	}
 	location.Cmd = storage.Unstructured{cmd: args}
 	if client, ok := Clients[devId]; ok {
 		js, _ := json.Marshal(location)
-		fmt.Printf(">>> %s\n", js)
 		client.Write(js)
+	} else {
+		self.logger.Warn(self.logCat,
+			"No client for device",
+			util.Fields{"deviceid": devId})
 	}
 	return nil
 }
@@ -678,26 +682,35 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 
 // A simple signature generator for WS connections
 // Unfortunately, remote IP is not reliable for WS.
-func (self *Handler) genSig(req *http.Request, devId string) (ret string) {
+func (self *Handler) genSig(req *http.Request, devId string) (ret string, err error) {
 	session, _ := sessionStore.Get(req, SESSION_NAME)
-	sig := self.genHash(session.Values["deviceid"].(string) +
-		session.Values["userid"].(string))
-	/*
-	   fmt.Printf("@@@ Remote Addr: %s, %s, %s\n",
-	       req.RemoteAddr,
-	       req.Header.Get("X-Real-IP"),
-	       req.Header.Get("X-Forwarded-For"))
-	   fmt.Printf("### Generating sig nonce: %s\n", sig)
-	*/
-	return sig
+	if sess, ok := session.Values["deviceid"]; !ok {
+		return "", errors.New("Invalid")
+	} else {
+		sig := self.genHash(sess.(string) +
+			session.Values["userid"].(string))
+		/*
+		   fmt.Printf("@@@ Remote Addr: %s, %s, %s\n",
+		       req.RemoteAddr,
+		       req.Header.Get("X-Real-IP"),
+		       req.Header.Get("X-Forwarded-For"))
+		*/
+		return sig, nil
+	}
 }
 
 // Check the simple WS signature against the second to last item
 func (self *Handler) checkSig(req *http.Request, devId string) (ok bool) {
+
+	return true
+
 	bits := strings.Split(req.URL.Path, "/")
 	// remember, leading "/" counts.
 	gotsig := bits[len(bits)-2]
-	testsig := self.genSig(req, devId)
+	testsig, err := self.genSig(req, devId)
+	if err != nil {
+		return false
+	}
 	return testsig == gotsig
 }
 
@@ -1456,7 +1469,10 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 	var reply []devList
 
 	for _, d := range deviceList {
-		sig := self.genSig(req, d.ID)
+		sig, err := self.genSig(req, d.ID)
+		if err != nil {
+			continue
+		}
 		reply = append(reply, devList{
 			ID:   d.ID,
 			Name: d.Name,
@@ -1819,15 +1835,13 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 			util.Fields{"error": err.Error()})
 		return
 	}
-	elements := strings.Split(Url.Path, "/")
-	var deviceId string
-	if len(elements) < 3 {
+	deviceId := getDevFromUrl(Url)
+	if deviceId == "" {
 		self.logger.Error(self.logCat, "No deviceID found",
 			util.Fields{"error": err.Error(),
 				"path": Url.Path})
 		return
 	}
-	deviceId = elements[3]
 	// Kill the old client.
 	if client, ok := Clients[deviceId]; ok {
 		client.Quit = true
