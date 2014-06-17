@@ -9,7 +9,7 @@ define([
   'use strict';
 
   var ModalManager = {
-    TARGET_PADDING_TOP: 5,
+    TARGET_PADDING_TOP: 12,
 
     initialize: function () {
       this._views = [];
@@ -17,6 +17,13 @@ define([
 
       // Listen for all clicks
       $(document).on('click', _.bind(this._closeOnClick, this));
+
+      // Close modal on resize to prevent weirdness between desktop and mobile
+      $(document).on('resize', _.debounce(_.bind(this.close, this), 100));
+
+      // Handle default button actions
+      this.$modal.on('click', 'a.close', _.bind(this.close, this));
+      this.$modal.on('click', 'a.back', _.bind(this.pop, this));
     },
 
     open: function (view, target) {
@@ -76,11 +83,11 @@ define([
 
       this.$modal.css({ left: position.left, top: position.top });
 
-      this.$modal.html(view.el).fadeIn();
+      this.$modal.html(view.el).show();
     },
 
     _hide: function () {
-      this.$modal.fadeOut();
+      this.$modal.hide();
     },
 
     _closeOnClick: function (event) {

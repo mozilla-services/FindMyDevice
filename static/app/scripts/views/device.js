@@ -4,6 +4,7 @@
 
 define([
   'backbone',
+  'jquery',
   'views/base',
   'stache!templates/device',
   'models/device',
@@ -13,7 +14,7 @@ define([
   'views/play_sound',
   'views/lost_mode',
   'views/erase'
-], function (Backbone, BaseView, DeviceTemplate, Device, TrackCommand, ModalManager, DeviceSelectorView, PlaySoundView, LostModeView, EraseView) {
+], function (Backbone, $, BaseView, DeviceTemplate, Device, TrackCommand, ModalManager, DeviceSelectorView, PlaySoundView, LostModeView, EraseView) {
   'use strict';
 
   var DeviceView = BaseView.extend({
@@ -108,20 +109,43 @@ define([
       }
     },
 
-    updateMarkerIcon: function () {
+    updateMarkerIcon: function (animate) {
       var iconURL = '/images/pin-' + this.model.get('activity');
+      var className = 'pin';
 
       if (this.model.get('located')) {
         iconURL += '-located';
+        className += ' pin-located';
+      } else {
+        className += ' pin-locating';
       }
 
       iconURL += '.png';
 
       this.marker.setIcon(L.icon({
         iconUrl: iconURL,
-        iconSize: [97, 173], // size of the icon
-        iconAnchor: [48, 170] // point of the icon which will correspond to marker's location
+        iconSize: [118, 169], // size of the icon
+        iconAnchor: [59, 166], // point of the icon which will correspond to marker's location
+        className: className
       }));
+
+      var $pin = this.$('.pin');
+
+      // Position locating spinner
+      if (this.model.get('located')) {
+        this.$('.pin-locating-spinner').remove();
+      } else {
+        var $spinner = this.$('.pin-locating-spinner');
+
+        if ($spinner.length === 0) {
+          $spinner = $('<div class="pin-locating-spinner"></div>');
+
+          $pin.after($spinner);
+        }
+
+        // Copy pin's transform and fade in
+        $spinner.css('transform', $pin.css('transform')).hide().fadeIn();
+      }
     }
   });
 

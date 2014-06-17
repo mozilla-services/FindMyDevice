@@ -11,7 +11,7 @@ define([
 
   var Device = Backbone.Model.extend({
     defaults: {
-      activity: 'locating',
+      activity: 'blank',
       located: false
     },
 
@@ -37,7 +37,7 @@ define([
           updatedAttributes.located = true;
 
           // Lose location after 60 seconds of no location updates
-          this.locationTimeout = setTimeout(_.bind(this.locationTimedout, this), 60 * 1000);
+          this.locationTimeout = setTimeout(_.bind(this.locationTimedout, this), 10 * 1000);
         }
 
         if (data.Time > 0) {

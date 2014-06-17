@@ -78,9 +78,23 @@ a {
     width: 100%;
     z-index: 1000;
 
+    .menu {
+      background-image: image-url('nav-menu.png');
+      display: block;
+      height: 24px;
+      left: 17px;
+      margin-top: -12px;
+      overflow: hidden;
+      position: absolute;
+      text-indent: 100%;
+      top: 50%;
+      white-space: nowrap;
+      width: 24px;
+    }
+
     h1 {
       color: $heading-text-color;
-      font-size: 27px;
+      font-size: 24px;
       font-style: italic;
       font-weight: normal;
       height: 32px;
@@ -125,9 +139,9 @@ a {
           background: image-url('radar-spinner.png') no-repeat;
           content: '';
           display: block;
-          height: 139px;
+          height: 150px;
           margin: 0 auto 25px auto;
-          width: 140px;
+          width: 150px;
         }
       }
     }
@@ -135,12 +149,22 @@ a {
     .brand {
       background: image-url('firefoxos.png') no-repeat;
       bottom: 38px;
-      height: 28px;
+      height: 30px;
       left: 38px;
       position: absolute;
       text-indent: -1000em;
-      width: 137px;
+      width: 147px;
       z-index: 1000;
+    }
+
+    .pin-locating-spinner {
+      background: image-url('radar-small-animated.gif') no-repeat;
+      height: 39px;
+      margin-top: -162px;
+      margin-left: 10px;
+      position: absolute;
+      width: 39px;
+      z-index: 500;
     }
 
     // Hide when the map is loaded
@@ -201,27 +225,73 @@ a {
 
 #modal {
   background: $modal-background-color;
-  border-radius: 6px;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+  color: $modal-text-color;
   display: none;
-  overflow: hidden;
   position: absolute;
   width: 300px;
   z-index: 1000;
 
   header {
-    background: $header-background-color;
-    padding: 5px 20px;
+    padding: 7px 20px;
+    position: relative;
 
     h2 {
       color: $heading-text-color;
-      font-size: 27px;
+      font-size: 24px;
       font-style: italic;
       font-weight: normal;
       margin: 0;
+      text-align: center;
 
       small {
         font-size: 18px;
+      }
+    }
+
+    .close, .back {
+      display: block;
+      height: 24px;
+      left: 17px;
+      margin-top: -12px;
+      overflow: hidden;
+      position: absolute;
+      text-indent: 100%;
+      top: 50%;
+      white-space: nowrap;
+      width: 24px;
+    }
+
+    .close {
+      background-image: image-url('nav-close.png');
+    }
+
+    .back {
+      background-image: image-url('nav-back.png');
+    }
+  }
+
+  .stepper {
+    background: #fff;
+    height: 5px;
+    margin: 0;
+    padding: 0 5px 0 0;
+
+    li {
+      border-top: 5px solid #fff;
+      display: block;
+      float: left;
+      height: 0;
+      list-style: none;
+      overflow: hidden;
+      width: 50%;
+
+      &.active, &.complete {
+        border-color: #65aeef;
+        border-right: 5px solid #fff;
+      }
+
+      &.complete {
+        border-right: 0;
       }
     }
   }
@@ -267,8 +337,10 @@ a {
     button {
       background: $modal-button-background-color;
       border: none;
-      border-radius: 5px;
+      border-radius: 20px;
       color: #fff;
+      font-style: italic;
+      outline: 0;
       padding: 10px;
 
       &:hover {
@@ -306,4 +378,5 @@ a {
   }
 }
 
-@import "media_queries";
+@import "desktop";
+@import "mobile_overrides";
