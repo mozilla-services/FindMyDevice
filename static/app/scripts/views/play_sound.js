@@ -24,6 +24,8 @@ define([
     playSound: function (event) {
       this.device.sendCommand(new RingCommand({ duration: 30, period: 5 }));
 
+      this.device.set('activity', 'sound');
+
       ModalManager.close();
     }
   });

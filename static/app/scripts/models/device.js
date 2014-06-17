@@ -3,12 +3,18 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 define([
+  'underscore',
   'backbone',
   'jquery'
-], function (Backbone, $) {
+], function (_, Backbone, $) {
   'use strict';
 
   var Device = Backbone.Model.extend({
+    defaults: {
+      activity: 'locating',
+      located: false
+    },
+
     // Convert attributes to lowercase
     parse: function (resp, xhr) {
       return { id: resp.ID, name: resp.Name, url: resp.URL };
@@ -23,9 +29,15 @@ define([
         updatedAttributes.hasPasscode = data.HasPasscode;
 
         if (data.Latitude > 0) {
+          clearTimeout(this.locationTimeout);
+
           updatedAttributes.latitude = data.Latitude;
           updatedAttributes.longitude = data.Longitude;
           updatedAttributes.altitude = data.Altitude;
+          updatedAttributes.located = true;
+
+          // Lose location after 60 seconds of no location updates
+          this.locationTimeout = setTimeout(_.bind(this.locationTimedout, this), 60 * 1000);
         }
 
         if (data.Time > 0) {
@@ -37,6 +49,10 @@ define([
         // Set the new attributes all at once so there's only one change event
         this.set(updatedAttributes);
       }
+    },
+
+    locationTimedout: function () {
+      this.set('located', false);
     },
 
     listenForUpdates: function () {

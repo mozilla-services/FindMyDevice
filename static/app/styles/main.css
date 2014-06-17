@@ -156,8 +156,10 @@ a {
       text-indent: -1000em;
       width: 137px;
       z-index: 1000; }
-    #stage #map.leaflet-container .locating {
-      display: none; }
+    #stage #map.leaflet-container {
+      background: #fff; }
+      #stage #map.leaflet-container .locating {
+        display: none; }
   #stage footer {
     background: #fff;
     bottom: 0;

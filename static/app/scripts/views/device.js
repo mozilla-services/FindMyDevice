@@ -29,6 +29,8 @@ define([
     initialize: function () {
       // Listen for model changes
       this.listenTo(this.model, 'change:latitude', this.updateMapPosition);
+      this.listenTo(this.model, 'change:activity', this.updateMarkerIcon);
+      this.listenTo(this.model, 'change:located', this.updateMarkerIcon);
 
       this.startTracking();
     },
@@ -73,7 +75,7 @@ define([
 
       // Setup the map if it doesn't exist
       if (!this.map) {
-        // Setup the map
+        // Create the map
         this.map = L.mapbox.map('map', 'nchapman.hejm93ej', { zoomControl: false });
 
         // Position zoom controls
@@ -92,6 +94,10 @@ define([
           })
         });
 
+        // Set marker icon
+        this.updateMarkerIcon();
+
+        // Add marker to the map
         this.marker.addTo(this.map);
 
         // Set view to new latitude and longitude and zoom to 15
@@ -100,6 +106,22 @@ define([
         this.marker.setLatLng([latitude, longitude]);
         this.map.panTo([latitude, longitude]);
       }
+    },
+
+    updateMarkerIcon: function () {
+      var iconURL = '/images/pin-' + this.model.get('activity');
+
+      if (this.model.get('located')) {
+        iconURL += '-located';
+      }
+
+      iconURL += '.png';
+
+      this.marker.setIcon(L.icon({
+        iconUrl: iconURL,
+        iconSize: [97, 173], // size of the icon
+        iconAnchor: [48, 170] // point of the icon which will correspond to marker's location
+      }));
     }
   });
 

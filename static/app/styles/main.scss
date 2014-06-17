@@ -144,8 +144,12 @@ a {
     }
 
     // Hide when the map is loaded
-    &.leaflet-container .locating {
-      display: none;
+    &.leaflet-container {
+      background: #fff;
+
+      .locating {
+        display: none;
+      }
     }
   }
 

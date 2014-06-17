@@ -29,6 +29,9 @@ define([
     erase: function (event) {
       this.device.sendCommand(new EraseCommand());
 
+      // The location will no longer be accessible after erase
+      this.device.set({ activity: 'erase', located: false });
+
       ModalManager.close();
     }
   });
