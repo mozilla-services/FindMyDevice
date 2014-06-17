@@ -302,12 +302,11 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 	return reply, nil
 }
 
-// Oh, db driver, why do you make me hate you so?
 func (self *Storage) GetPositions(devId string) (positions []Position, err error) {
 
 	dbh := self.db
 
-	statement := "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time limit 10;"
+	statement := "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time limit 1;"
 	rows, err := dbh.Query(statement, devId)
 	if err == nil {
 		var time int32
@@ -470,6 +469,9 @@ func (self *Storage) SetDeviceLock(devId string, state bool) (err error) {
 func (self *Storage) SetDeviceLocation(devId string, position Position) (err error) {
 	dbh := self.db
 
+    // Only keep the latest positon (changed requirements from original design)
+    self.PurgePosition(devId);
+
 	statement := "insert into position (deviceId, time, latitude, longitude, altitude) values ($1, $2, $3, $4, $5);"
 	st, err := dbh.Prepare(statement)
 	_, err = st.Exec(
@@ -488,6 +490,8 @@ func (self *Storage) SetDeviceLocation(devId string, position Position) (err err
 }
 
 // Remove old postion information for devices.
+// This previously removed "expired" location records. We currently only
+// retain the latest record for a user.
 func (self *Storage) GcPosition(devId string) (err error) {
 	dbh := self.db
 
@@ -511,11 +515,23 @@ func (self *Storage) GcPosition(devId string) (err error) {
 	return nil
 }
 
+// remove all tracking information for devId.
+func (self *Storage) PurgePosition(devId string) (err error) {
+    dbh := self.db
+
+    statement := "delete from position where deviceid = $1;"
+    if _,err = dbh.Exec(statement, devId); err != nil {
+        return err
+    }
+    return nil
+}
+
+
 func (self *Storage) Touch(devId string) (err error) {
 	dbh := self.db
 
-	sql := "update deviceInfo set lastexchange = now() where deviceid = $1"
-	_, err = dbh.Exec(sql, devId)
+    statement := "update deviceInfo set lastexchange = now() where deviceid = $1"
+	_, err = dbh.Exec(statement, devId)
 	if err != nil {
 		return err
 	}
