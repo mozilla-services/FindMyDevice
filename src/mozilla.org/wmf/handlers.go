@@ -154,6 +154,29 @@ func (self *Handler) extractFromAssertion(assertion string) (userid, email strin
 	return userid, email, nil
 }
 
+// Somewhat of a hack, extract the audience from the assertion. This is
+// because some versions of the client do not specify the correct audience
+// and a mis-match causes the assertion to fail.
+func (self *Handler) extractAudience(assertion string) (audience string) {
+	bits := strings.Split(assertion, ".")
+	// Classic? persona has 3 chunks, modified has 5.
+	if len(bits) == 5 {
+		if data, err := base64.StdEncoding.DecodeString(bits[3] + "===="[:len(bits[3])%4]); err == nil {
+			dj := make(replyType)
+			if err = json.Unmarshal(data, &dj); err == nil {
+				if v, ok := dj["audience"]; ok {
+					// fxa
+					return v.(string)
+				} else if v, ok := dj["aud"]; ok {
+					// persona
+					return v.(string)
+				}
+			}
+		}
+	}
+	return ""
+}
+
 // verify a Persona assertion using the config values
 // part of Handler for config & logging reasons
 func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email string, err error) {
@@ -180,18 +203,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 	}
 	// pull the audience out of the assertion, if it's present.
 	if self.config.GetFlag("auth.audience_from_assertion") {
-		bits := strings.Split(assertion, ".")
-		if len(bits) == 5 {
-			if data, err := base64.StdEncoding.DecodeString(bits[3] + "===="[:len(bits[3])%4]); err == nil {
-				dj := make(replyType)
-				if err = json.Unmarshal(data, &dj); err == nil {
-					if v, ok := dj["aud"]; ok {
-						audience = v.(string)
-					}
-				}
-
-			}
-		}
+		audience = self.extractAudience(assertion)
 	}
 	if audience == "" {
 		audience = self.config.Get("persona.audience",
@@ -283,9 +295,19 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	args := make(map[string]string)
 	args["client_id"] = self.config.Get("fxa.client_id", "invalid")
 	args["assertion"] = assertion
-	args["audience"] = self.config.Get("fxa.audience",
-		"htttps://oauth.accounts.firefox.com/v1")
-	args["state"] = "state"
+	if self.config.GetFlag("auth.audience_from_assertion") {
+		args["audience"] = self.extractAudience(assertion)
+		self.logger.Info(self.logCat, "Extracted Audience",
+			util.Fields{"audience": args["audience"]})
+	}
+	if args["audience"] == "" {
+		args["audience"] = self.config.Get("fxa.audience",
+			"https://oauth.accounts.firefox.com/v1")
+	}
+    // State is a nonce useful for validation callbacks.
+    // Since we're not calling back, it's not necessary to
+    // check if the caller matches the recipient.
+	args["state"], _ = util.GenUUID4()
 
 	argsj, err := json.Marshal(args)
 	if err != nil {
@@ -296,6 +318,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	if self.config.GetFlag("auth.show_assertion") {
 		fmt.Printf("### Validating Assertion:\n %s\n", argsj)
 	}
+    // Send the assertion to the validator
 	req, err := http.NewRequest("POST", validatorUrl, bytes.NewReader(argsj))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not POST verify assertion",
