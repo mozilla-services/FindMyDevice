@@ -110,6 +110,8 @@ define([
     },
 
     updateMarkerIcon: function (animate) {
+      if (!this.marker) return;
+
       var iconURL = '/images/pin-' + this.model.get('activity');
       var className = 'pin';
 

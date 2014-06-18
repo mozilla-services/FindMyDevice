@@ -329,6 +329,18 @@ a {
             #modal.drawer section ul li a.selected, #modal.drawer section ul li span.selected {
               background: url("../images/icon-device-active.png") no-repeat left 16px top 50%, url("../images/icon-check.png") no-repeat right 16px top 50%; }
 
+#notifier {
+  background: #f8e979;
+  bottom: 0;
+  color: #554f25;
+  display: none;
+  left: 0;
+  padding: 36px;
+  position: absolute;
+  text-align: center;
+  width: 100%;
+  z-index: 1001; }
+
 @media only screen and (min-width: 768px) {
   #stage {
     padding-bottom: 0;

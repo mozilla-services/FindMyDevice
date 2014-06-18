@@ -5,8 +5,9 @@
 define([
   'underscore',
   'backbone',
-  'jquery'
-], function (_, Backbone, $) {
+  'jquery',
+  'lib/notifier'
+], function (_, Backbone, $, Notifier) {
   'use strict';
 
   var Device = Backbone.Model.extend({
@@ -46,6 +47,11 @@ define([
 
         console.log('device:updated', this.get('id'), updatedAttributes, message.data);
 
+        // Just for notifications right now
+        if (data.Cmd) {
+          this.parseCommand(data.Cmd);
+        }
+
         // Set the new attributes all at once so there's only one change event
         this.set(updatedAttributes);
       }
@@ -53,6 +59,22 @@ define([
 
     locationTimedout: function () {
       this.set('located', false);
+    },
+
+    parseCommand: function (command) {
+      var message;
+
+      if (command.r && command.r.ok) {
+        message = 'playing a sound.';
+      } else if (command.e && command.e.ok) {
+        message = 'erasing.';
+      } else if (command.l && command.l.ok) {
+        message = 'in lost mode.'
+      }
+
+      if (message) {
+        Notifier.notify('Your device is ' + message);
+      }
     },
 
     listenForUpdates: function () {

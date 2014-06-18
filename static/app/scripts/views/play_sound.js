@@ -6,8 +6,9 @@ define([
   'views/base',
   'stache!templates/play_sound',
   'models/ring_command',
-  'lib/modal_manager'
-], function (BaseView, PlaySoundTemplate, RingCommand, ModalManager) {
+  'lib/modal_manager',
+  'lib/notifier'
+], function (BaseView, PlaySoundTemplate, RingCommand, ModalManager, Notifier) {
   'use strict';
 
   var PlaySoundView = BaseView.extend({

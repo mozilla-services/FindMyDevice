@@ -415,5 +415,18 @@ a {
   }
 }
 
+#notifier {
+  background: #f8e979;
+  bottom: 0;
+  color: #554f25;
+  display: none;
+  left: 0;
+  padding: 36px;
+  position: absolute;
+  text-align: center;
+  width: 100%;
+  z-index: 1001;
+}
+
 @import "desktop";
 @import "mobile_overrides";
