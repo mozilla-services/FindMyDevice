@@ -77,7 +77,7 @@ define([
       // Setup the map if it doesn't exist
       if (!this.map) {
         // Create the map
-        this.map = L.mapbox.map('map', 'nchapman.hejm93ej', { zoomControl: false });
+        this.map = L.mapbox.map('map', 'mozilla-webprod.ihm4m8h8', { zoomControl: false });
 
         // Position zoom controls
         new L.Control.Zoom({ position: 'topright' }).addTo(this.map);
