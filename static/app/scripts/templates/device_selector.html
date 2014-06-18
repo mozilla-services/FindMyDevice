@@ -3,7 +3,7 @@
     {{#devices}}
       <li>
         {{#isCurrentDevice}}
-          {{name}}
+          <span class="selected">{{name}}</span>
         {{/isCurrentDevice}}
         {{^isCurrentDevice}}
           <a href="#devices/{{id}}">{{name}}</a></li>

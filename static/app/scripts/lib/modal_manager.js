@@ -9,7 +9,7 @@ define([
   'use strict';
 
   var ModalManager = {
-    TARGET_PADDING_TOP: 12,
+    TARGET_PADDING_TOP: 0,
 
     initialize: function () {
       this._views = [];
@@ -71,6 +71,7 @@ define([
       // Force delegate events to fix an issue where restoring a previous view breaks event bindings
       view.delegateEvents();
 
+      // Position the modal
       var position = this.$modal.position();
 
       if (target) {
@@ -83,7 +84,11 @@ define([
 
       this.$modal.css({ left: position.left, top: position.top });
 
+      // Replace modal contents
       this.$modal.html(view.el).show();
+
+      // Copy view classes to modal div
+      this.$modal.attr('class', view.className || '');
     },
 
     _hide: function () {

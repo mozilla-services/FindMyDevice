@@ -118,16 +118,17 @@ a {
     position: relative;
 
     .locating {
-      height: 200px;
+      height: 230px;
       left: 50%;
       margin-left: -100px;
-      margin-top: -100px;
+      margin-top: -140px;
       position: absolute;
       text-align: center;
       top: 50%;
       width: 200px;
 
       h2 {
+        color: #555;
         font-size: 14px;
         font-weight: normal;
 
@@ -140,7 +141,7 @@ a {
           content: '';
           display: block;
           height: 150px;
-          margin: 0 auto 25px auto;
+          margin: 0 auto 35px auto;
           width: 150px;
         }
       }
@@ -228,7 +229,6 @@ a {
   color: $modal-text-color;
   display: none;
   position: absolute;
-  width: 300px;
   z-index: 1000;
 
   header {
@@ -372,6 +372,43 @@ a {
 
         &:active {
           background: darken($modal-button-primary-background-color, 5%);
+        }
+      }
+    }
+  }
+
+  &.drawer {
+    background: #fff;
+
+    section {
+      padding: 0;
+
+      ul {
+        margin: 0;
+        padding: 0;
+
+        li {
+          border-bottom: 1px solid #e0e0e0;
+          list-style: none;
+
+          &:last-child {
+            border-bottom: 0;
+          }
+
+          a, span {
+            background:
+              image-url('icon-device.png') no-repeat 16px 50%,
+              image-url('nav-forward.png') no-repeat right 16px top 50%;
+            color: inherit;
+            display: block;
+            padding: 18px 0 18px 60px;
+
+            &.selected {
+              background:
+                image-url('icon-device-active.png') no-repeat left 16px top 50%,
+                image-url('icon-check.png') no-repeat right 16px top 50%;
+            }
+          }
         }
       }
     }

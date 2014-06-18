@@ -133,15 +133,16 @@ a {
     background: url("../images/bg.png") no-repeat 50% 50%, linear-gradient(180deg, #f4f4f4, #fff);
     position: relative; }
     #stage #map .locating {
-      height: 200px;
+      height: 230px;
       left: 50%;
       margin-left: -100px;
-      margin-top: -100px;
+      margin-top: -140px;
       position: absolute;
       text-align: center;
       top: 50%;
       width: 200px; }
       #stage #map .locating h2 {
+        color: #555;
         font-size: 14px;
         font-weight: normal; }
         #stage #map .locating h2::before {
@@ -157,7 +158,7 @@ a {
           content: '';
           display: block;
           height: 150px;
-          margin: 0 auto 25px auto;
+          margin: 0 auto 35px auto;
           width: 150px; }
     #stage #map .brand {
       background: url("../images/firefoxos.png") no-repeat;
@@ -217,7 +218,6 @@ a {
   color: #686868;
   display: none;
   position: absolute;
-  width: 300px;
   z-index: 1000; }
   #modal header {
     padding: 7px 20px;
@@ -309,13 +309,30 @@ a {
           background: #90d2f1; }
         #modal .buttons button.primary:active {
           background: #62c0eb; }
+  #modal.drawer {
+    background: #fff; }
+    #modal.drawer section {
+      padding: 0; }
+      #modal.drawer section ul {
+        margin: 0;
+        padding: 0; }
+        #modal.drawer section ul li {
+          border-bottom: 1px solid #e0e0e0;
+          list-style: none; }
+          #modal.drawer section ul li:last-child {
+            border-bottom: 0; }
+          #modal.drawer section ul li a, #modal.drawer section ul li span {
+            background: url("../images/icon-device.png") no-repeat 16px 50%, url("../images/nav-forward.png") no-repeat right 16px top 50%;
+            color: inherit;
+            display: block;
+            padding: 18px 0 18px 60px; }
+            #modal.drawer section ul li a.selected, #modal.drawer section ul li span.selected {
+              background: url("../images/icon-device-active.png") no-repeat left 16px top 50%, url("../images/icon-check.png") no-repeat right 16px top 50%; }
 
 @media only screen and (min-width: 768px) {
   #stage {
     padding-bottom: 0;
     padding-top: 94px; }
-    #stage header h1 {
-      cursor: pointer; }
     #stage footer {
       background: #fff;
       bottom: auto;
@@ -350,7 +367,9 @@ a {
     -webkit-box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
     box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
     -webkit-background-clip: padding-box;
-    background-clip: padding-box; }
+    background-clip: padding-box;
+    margin-top: 12px;
+    width: 300px; }
     #modal::before {
       border-style: solid;
       border-width: 0 10px 10px 10px;
@@ -372,11 +391,27 @@ a {
       position: absolute;
       top: -11px;
       width: 0;
-      z-index: 1000; } }
+      z-index: 1000; }
+    #modal.drawer {
+      border-top: 0;
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+      left: 0 !important;
+      margin-top: 0;
+      top: 47px !important;
+      width: 400px; }
+      #modal.drawer::before, #modal.drawer::after {
+        display: none; } }
 
 @media only screen and (max-width: 768px) {
   #modal {
     height: 100%;
     left: 0 !important;
     top: 0 !important;
-    width: 100%; } }
+    width: 100%; }
+    #modal.drawer {
+      border-bottom: 1px solid #e0e0e0;
+      -webkit-box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
+      top: 47px !important;
+      height: auto; } }

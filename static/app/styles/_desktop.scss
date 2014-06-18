@@ -4,12 +4,6 @@
     padding-bottom: 0; // remove padding on the bottom for footer
     padding-top: $header-height + $footer-height--desktop;
 
-    header {
-      h1 {
-        cursor: pointer;
-      }
-    }
-
     footer {
       background: $footer-background-color--desktop;
       bottom: auto;
@@ -58,6 +52,8 @@
     border-radius: 6px;
     box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
     background-clip: padding-box;
+    margin-top: 12px;
+    width: 300px;
 
     &::before {
       border-style: solid;
@@ -83,6 +79,20 @@
       top: -11px;
       width: 0;
       z-index: 1000;
+    }
+
+    &.drawer {
+      border-top: 0;
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+      left: 0 !important;
+      margin-top: 0;
+      top: $header-height !important;
+      width: 400px;
+
+      &::before, &::after {
+        display: none;
+      }
     }
   }
 }

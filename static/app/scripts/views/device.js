@@ -21,7 +21,7 @@ define([
     template: DeviceTemplate,
 
     events: {
-      'click h1': 'openDeviceSelector',
+      'click a.menu': 'openDeviceSelector',
       'click span.play-sound': 'openPlaySound',
       'click span.lost-mode': 'openLostMode',
       'click span.erase': 'openErase'
@@ -39,7 +39,7 @@ define([
     openDeviceSelector: function (event) {
       event.stopPropagation();
 
-      ModalManager.open(new DeviceSelectorView({ currentDevice: this.model }), $(event.target));
+      ModalManager.open(new DeviceSelectorView({ currentDevice: this.model }));
     },
 
     openPlaySound: function (event) {
