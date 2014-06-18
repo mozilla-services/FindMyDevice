@@ -47,6 +47,8 @@ define([
       if (this.isValid()) {
         this.device.sendCommand(new LockCommand({ code: this.passcode2, message: this.note }));
 
+        this.device.set('activity', 'lost');
+
         ModalManager.close();
       }
     }

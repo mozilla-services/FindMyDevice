@@ -1,15 +1,8 @@
-/* Desktop */
 
 @media only screen and (min-width: 768px) {
   #stage {
     padding-bottom: 0; // remove padding on the bottom for footer
     padding-top: $header-height + $footer-height--desktop;
-
-    header {
-      h1 {
-        cursor: pointer;
-      }
-    }
 
     footer {
       background: $footer-background-color--desktop;
@@ -27,9 +20,9 @@
         a {
           background: image-url('icon-sound.png') no-repeat left 50%;
           display: inline-block;
-          font-size: 13px;
+          font-size: 14px;
           height: 47px;
-          padding: 15px 12px 0 40px;
+          padding: 16px 12px 0 40px;
           text-indent: 0;
           width: auto;
 
@@ -53,15 +46,53 @@
       }
     }
   }
-}
 
-// Styles are "mobile first" and don't usually belong in this media block. Only rules that are
-// important overrides from desktop belong here.
-@media only screen and (max-width: 768px) {
   #modal {
-    height: 100%;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100%;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
+    background-clip: padding-box;
+    margin-top: 12px;
+    width: 300px;
+
+    &::before {
+      border-style: solid;
+      border-width: 0 10px 10px 10px;
+      border-color: transparent transparent $modal-background-color transparent;
+      content: '';
+      height: 0;
+      left: 48px;
+      position: absolute;
+      top: -10px;
+      width: 0;
+      z-index: 1001;
+    }
+
+    &::after {
+      border-style: solid;
+      border-width: 0 11px 11px 11px;
+      border-color: transparent transparent rgba(0, 0, 0, 0.2) transparent;
+      content: '';
+      height: 0;
+      left: 47px;
+      position: absolute;
+      top: -11px;
+      width: 0;
+      z-index: 1000;
+    }
+
+    &.drawer {
+      border-top: 0;
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+      left: 0 !important;
+      margin-top: 0;
+      top: $header-height !important;
+      width: 400px;
+
+      &::before, &::after {
+        display: none;
+      }
+    }
   }
 }

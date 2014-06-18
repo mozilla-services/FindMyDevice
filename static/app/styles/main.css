@@ -37,6 +37,24 @@
   font-stretch: normal;
   font-variant: normal; }
 
+@-webkit-keyframes spin {
+  from {
+    -webkit-transform: rotate(0deg);
+    transform: rotate(0deg); }
+
+  to {
+    -webkit-transform: rotate(360deg);
+    transform: rotate(360deg); } }
+
+@keyframes spin {
+  from {
+    -webkit-transform: rotate(0deg);
+    transform: rotate(0deg); }
+
+  to {
+    -webkit-transform: rotate(360deg);
+    transform: rotate(360deg); } }
+
 /* Border box all the things */
 *, *:before, *:after {
   -webkit-box-sizing: border-box;
@@ -51,7 +69,9 @@ html, body, #stage, #stage > div, #map {
   width: 100%; }
 
 a {
-  cursor: pointer; }
+  color: #79c8ee;
+  cursor: pointer;
+  text-decoration: none; }
 
 .hero {
   color: #333;
@@ -76,31 +96,95 @@ a {
     background: #f4f4f4;
     height: 47px;
     left: 0;
-    padding: 0 34px;
     position: absolute;
     top: 0;
     width: 100%;
     z-index: 1000; }
+    #stage header .menu {
+      background-image: url("../images/nav-menu.png");
+      display: block;
+      height: 24px;
+      left: 17px;
+      margin-top: -12px;
+      overflow: hidden;
+      position: absolute;
+      text-indent: 100%;
+      top: 50%;
+      white-space: nowrap;
+      width: 24px; }
     #stage header h1 {
-      color: #8a8b97;
-      font-size: 27px;
+      color: #999;
+      font-size: 24px;
       font-style: italic;
       font-weight: normal;
       height: 32px;
       margin-top: -16px;
       position: absolute;
-      top: 50%; }
+      text-align: center;
+      top: 50%;
+      width: 100%; }
     #stage header .signout {
-      color: #8a8b97;
-      font-style: italic;
       margin-top: -9px;
       position: absolute;
       right: 20px;
       top: 50%; }
+  #stage #map {
+    background: url("../images/bg.png") no-repeat 50% 50%, -webkit-linear-gradient(270deg, #f4f4f4, #fff);
+    background: url("../images/bg.png") no-repeat 50% 50%, linear-gradient(180deg, #f4f4f4, #fff);
+    position: relative; }
+    #stage #map .locating {
+      height: 230px;
+      left: 50%;
+      margin-left: -100px;
+      margin-top: -140px;
+      position: absolute;
+      text-align: center;
+      top: 50%;
+      width: 200px; }
+      #stage #map .locating h2 {
+        color: #555;
+        font-size: 14px;
+        font-weight: normal; }
+        #stage #map .locating h2::before {
+          -webkit-animation-name: spin;
+          animation-name: spin;
+          -webkit-animation-duration: 1500ms;
+          animation-duration: 1500ms;
+          -webkit-animation-iteration-count: infinite;
+          animation-iteration-count: infinite;
+          -webkit-animation-timing-function: linear;
+          animation-timing-function: linear;
+          background: url("../images/radar-spinner.png") no-repeat;
+          content: '';
+          display: block;
+          height: 150px;
+          margin: 0 auto 35px auto;
+          width: 150px; }
+    #stage #map .brand {
+      background: url("../images/firefoxos.png") no-repeat;
+      bottom: 38px;
+      height: 30px;
+      left: 38px;
+      position: absolute;
+      text-indent: -1000em;
+      width: 147px;
+      z-index: 1000; }
+    #stage #map .pin-locating-spinner {
+      background: url("../images/radar-small-animated.gif") no-repeat;
+      height: 39px;
+      margin-top: -162px;
+      margin-left: 10px;
+      position: absolute;
+      width: 39px;
+      z-index: 500; }
+    #stage #map.leaflet-container {
+      background: #fff; }
+      #stage #map.leaflet-container .locating {
+        display: none; }
   #stage footer {
-    background: #242426;
+    background: #fff;
     bottom: 0;
-    color: #f2f1ec;
+    color: #56565a;
     height: 39px;
     left: 0;
     position: absolute;
@@ -112,7 +196,8 @@ a {
       height: 39px;
       width: 33%; }
       #stage footer .button a {
-        background: url("../images/icon-sound-white.png") no-repeat 50% 50%;
+        background: url("../images/icon-sound.png") no-repeat 50% 50%;
+        color: #56565a;
         display: block;
         font-size: 13px;
         height: 39px;
@@ -120,35 +205,65 @@ a {
         text-indent: -1000em;
         width: 100%; }
         #stage footer .button a:active {
-          background-color: #6f7181; }
+          background-color: #79c8ee; }
       #stage footer .button.play-sound a {
-        background-image: url("../images/icon-sound-white.png"); }
+        background-image: url("../images/icon-sound.png"); }
       #stage footer .button.lost-mode a {
-        background-image: url("../images/icon-lock-white.png"); }
+        background-image: url("../images/icon-lock.png"); }
       #stage footer .button.erase a {
-        background-image: url("../images/icon-erase-white.png"); }
+        background-image: url("../images/icon-erase.png"); }
 
 #modal {
-  background: #fff;
-  border-radius: 6px;
-  -webkit-box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+  background: #f4f4f4;
+  color: #686868;
   display: none;
-  overflow: hidden;
   position: absolute;
-  width: 300px;
   z-index: 1000; }
   #modal header {
-    background: #f4f4f4;
-    padding: 5px 20px; }
+    padding: 7px 20px;
+    position: relative; }
     #modal header h2 {
-      color: #8a8b97;
-      font-size: 27px;
+      color: #999;
+      font-size: 24px;
       font-style: italic;
       font-weight: normal;
-      margin: 0; }
+      margin: 0;
+      text-align: center; }
       #modal header h2 small {
         font-size: 18px; }
+    #modal header .close, #modal header .back {
+      display: block;
+      height: 24px;
+      left: 17px;
+      margin-top: -12px;
+      overflow: hidden;
+      position: absolute;
+      text-indent: 100%;
+      top: 50%;
+      white-space: nowrap;
+      width: 24px; }
+    #modal header .close {
+      background-image: url("../images/nav-close.png"); }
+    #modal header .back {
+      background-image: url("../images/nav-back.png"); }
+  #modal .stepper {
+    background: #fff;
+    height: 5px;
+    margin: 0;
+    padding: 0 5px 0 0; }
+    #modal .stepper li {
+      border-top: 5px solid #fff;
+      display: block;
+      float: left;
+      height: 0;
+      list-style: none;
+      overflow: hidden;
+      width: 50%; }
+      #modal .stepper li.active, #modal .stepper li.complete {
+        border-color: #65aeef;
+        border-right: 5px solid #fff; }
+      #modal .stepper li.complete {
+        border-right: 0; }
   #modal section {
     padding: 20px; }
     #modal section p:first-child {
@@ -173,8 +288,10 @@ a {
     #modal .buttons button {
       background: #bbb;
       border: none;
-      border-radius: 5px;
+      border-radius: 20px;
       color: #fff;
+      font-style: italic;
+      outline: 0;
       padding: 10px; }
       #modal .buttons button:hover {
         background: #c3c3c3; }
@@ -187,23 +304,51 @@ a {
         #modal .buttons button.danger:active {
           background: #e60000; }
       #modal .buttons button.primary {
-        background: #5493da; }
+        background: #79c8ee; }
         #modal .buttons button.primary:hover {
-          background: #69a2df; }
+          background: #90d2f1; }
         #modal .buttons button.primary:active {
-          background: #3f88d5; }
+          background: #62c0eb; }
+  #modal.drawer {
+    background: #fff; }
+    #modal.drawer section {
+      padding: 0; }
+      #modal.drawer section ul {
+        margin: 0;
+        padding: 0; }
+        #modal.drawer section ul li {
+          border-bottom: 1px solid #e0e0e0;
+          list-style: none; }
+          #modal.drawer section ul li:last-child {
+            border-bottom: 0; }
+          #modal.drawer section ul li a, #modal.drawer section ul li span {
+            background: url("../images/icon-device.png") no-repeat 16px 50%, url("../images/nav-forward.png") no-repeat right 16px top 50%;
+            color: inherit;
+            display: block;
+            padding: 18px 0 18px 60px; }
+            #modal.drawer section ul li a.selected, #modal.drawer section ul li span.selected {
+              background: url("../images/icon-device-active.png") no-repeat left 16px top 50%, url("../images/icon-check.png") no-repeat right 16px top 50%; }
 
-/* Desktop */
+#notifier {
+  background: #f8e979;
+  bottom: 0;
+  color: #554f25;
+  display: none;
+  left: 0;
+  padding: 28px;
+  position: absolute;
+  text-align: center;
+  width: 100%;
+  z-index: 1001; }
+
 @media only screen and (min-width: 768px) {
   #stage {
     padding-bottom: 0;
     padding-top: 94px; }
-    #stage header h1 {
-      cursor: pointer; }
     #stage footer {
-      background: #e7e7e7;
+      background: #fff;
       bottom: auto;
-      color: #333;
+      color: #56565a;
       height: 47px;
       padding-left: 26px;
       text-align: left;
@@ -214,24 +359,71 @@ a {
         #stage footer .button a {
           background: url("../images/icon-sound.png") no-repeat left 50%;
           display: inline-block;
-          font-size: 13px;
+          font-size: 14px;
           height: 47px;
-          padding: 15px 12px 0 40px;
+          padding: 16px 12px 0 40px;
           text-indent: 0;
           width: auto; }
           #stage footer .button a:hover {
-            background-color: #d9d9d9; }
+            background-color: #ebebeb; }
         #stage footer .button.play-sound a {
           background-image: url("../images/icon-sound.png"); }
         #stage footer .button.lost-mode a {
           background-image: url("../images/icon-lock.png");
           margin: 0; }
         #stage footer .button.erase a {
-          background-image: url("../images/icon-erase.png"); } }
+          background-image: url("../images/icon-erase.png"); }
+  #modal {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    -webkit-box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
+    -webkit-background-clip: padding-box;
+    background-clip: padding-box;
+    margin-top: 12px;
+    width: 300px; }
+    #modal::before {
+      border-style: solid;
+      border-width: 0 10px 10px 10px;
+      border-color: transparent transparent #f4f4f4 transparent;
+      content: '';
+      height: 0;
+      left: 48px;
+      position: absolute;
+      top: -10px;
+      width: 0;
+      z-index: 1001; }
+    #modal::after {
+      border-style: solid;
+      border-width: 0 11px 11px 11px;
+      border-color: transparent transparent rgba(0, 0, 0, 0.2) transparent;
+      content: '';
+      height: 0;
+      left: 47px;
+      position: absolute;
+      top: -11px;
+      width: 0;
+      z-index: 1000; }
+    #modal.drawer {
+      border-top: 0;
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+      left: 0 !important;
+      margin-top: 0;
+      top: 47px !important;
+      width: 400px; }
+      #modal.drawer::before, #modal.drawer::after {
+        display: none; } }
 
 @media only screen and (max-width: 768px) {
   #modal {
     height: 100%;
     left: 0 !important;
     top: 0 !important;
-    width: 100%; } }
+    width: 100%; }
+    #modal.drawer {
+      border-bottom: 1px solid #e0e0e0;
+      -webkit-box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
+      top: 47px !important;
+      height: auto; } }

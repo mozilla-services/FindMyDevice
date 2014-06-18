@@ -4,6 +4,7 @@
 
 @import "variables";
 @import "fonts";
+@import "keyframes";
 
 /* Border box all the things */
 *,
@@ -29,7 +30,9 @@ body,
 }
 
 a {
+  color: #79c8ee;
   cursor: pointer;
+  text-decoration: none;
 }
 
 // "To Be Determined" style for placeholder-ish things
@@ -70,30 +73,108 @@ a {
     background: $header-background-color;
     height: $header-height;
     left: 0;
-    padding: 0 34px;
     position: absolute;
     top: 0;
     width: 100%;
     z-index: 1000;
 
+    .menu {
+      background-image: image-url('nav-menu.png');
+      display: block;
+      height: 24px;
+      left: 17px;
+      margin-top: -12px;
+      overflow: hidden;
+      position: absolute;
+      text-indent: 100%;
+      top: 50%;
+      white-space: nowrap;
+      width: 24px;
+    }
+
     h1 {
       color: $heading-text-color;
-      font-size: 27px;
+      font-size: 24px;
       font-style: italic;
       font-weight: normal;
       height: 32px;
       margin-top: -16px;
       position: absolute;
+      text-align: center;
       top: 50%;
+      width: 100%;
     }
 
     .signout {
-      color: $heading-text-color;
-      font-style: italic;
       margin-top: -9px;
       position: absolute;
       right: 20px;
       top: 50%;
+    }
+  }
+
+  #map {
+    background: image-url('bg.png') no-repeat 50% 50%, linear-gradient(180deg, $header-background-color, #fff);
+    position: relative;
+
+    .locating {
+      height: 230px;
+      left: 50%;
+      margin-left: -100px;
+      margin-top: -140px;
+      position: absolute;
+      text-align: center;
+      top: 50%;
+      width: 200px;
+
+      h2 {
+        color: #555;
+        font-size: 14px;
+        font-weight: normal;
+
+        &::before {
+          animation-name: spin;
+          animation-duration: 1500ms;
+          animation-iteration-count: infinite;
+          animation-timing-function: linear;
+          background: image-url('radar-spinner.png') no-repeat;
+          content: '';
+          display: block;
+          height: 150px;
+          margin: 0 auto 35px auto;
+          width: 150px;
+        }
+      }
+    }
+
+    .brand {
+      background: image-url('firefoxos.png') no-repeat;
+      bottom: 38px;
+      height: 30px;
+      left: 38px;
+      position: absolute;
+      text-indent: -1000em;
+      width: 147px;
+      z-index: 1000;
+    }
+
+    .pin-locating-spinner {
+      background: image-url('radar-small-animated.gif') no-repeat;
+      height: 39px;
+      margin-top: -162px;
+      margin-left: 10px;
+      position: absolute;
+      width: 39px;
+      z-index: 500;
+    }
+
+    // Hide when the map is loaded
+    &.leaflet-container {
+      background: #fff;
+
+      .locating {
+        display: none;
+      }
     }
   }
 
@@ -114,7 +195,8 @@ a {
       width: 33%;
 
       a {
-        background: image-url('icon-sound-white.png') no-repeat 50% 50%;
+        background: image-url('icon-sound.png') no-repeat 50% 50%;
+        color: $footer-text-color;
         display: block;
         font-size: 13px;
         height: 39px;
@@ -128,15 +210,15 @@ a {
       }
 
       &.play-sound a {
-        background-image: image-url('icon-sound-white.png');
+        background-image: image-url('icon-sound.png');
       }
 
       &.lost-mode a {
-        background-image: image-url('icon-lock-white.png');
+        background-image: image-url('icon-lock.png');
       }
 
       &.erase a {
-        background-image: image-url('icon-erase-white.png');
+        background-image: image-url('icon-erase.png');
       }
     }
   }
@@ -144,27 +226,72 @@ a {
 
 #modal {
   background: $modal-background-color;
-  border-radius: 6px;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+  color: $modal-text-color;
   display: none;
-  overflow: hidden;
   position: absolute;
-  width: 300px;
   z-index: 1000;
 
   header {
-    background: $header-background-color;
-    padding: 5px 20px;
+    padding: 7px 20px;
+    position: relative;
 
     h2 {
       color: $heading-text-color;
-      font-size: 27px;
+      font-size: 24px;
       font-style: italic;
       font-weight: normal;
       margin: 0;
+      text-align: center;
 
       small {
         font-size: 18px;
+      }
+    }
+
+    .close, .back {
+      display: block;
+      height: 24px;
+      left: 17px;
+      margin-top: -12px;
+      overflow: hidden;
+      position: absolute;
+      text-indent: 100%;
+      top: 50%;
+      white-space: nowrap;
+      width: 24px;
+    }
+
+    .close {
+      background-image: image-url('nav-close.png');
+    }
+
+    .back {
+      background-image: image-url('nav-back.png');
+    }
+  }
+
+  .stepper {
+    background: #fff;
+    height: 5px;
+    margin: 0;
+    padding: 0 5px 0 0;
+
+    li {
+      border-top: 5px solid #fff;
+      display: block;
+      float: left;
+      height: 0;
+      list-style: none;
+      overflow: hidden;
+      width: 50%;
+
+      &.active, &.complete {
+        border-color: #65aeef;
+        border-right: 5px solid #fff;
+      }
+
+      &.complete {
+        border-right: 0;
       }
     }
   }
@@ -210,8 +337,10 @@ a {
     button {
       background: $modal-button-background-color;
       border: none;
-      border-radius: 5px;
+      border-radius: 20px;
       color: #fff;
+      font-style: italic;
+      outline: 0;
       padding: 10px;
 
       &:hover {
@@ -247,6 +376,57 @@ a {
       }
     }
   }
+
+  &.drawer {
+    background: #fff;
+
+    section {
+      padding: 0;
+
+      ul {
+        margin: 0;
+        padding: 0;
+
+        li {
+          border-bottom: 1px solid #e0e0e0;
+          list-style: none;
+
+          &:last-child {
+            border-bottom: 0;
+          }
+
+          a, span {
+            background:
+              image-url('icon-device.png') no-repeat 16px 50%,
+              image-url('nav-forward.png') no-repeat right 16px top 50%;
+            color: inherit;
+            display: block;
+            padding: 18px 0 18px 60px;
+
+            &.selected {
+              background:
+                image-url('icon-device-active.png') no-repeat left 16px top 50%,
+                image-url('icon-check.png') no-repeat right 16px top 50%;
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
-@import "media_queries";
+#notifier {
+  background: #f8e979;
+  bottom: 0;
+  color: #554f25;
+  display: none;
+  left: 0;
+  padding: 28px;
+  position: absolute;
+  text-align: center;
+  width: 100%;
+  z-index: 1001;
+}
+
+@import "desktop";
+@import "mobile_overrides";
