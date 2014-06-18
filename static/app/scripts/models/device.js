@@ -11,6 +11,8 @@ define([
   'use strict';
 
   var Device = Backbone.Model.extend({
+    LOCATION_TIMEOUT: 60 * 1000,
+
     defaults: {
       activity: 'blank',
       located: false
@@ -38,7 +40,7 @@ define([
           updatedAttributes.located = true;
 
           // Lose location after 60 seconds of no location updates
-          this.locationTimeout = setTimeout(_.bind(this.locationTimedout, this), 60 * 1000);
+          this.locationTimeout = setTimeout(_.bind(this.locationTimedout, this), this.LOCATION_TIMEOUT);
         }
 
         if (data.Time > 0) {
@@ -69,7 +71,7 @@ define([
       } else if (command.e && command.e.ok) {
         message = 'erasing.';
       } else if (command.l && command.l.ok) {
-        message = 'in lost mode.'
+        message = 'in lost mode.';
       }
 
       if (message) {

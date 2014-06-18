@@ -9,6 +9,8 @@ define([
   'use strict';
 
   var Notifier = {
+    AUTO_CLOSE_TIMEOUT: 5 * 1000,
+
     initialize: function () {
       this.$notifier = $('#notifier');
     },
@@ -18,7 +20,7 @@ define([
 
       this.$notifier.html(message).fadeIn();
 
-      this.autoCloseTimer = setTimeout(_.bind(this.close, this), 5 * 1000);
+      this.autoCloseTimer = setTimeout(_.bind(this.close, this), this.AUTO_CLOSE_TIMEOUT);
     },
 
     close: function () {

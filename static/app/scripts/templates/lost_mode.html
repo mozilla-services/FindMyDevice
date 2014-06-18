@@ -3,10 +3,12 @@
     <a class="close">Close</a>
     <h2>Lost Mode</h2>
   </header>
-  <ul class="stepper">
-    <li class="active">Step 1</li>
-    <li>Step 2</li>
-  </ul>
+  {{^hasPasscode}}
+    <ul class="stepper">
+      <li class="active">Step 1</li>
+      <li>Step 2</li>
+    </ul>
+  {{/hasPasscode}}
   <section>
     <p>Enter a note that will be shown on the phone.</p>
 

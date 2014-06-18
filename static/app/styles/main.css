@@ -205,7 +205,7 @@ a {
         text-indent: -1000em;
         width: 100%; }
         #stage footer .button a:active {
-          background-color: #6f7181; }
+          background-color: #79c8ee; }
       #stage footer .button.play-sound a {
         background-image: url("../images/icon-sound.png"); }
       #stage footer .button.lost-mode a {
@@ -335,7 +335,7 @@ a {
   color: #554f25;
   display: none;
   left: 0;
-  padding: 36px;
+  padding: 28px;
   position: absolute;
   text-align: center;
   width: 100%;

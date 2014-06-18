@@ -110,43 +110,43 @@ define([
     },
 
     updateMarkerIcon: function (animate) {
-      if (!this.marker) return;
+      if (this.marker) {
+        var iconURL = '/images/pin-' + this.model.get('activity');
+        var className = 'pin';
 
-      var iconURL = '/images/pin-' + this.model.get('activity');
-      var className = 'pin';
-
-      if (this.model.get('located')) {
-        iconURL += '-located';
-        className += ' pin-located';
-      } else {
-        className += ' pin-locating';
-      }
-
-      iconURL += '.png';
-
-      this.marker.setIcon(L.icon({
-        iconUrl: iconURL,
-        iconSize: [118, 169], // size of the icon
-        iconAnchor: [59, 166], // point of the icon which will correspond to marker's location
-        className: className
-      }));
-
-      var $pin = this.$('.pin');
-
-      // Position locating spinner
-      if (this.model.get('located')) {
-        this.$('.pin-locating-spinner').remove();
-      } else {
-        var $spinner = this.$('.pin-locating-spinner');
-
-        if ($spinner.length === 0) {
-          $spinner = $('<div class="pin-locating-spinner"></div>');
-
-          $pin.after($spinner);
+        if (this.model.get('located')) {
+          iconURL += '-located';
+          className += ' pin-located';
+        } else {
+          className += ' pin-locating';
         }
 
-        // Copy pin's transform and fade in
-        $spinner.css('transform', $pin.css('transform')).hide().fadeIn();
+        iconURL += '.png';
+
+        this.marker.setIcon(L.icon({
+          iconUrl: iconURL,
+          iconSize: [118, 169], // size of the icon
+          iconAnchor: [59, 166], // point of the icon which will correspond to marker's location
+          className: className
+        }));
+
+        var $pin = this.$('.pin');
+
+        // Position locating spinner
+        if (this.model.get('located')) {
+          this.$('.pin-locating-spinner').remove();
+        } else {
+          var $spinner = this.$('.pin-locating-spinner');
+
+          if ($spinner.length === 0) {
+            $spinner = $('<div class="pin-locating-spinner"></div>');
+
+            $pin.after($spinner);
+          }
+
+          // Copy pin's transform and fade in
+          $spinner.css('transform', $pin.css('transform')).hide().fadeIn();
+        }
       }
     }
   });
