@@ -69,6 +69,8 @@ def genHawkSignature(method, urlStr, bodyHash, extra, secret,
     path = url.path
     host = url.hostname
     port = url.port
+    if port is None:
+        port = 80
     if nonce is None:
         nonce = os.urandom(5).encode("hex")
     if now is None:
@@ -83,12 +85,12 @@ def genHawkSignature(method, urlStr, bodyHash, extra, secret,
         port,
         bodyHash,
         extra)
-    #print "Marshal Str: <<%s>>\nSecret: <<%s>>\n" % (marshalStr, secret)
+    print "Marshal Str: <<%s>>\nSecret: <<%s>>\n" % (marshalStr, secret)
     mac = hmac.new(secret.encode("utf-8"),
                    marshalStr.encode("utf-8"),
                    digestmod=hashlib.sha256).digest()
-    # print "mac: <<" + ','.join([str(ord(elem)) for elem in mac]) + ">>\n"
-    #print "mac: " + base64.b64encode(mac) + "\n"
+    print "mac: <<" + ','.join([str(ord(elem)) for elem in mac]) + ">>\n"
+    print "mac: " + base64.b64encode(mac) + "\n"
     return now, nonce, base64.b64encode(mac)
 
 
@@ -120,6 +122,7 @@ def checkHawk(response, secret):
                                  hawk["nonce"],
                                  ct)
     # remove "white space
+    pdb.set_trace();
     return mac.replace('=', '') == hawk["mac"].replace('=', '')
 
 
