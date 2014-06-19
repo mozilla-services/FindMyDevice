@@ -18,6 +18,18 @@ define([
   'use strict';
 
   var DeviceView = BaseView.extend({
+    // These paths are here so that usemin can replace them with revved paths
+    MARKER_ICONS: {
+      'blank': '../images/pin-blank.png',
+      'blank-located': '../images/pin-blank-located.png',
+      'erase': '../images/pin-erase.png',
+      'erase-located': '../images/pin-erase-located.png',
+      'lost': '../images/pin-lost.png',
+      'lost-located': '../images/pin-lost-located.png',
+      'sound': '../images/pin-sound.png',
+      'sound-located': '../images/pin-sound-located.png'
+    },
+
     template: DeviceTemplate,
 
     events: {
@@ -111,17 +123,16 @@ define([
 
     updateMarkerIcon: function (animate) {
       if (this.marker) {
-        var iconURL = '/images/pin-' + this.model.get('activity');
+        var iconURL;
         var className = 'pin';
 
         if (this.model.get('located')) {
-          iconURL += '-located';
           className += ' pin-located';
+          iconURL = this.MARKER_ICONS[this.model.get('activity') + '-located'];
         } else {
           className += ' pin-locating';
+          iconURL = this.MARKER_ICONS[this.model.get('activity')];
         }
-
-        iconURL += '.png';
 
         this.marker.setIcon(L.icon({
           iconUrl: iconURL,
