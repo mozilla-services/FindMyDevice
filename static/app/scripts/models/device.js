@@ -93,7 +93,7 @@ define([
         data: command.toJSON(),
         dataType: 'json',
         type: 'PUT',
-        url: '/0/queue/' + this.get('id')
+        url: '/1/queue/' + this.get('id')
       });
     }
   });
