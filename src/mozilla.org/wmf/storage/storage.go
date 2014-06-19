@@ -126,13 +126,14 @@ func Open(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics)
 		config.Get("db.db", "wmf"),
 		config.Get("db.sslmode", "disable"))
 	logCat := "storage"
-	defExpry, err := strconv.ParseInt(config.Get("db.default_expry", "1500"), 0, 64)
+    // default expry is 5 days
+	defExpry, err := strconv.ParseInt(config.Get("db.default_expry", "432000"), 0, 64)
 	if err != nil {
-		defExpry = 1500
+		defExpry = 432000
 	}
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-        panic("Storage is unavailable: " + err.Error() + "\n")
+		panic("Storage is unavailable: " + err.Error() + "\n")
 		return nil, err
 	}
 	db.SetMaxIdleConns(100)
@@ -469,8 +470,8 @@ func (self *Storage) SetDeviceLock(devId string, state bool) (err error) {
 func (self *Storage) SetDeviceLocation(devId string, position Position) (err error) {
 	dbh := self.db
 
-    // Only keep the latest positon (changed requirements from original design)
-    self.PurgePosition(devId);
+	// Only keep the latest positon (changed requirements from original design)
+	self.PurgePosition(devId)
 
 	statement := "insert into position (deviceId, time, latitude, longitude, altitude) values ($1, $2, $3, $4, $5);"
 	st, err := dbh.Prepare(statement)
@@ -503,9 +504,10 @@ func (self *Storage) GcPosition(devId string) (err error) {
 	// Added bonus: The following string causes the var replacer to
 	// get confused and toss an error, so yes, currently this uses inline
 	// replacement.
-	statement := fmt.Sprintf("delete from position where id in (select id from (select id, row_number() over (order by time desc) RowNumber from position where time < (now() - interval '%d seconds') ) tt where RowNumber > 1);", self.defExpry)
+//	statement := fmt.Sprintf("delete from position where id in (select id from (select id, row_number() over (order by time desc) RowNumber from position where time < (now() - interval '%d seconds') ) tt where RowNumber > 1);", self.defExpry)
+    statement := "delete from position where time < (now() - interval '$1 seconds');"
 	st, err := dbh.Prepare(statement)
-	_, err = st.Exec()
+	_, err = st.Exec(self.defExpry)
 	st.Close()
 	if err != nil {
 		self.logger.Error(self.logCat, "Error gc'ing positions",
@@ -517,20 +519,19 @@ func (self *Storage) GcPosition(devId string) (err error) {
 
 // remove all tracking information for devId.
 func (self *Storage) PurgePosition(devId string) (err error) {
-    dbh := self.db
+	dbh := self.db
 
-    statement := "delete from position where deviceid = $1;"
-    if _,err = dbh.Exec(statement, devId); err != nil {
-        return err
-    }
-    return nil
+	statement := "delete from position where deviceid = $1;"
+	if _, err = dbh.Exec(statement, devId); err != nil {
+		return err
+	}
+	return nil
 }
-
 
 func (self *Storage) Touch(devId string) (err error) {
 	dbh := self.db
 
-    statement := "update deviceInfo set lastexchange = now() where deviceid = $1"
+	statement := "update deviceInfo set lastexchange = now() where deviceid = $1"
 	_, err = dbh.Exec(statement, devId)
 	if err != nil {
 		return err
