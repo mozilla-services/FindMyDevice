@@ -41,7 +41,7 @@ var (
 
 const (
 	// VERSION is the version number for system.
-	VERSION = "0.7"
+	VERSION = "1.0"
 )
 
 // get the latest version from git.
