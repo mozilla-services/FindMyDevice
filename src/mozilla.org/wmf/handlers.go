@@ -300,6 +300,17 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 		self.logger.Info(self.logCat, "Extracted Audience",
 			util.Fields{"audience": args["audience"]})
 	}
+	if self.config.GetFlag("auth.trim_audience") {
+		audUrl, err := url.Parse(args["audience"])
+		if err != nil {
+			self.logger.Warn(self.logCat, "Could not parse Audience",
+				util.Fields{"error": err.Error(),
+					"audience": args["audience"]})
+		} else {
+			args["audience"] = fmt.Sprintf("%s://%s/", audUrl.Scheme,
+				audUrl.Host)
+		}
+	}
 	if args["audience"] == "" {
 		args["audience"] = self.config.Get("fxa.audience",
 			"https://oauth.accounts.firefox.com/v1")
