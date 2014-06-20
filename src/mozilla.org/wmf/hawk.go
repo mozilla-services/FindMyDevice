@@ -92,18 +92,23 @@ func (self *Hawk) getHostPort(req *http.Request) (host, port string) {
 
 	elements := strings.Split(req.Host, ":")
 	host = elements[0]
-	if len(elements) == 2 {
-		port = elements[1]
+	if self.config != nil {
+		port = self.config.Get("hawk.port", "")
 	}
-	if port == "" || self.config.GetFlag("override_port") {
-		switch {
-		// because nginx proxies, don't take the :port at face value
-		//case len(elements) > 1:
-		//	port = elements[1]
-		case req.URL.Scheme == "https":
-			port = "443"
-		default:
-			port = "80"
+	if port == "" {
+		if len(elements) == 2 {
+			port = elements[1]
+		}
+		if self.config.GetFlag("override_port") {
+			switch {
+			// because nginx proxies, don't take the :port at face value
+			//case len(elements) > 1:
+			//	port = elements[1]
+			case req.URL.Scheme == "https":
+				port = "443"
+			default:
+				port = "80"
+			}
 		}
 	}
 	return host, port
