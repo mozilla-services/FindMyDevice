@@ -1744,7 +1744,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 	if ni, ok := loginSession.Values["nonce"]; !ok {
 		// No nonce, no service
 		self.logger.Error(self.logCat, "Missing nonce", nil)
-		http.Error(resp, "Unauthorized", 401)
+		http.Redirect(resp, req, "/", http.StatusFound)
 		return
 	} else {
 		nonce = ni.(string)
@@ -1760,7 +1760,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 
 	if ok, err := store.CheckNonce(nonce); !ok || err != nil {
 		self.logger.Error(self.logCat, "Invalid Nonce", nil)
-		http.Error(resp, "Unauthorized", 401)
+		http.Redirect(resp, req, "/", http.StatusFound)
 		return
 	}
 	// Nuke the login session cookie
@@ -1775,17 +1775,17 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 		// TODO: check "state" matches magic code thingy
 		if state == "" {
 			self.logger.Error(self.logCat, "No State", nil)
-			http.Error(resp, "Unauthorized", 401)
+			http.Redirect(resp, req, "/", http.StatusFound)
 			return
 		}
 		if state != strings.SplitN(nonce, ".", 2)[0] {
 			self.logger.Error(self.logCat, "Invalid nonce", nil)
-			http.Error(resp, "Unauthorized", 401)
+			http.Redirect(resp, req, "/", http.StatusFound)
 			return
 		}
 		if code == "" {
 			self.logger.Error(self.logCat, "Missing code value", nil)
-			http.Error(resp, "Unauthorized", 401)
+			http.Redirect(resp, req, "/", http.StatusFound)
 			return
 		}
 
@@ -1795,7 +1795,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not get access token",
 				util.Fields{"error": err.Error()})
-			http.Error(resp, "Unauthorized", 401)
+			http.Redirect(resp, req, "/", http.StatusFound)
 			return
 		}
 		// fmt.Printf("### store user token %s\n", token)
@@ -1808,7 +1808,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not get email",
 				util.Fields{"error": err.Error()})
-			http.Error(resp, "Unauthorized", 401)
+			http.Redirect(resp, req, "/", http.StatusFound)
 			return
 		}
 		session.Values[SESSION_EMAIL] = email
