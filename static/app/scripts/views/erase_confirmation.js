@@ -29,6 +29,8 @@ define([
     erase: function (event) {
       this.device.sendCommand(new EraseCommand());
 
+      this.device.set('activity', 'erase');
+
       ModalManager.close();
     }
   });

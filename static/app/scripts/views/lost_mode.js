@@ -35,6 +35,8 @@ define([
 
       this.device.sendCommand(new LockCommand({ message: this.note }));
 
+      this.device.set('activity', 'lost');
+
       ModalManager.close();
     },
 

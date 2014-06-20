@@ -11,7 +11,7 @@ define([
 
   var DevicesCollection = Backbone.Collection.extend({
     model: Device,
-    url: '/0/devices/',
+    url: '/1/devices/',
 
     // Extract root devices array
     parse: function (resp, xhr) {

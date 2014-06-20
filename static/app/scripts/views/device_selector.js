@@ -11,6 +11,7 @@ define([
 
   var DeviceSelectorView = BaseView.extend({
     template: DeviceSelectorTemplate,
+    className: 'drawer',
 
     events: {
       'click a': 'close'
@@ -29,7 +30,7 @@ define([
       var currentDevice = this.currentDevice;
 
       return {
-        devices: window.devices.collect(function (d) { return d.attributes; }),
+        devices: window.devices.collect(function (d) { return d.attributes; }).reverse(),
         isCurrentDevice: function () {
           // The device (this) is a bare object in this context
           return this.id === currentDevice.get('id');

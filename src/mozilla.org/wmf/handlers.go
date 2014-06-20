@@ -1496,12 +1496,14 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			continue
 		}
+        verRoot := strings.SplitN(self.config.Get("Version", "0"), ".", 2)[0]
 		reply = append(reply, devList{
 			ID:   d.ID,
 			Name: d.Name,
-			URL: fmt.Sprintf("%s://%s/0/ws/%s/%s",
-				self.config.Get("ui.ws_proto", "ws"),
+			URL: fmt.Sprintf("%s://%s/%s/ws/%s/%s",
+				self.config.Get("ws_proto", "wss"),
 				self.config.Get("ws_hostname", "localhost"),
+                verRoot,
 				sig,
 				d.ID)})
 	}

@@ -5,6 +5,8 @@
   "compatible-vendor-prefixes": false,
   "duplicate-background-images": false,
   "errors": false,
+  "fallback-colors": false,
+  "gradients": false,
   "ids": false,
   "import": 2,
   "important": false,
