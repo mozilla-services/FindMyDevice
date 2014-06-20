@@ -994,6 +994,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		if len(accepts) == 0 {
 			accepts = "elrth"
 		}
+		if !strings.Contains("h", accepts) {
+			accepts = accepts + "h"
+		}
 
 		// create the new device record
 		var devId string
