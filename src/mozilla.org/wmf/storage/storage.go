@@ -126,7 +126,7 @@ func Open(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics)
 		config.Get("db.db", "wmf"),
 		config.Get("db.sslmode", "disable"))
 	logCat := "storage"
-    // default expry is 5 days
+	// default expry is 5 days
 	defExpry, err := strconv.ParseInt(config.Get("db.default_expry", "432000"), 0, 64)
 	if err != nil {
 		defExpry = 432000
@@ -504,8 +504,8 @@ func (self *Storage) GcPosition(devId string) (err error) {
 	// Added bonus: The following string causes the var replacer to
 	// get confused and toss an error, so yes, currently this uses inline
 	// replacement.
-//	statement := fmt.Sprintf("delete from position where id in (select id from (select id, row_number() over (order by time desc) RowNumber from position where time < (now() - interval '%d seconds') ) tt where RowNumber > 1);", self.defExpry)
-    statement := "delete from position where time < (now() - interval '$1 seconds');"
+	//	statement := fmt.Sprintf("delete from position where id in (select id from (select id, row_number() over (order by time desc) RowNumber from position where time < (now() - interval '%d seconds') ) tt where RowNumber > 1);", self.defExpry)
+	statement := "delete from position where time < (now() - interval '$1 seconds');"
 	st, err := dbh.Prepare(statement)
 	_, err = st.Exec(self.defExpry)
 	st.Close()
