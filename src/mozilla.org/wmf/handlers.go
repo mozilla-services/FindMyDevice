@@ -1490,13 +1490,13 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	var reply []devList
+    verRoot := strings.SplitN(self.config.Get("VERSION", "0"), ".", 2)[0]
 
 	for _, d := range deviceList {
 		sig, err := self.genSig(req, d.ID)
 		if err != nil {
 			continue
 		}
-        verRoot := strings.SplitN(self.config.Get("VERSION", "0"), ".", 2)[0]
 		reply = append(reply, devList{
 			ID:   d.ID,
 			Name: d.Name,
