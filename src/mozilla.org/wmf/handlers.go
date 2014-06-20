@@ -304,9 +304,9 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 		args["audience"] = self.config.Get("fxa.audience",
 			"https://oauth.accounts.firefox.com/v1")
 	}
-    // State is a nonce useful for validation callbacks.
-    // Since we're not calling back, it's not necessary to
-    // check if the caller matches the recipient.
+	// State is a nonce useful for validation callbacks.
+	// Since we're not calling back, it's not necessary to
+	// check if the caller matches the recipient.
 	args["state"], _ = util.GenUUID4()
 
 	argsj, err := json.Marshal(args)
@@ -318,7 +318,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	if self.config.GetFlag("auth.show_assertion") {
 		fmt.Printf("### Validating Assertion:\n %s\n", argsj)
 	}
-    // Send the assertion to the validator
+	// Send the assertion to the validator
 	req, err := http.NewRequest("POST", validatorUrl, bytes.NewReader(argsj))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not POST verify assertion",
@@ -668,9 +668,9 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 		return true
 	}
 	// Remote Hawk
-	rhawk := Hawk{logger: self.logger}
+	rhawk := Hawk{logger: self.logger, config: self.config}
 	// Local Hawk
-	lhawk := Hawk{logger: self.logger}
+	lhawk := Hawk{logger: self.logger, config: self.config}
 	// Get the remote signature from the header
 	err = rhawk.ParseAuthHeader(req, self.logger)
 	if err != nil {
@@ -1490,6 +1490,7 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	var reply []devList
+	verRoot := strings.SplitN(self.config.Get("VERSION", "0"), ".", 2)[0]
 
 	for _, d := range deviceList {
 		sig, err := self.genSig(req, d.ID)
@@ -1499,9 +1500,10 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 		reply = append(reply, devList{
 			ID:   d.ID,
 			Name: d.Name,
-			URL: fmt.Sprintf("%s://%s/0/ws/%s/%s",
-				self.config.Get("ui.ws_proto", "ws"),
+			URL: fmt.Sprintf("%s://%s/%s/ws/%s/%s",
+				self.config.Get("ws_proto", "wss"),
 				self.config.Get("ws_hostname", "localhost"),
+				verRoot,
 				sig,
 				d.ID)})
 	}
