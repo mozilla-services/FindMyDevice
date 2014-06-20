@@ -51,12 +51,12 @@ func GenNonce(l int) string {
 
 // Clear the stickier bits
 func (self *Hawk) Clear() {
-    self.Hash = ""
-    self.Signature = ""
-    self.Nonce = ""
-    self.Time = ""
-    self.Path = ""
-    self.Port = ""
+	self.Hash = ""
+	self.Signature = ""
+	self.Nonce = ""
+	self.Time = ""
+	self.Path = ""
+	self.Port = ""
 }
 
 // Return a Hawk Authorization header
