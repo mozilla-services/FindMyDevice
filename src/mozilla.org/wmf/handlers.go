@@ -1501,7 +1501,7 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 			ID:   d.ID,
 			Name: d.Name,
 			URL: fmt.Sprintf("%s://%s/%s/ws/%s/%s",
-				self.config.Get("ui.ws_proto", "ws"),
+				self.config.Get("ws_proto", "wss"),
 				self.config.Get("ws_hostname", "localhost"),
                 verRoot,
 				sig,
