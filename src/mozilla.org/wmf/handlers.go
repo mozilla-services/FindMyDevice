@@ -1496,7 +1496,7 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			continue
 		}
-        verRoot := strings.SplitN(self.config.Get("Version", "0"), ".", 2)[0]
+        verRoot := strings.SplitN(self.config.Get("VERSION", "0"), ".", 2)[0]
 		reply = append(reply, devList{
 			ID:   d.ID,
 			Name: d.Name,
