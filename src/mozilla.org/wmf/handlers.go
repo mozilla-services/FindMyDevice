@@ -1028,8 +1028,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	}
 	self.metrics.Increment("device.registration")
 	reply, err := json.Marshal(util.Fields{"deviceid": self.devId,
-		"secret": secret,
-		"email":  email,
+		"secret":   secret,
+		"email":    email,
+		"clientid": userid,
 	})
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not marshal reply",
