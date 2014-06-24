@@ -505,6 +505,10 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		}
 		// return the contents of the session.
 		if ret {
+			self.logger.Info(self.logCat, "::Got User::",
+				util.Fields{"source": "session",
+					"userid": userid,
+					"email":  email})
 			return userid, email, nil
 		}
 	}
@@ -518,12 +522,16 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		}
 	}
 	if err != nil {
+		// error logged in verify
 		return "", "", ErrAuthorization
 	}
-	// fmt.Printf("userid %s; email %s;\n", userid, email)
 	if userid == "" && email != "" {
 		userid = self.genHash(email)
 	}
+	self.logger.Info(self.logCat, "::Got User::",
+		util.Fields{"source": "assertion",
+			"userid": userid,
+			"email":  email})
 	return userid, email, nil
 }
 
@@ -951,7 +959,11 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 					"Hawk Verified, getting user info ...\n",
 					nil)
 				if userid, user, err = store.GetUserFromDevice(deviceid); err == nil {
-					fmt.Printf("### Got Userid %s, name %s\n ", userid, user)
+					self.logger.Debug(self.logCat,
+						"Got user info ",
+						util.Fields{"userid": userid,
+							"name":   user,
+							"device": deviceid})
 					loggedIn = true
 				}
 			} else {
@@ -1027,6 +1039,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 	self.metrics.Increment("device.registration")
+	self.updatePage(self.devId, "register", buffer, false)
 	reply, err := json.Marshal(util.Fields{"deviceid": self.devId,
 		"secret":   secret,
 		"email":    email,
@@ -1037,7 +1050,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			util.Fields{"error": err.Error()})
 		return
 	}
-	//fmt.Printf("### Sending reply %s\n", reply)
+	if self.config.GetFlag("debug.show_output") {
+		fmt.Printf(">>>%s:%s\n", self.logCat, string(reply))
+	}
 	resp.Write(reply)
 	return
 }
@@ -1187,6 +1202,9 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	// total cheat to get the command without parsing the cmd data.
 	if len(cmd) > 2 {
 		self.metrics.Increment("cmd.send." + string(cmd[2]))
+	}
+	if self.config.GetFlag("debug.show_output") {
+		fmt.Printf(">>>%s:%s\n", self.logCat, string(output))
 	}
 	resp.Write(output)
 }
@@ -1450,6 +1468,9 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	}
 	repl, _ := json.Marshal(rep)
 	self.metrics.Increment("cmd.queued.rest")
+	if self.config.GetFlag("debug.show_output") {
+		fmt.Printf(">>>%s:%s\n", self.logCat, string(repl))
+	}
 	resp.Write(repl)
 }
 
@@ -1533,6 +1554,9 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	resp.Header().Set("Content-Type", "application/json")
+	if self.config.GetFlag("debug.show_output") {
+		fmt.Printf(">>>%s:%s\n", self.logCat, string(breply))
+	}
 	resp.Write(breply)
 	return
 }
@@ -1629,6 +1653,9 @@ func (self *Handler) InitDataJson(resp http.ResponseWriter, req *http.Request) {
 	resp.Header().Set("Content-Type", "application/json")
 	reply, err := json.Marshal(initData)
 	if err == nil {
+		if self.config.GetFlag("debug.show_output") {
+			fmt.Printf(">>>%s:%s\n", self.logCat, string(reply))
+		}
 		resp.Write([]byte(reply))
 		return
 	}
@@ -1684,6 +1711,9 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	// display the device info...
 	reply, err := json.Marshal(devInfo)
 	if err == nil {
+		if self.config.GetFlag("debug.show_output") {
+			fmt.Printf(">>>%s:%s\n", self.logCat, string(reply))
+		}
 		resp.Write([]byte(reply))
 	}
 }
@@ -1699,6 +1729,9 @@ func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
 		"version":    self.config.Get("VERSION", "unknown"),
 	}
 	rep, _ := json.Marshal(reply)
+	if self.config.GetFlag("debug.show_output") {
+		fmt.Printf(">>>%s:%s\n", self.logCat, string(rep))
+	}
 	resp.Write(rep)
 }
 
@@ -1725,11 +1758,17 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not generate metrics report",
 			util.Fields{"error": err.Error()})
+		if self.config.GetFlag("debug.show_output") {
+			fmt.Printf(">>>%s:{}\n", self.logCat)
+		}
 		resp.Write([]byte("{}"))
 		return
 	}
 	if reply == nil {
 		reply = []byte("{}")
+	}
+	if self.config.GetFlag("debug.show_output") {
+		fmt.Printf(">>>%s:%s\n", self.logCat, string(reply))
 	}
 	resp.Write(reply)
 }
@@ -1997,6 +2036,9 @@ func (self *Handler) Validate(resp http.ResponseWriter, req *http.Request) {
 	// OK, write out the reply object (if you can)
 	// as {valid: (true|false), [uid: ... ]}
 	if response, err := json.Marshal(reply); err == nil {
+		if self.config.GetFlag("debug.show_output") {
+			fmt.Printf(">>>%s:%s\n", self.logCat, string(response))
+		}
 		resp.Write(response)
 	} else {
 		self.logger.Error(self.logCat, "Could not write reply",

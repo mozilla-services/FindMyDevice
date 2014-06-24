@@ -43,8 +43,8 @@ def on_message(ws, message):
 def on_open(ws):
     print "## Opened"
 
-def listener(devid):
-    ws = websocket.WebSocketApp("ws://localhost:8080/0/ws/"+devid)
+def listener(url, devid):
+    ws = websocket.WebSocketApp(url+devid)
     ws.run_forever()
 
 def genHash(body, ctype="application/json"):
@@ -182,6 +182,7 @@ def registerNew(config, cred):
                   "deviceid": "deadbeef00000000decafbad00000000"}
         # with HAWK
         reply = send(trg, regObj, cred)
+    import pdb; pdb.set_trace()
     cred = reply.json()
     print "### Returned Credentials: "
     pprint(cred)

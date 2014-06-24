@@ -507,7 +507,7 @@ func (self *Storage) GcPosition(devId string) (err error) {
 	//	statement := fmt.Sprintf("delete from position where id in (select id from (select id, row_number() over (order by time desc) RowNumber from position where time < (now() - interval '%d seconds') ) tt where RowNumber > 1);", self.defExpry)
 	statement := fmt.Sprintf("delete from position where time < (now() - interval '%d seconds');", self.defExpry)
 	st, err := dbh.Prepare(statement)
-	_, err = st.Exec(self.defExpry)
+	_, err = st.Exec()
 	st.Close()
 	if err != nil {
 		self.logger.Error(self.logCat, "Error gc'ing positions",
