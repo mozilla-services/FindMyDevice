@@ -505,6 +505,10 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		}
 		// return the contents of the session.
 		if ret {
+			self.logger.Info(self.logCat, "::Got User::",
+				util.Fields{"source": "session",
+					"userid": userid,
+					"email":  email})
 			return userid, email, nil
 		}
 	}
@@ -518,12 +522,16 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		}
 	}
 	if err != nil {
+		// error logged in verify
 		return "", "", ErrAuthorization
 	}
-	// fmt.Printf("userid %s; email %s;\n", userid, email)
 	if userid == "" && email != "" {
 		userid = self.genHash(email)
 	}
+	self.logger.Info(self.logCat, "::Got User::",
+		util.Fields{"source": "assertion",
+			"userid": userid,
+			"email":  email})
 	return userid, email, nil
 }
 
@@ -951,7 +959,11 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 					"Hawk Verified, getting user info ...\n",
 					nil)
 				if userid, user, err = store.GetUserFromDevice(deviceid); err == nil {
-					fmt.Printf("### Got Userid %s, name %s\n ", userid, user)
+					self.logger.Debug(self.logCat,
+						"Got user info ",
+						util.Fields{"userid": userid,
+							"name":   user,
+							"device": deviceid})
 					loggedIn = true
 				}
 			} else {
@@ -1027,6 +1039,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 	self.metrics.Increment("device.registration")
+	self.updatePage(self.devId, "register", buffer, false)
 	reply, err := json.Marshal(util.Fields{"deviceid": self.devId,
 		"secret":   secret,
 		"email":    email,
