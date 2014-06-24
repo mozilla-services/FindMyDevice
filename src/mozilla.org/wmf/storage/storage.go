@@ -505,9 +505,9 @@ func (self *Storage) GcPosition(devId string) (err error) {
 	// get confused and toss an error, so yes, currently this uses inline
 	// replacement.
 	//	statement := fmt.Sprintf("delete from position where id in (select id from (select id, row_number() over (order by time desc) RowNumber from position where time < (now() - interval '%d seconds') ) tt where RowNumber > 1);", self.defExpry)
-	statement := "delete from position where time < (now() - interval '$1 seconds');"
+	statement := fmt.Sprintf("delete from position where time < (now() - interval '%d seconds');", self.defExpry)
 	st, err := dbh.Prepare(statement)
-	_, err = st.Exec(self.defExpry)
+	_, err = st.Exec()
 	st.Close()
 	if err != nil {
 		self.logger.Error(self.logCat, "Error gc'ing positions",

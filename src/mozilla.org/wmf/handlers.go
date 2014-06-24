@@ -300,6 +300,17 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 		self.logger.Info(self.logCat, "Extracted Audience",
 			util.Fields{"audience": args["audience"]})
 	}
+	if self.config.GetFlag("auth.trim_audience") {
+		audUrl, err := url.Parse(args["audience"])
+		if err != nil {
+			self.logger.Warn(self.logCat, "Could not parse Audience",
+				util.Fields{"error": err.Error(),
+					"audience": args["audience"]})
+		} else {
+			args["audience"] = fmt.Sprintf("%s://%s/", audUrl.Scheme,
+				audUrl.Host)
+		}
+	}
 	if args["audience"] == "" {
 		args["audience"] = self.config.Get("fxa.audience",
 			"https://oauth.accounts.firefox.com/v1")
@@ -494,6 +505,10 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		}
 		// return the contents of the session.
 		if ret {
+			self.logger.Info(self.logCat, "::Got User::",
+				util.Fields{"source": "session",
+					"userid": userid,
+					"email":  email})
 			return userid, email, nil
 		}
 	}
@@ -507,12 +522,16 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		}
 	}
 	if err != nil {
+		// error logged in verify
 		return "", "", ErrAuthorization
 	}
-	// fmt.Printf("userid %s; email %s;\n", userid, email)
 	if userid == "" && email != "" {
 		userid = self.genHash(email)
 	}
+	self.logger.Info(self.logCat, "::Got User::",
+		util.Fields{"source": "assertion",
+			"userid": userid,
+			"email":  email})
 	return userid, email, nil
 }
 
@@ -940,7 +959,11 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 					"Hawk Verified, getting user info ...\n",
 					nil)
 				if userid, user, err = store.GetUserFromDevice(deviceid); err == nil {
-					fmt.Printf("### Got Userid %s, name %s\n ", userid, user)
+					self.logger.Debug(self.logCat,
+						"Got user info ",
+						util.Fields{"userid": userid,
+							"name":   user,
+							"device": deviceid})
 					loggedIn = true
 				}
 			} else {
@@ -983,6 +1006,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		if len(accepts) == 0 {
 			accepts = "elrth"
 		}
+		if !strings.Contains("h", accepts) {
+			accepts = accepts + "h"
+		}
 
 		// create the new device record
 		var devId string
@@ -1013,16 +1039,20 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 	self.metrics.Increment("device.registration")
+	self.updatePage(self.devId, "register", buffer, false)
 	reply, err := json.Marshal(util.Fields{"deviceid": self.devId,
-		"secret": secret,
-		"email":  email,
+		"secret":   secret,
+		"email":    email,
+		"clientid": userid,
 	})
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not marshal reply",
 			util.Fields{"error": err.Error()})
 		return
 	}
-	//fmt.Printf("### Sending reply %s\n", reply)
+	if self.config.GetFlag("debug.show_output") {
+		fmt.Printf(">>>%s:%s\n", self.logCat, string(reply))
+	}
 	resp.Write(reply)
 	return
 }
@@ -1172,6 +1202,9 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	// total cheat to get the command without parsing the cmd data.
 	if len(cmd) > 2 {
 		self.metrics.Increment("cmd.send." + string(cmd[2]))
+	}
+	if self.config.GetFlag("debug.show_output") {
+		fmt.Printf(">>>%s:%s\n", self.logCat, string(output))
 	}
 	resp.Write(output)
 }
@@ -1435,6 +1468,9 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	}
 	repl, _ := json.Marshal(rep)
 	self.metrics.Increment("cmd.queued.rest")
+	if self.config.GetFlag("debug.show_output") {
+		fmt.Printf(">>>%s:%s\n", self.logCat, string(repl))
+	}
 	resp.Write(repl)
 }
 
@@ -1518,6 +1554,9 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	resp.Header().Set("Content-Type", "application/json")
+	if self.config.GetFlag("debug.show_output") {
+		fmt.Printf(">>>%s:%s\n", self.logCat, string(breply))
+	}
 	resp.Write(breply)
 	return
 }
@@ -1614,6 +1653,9 @@ func (self *Handler) InitDataJson(resp http.ResponseWriter, req *http.Request) {
 	resp.Header().Set("Content-Type", "application/json")
 	reply, err := json.Marshal(initData)
 	if err == nil {
+		if self.config.GetFlag("debug.show_output") {
+			fmt.Printf(">>>%s:%s\n", self.logCat, string(reply))
+		}
 		resp.Write([]byte(reply))
 		return
 	}
@@ -1669,6 +1711,9 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	// display the device info...
 	reply, err := json.Marshal(devInfo)
 	if err == nil {
+		if self.config.GetFlag("debug.show_output") {
+			fmt.Printf(">>>%s:%s\n", self.logCat, string(reply))
+		}
 		resp.Write([]byte(reply))
 	}
 }
@@ -1684,6 +1729,9 @@ func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
 		"version":    self.config.Get("VERSION", "unknown"),
 	}
 	rep, _ := json.Marshal(reply)
+	if self.config.GetFlag("debug.show_output") {
+		fmt.Printf(">>>%s:%s\n", self.logCat, string(rep))
+	}
 	resp.Write(rep)
 }
 
@@ -1710,11 +1758,17 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not generate metrics report",
 			util.Fields{"error": err.Error()})
+		if self.config.GetFlag("debug.show_output") {
+			fmt.Printf(">>>%s:{}\n", self.logCat)
+		}
 		resp.Write([]byte("{}"))
 		return
 	}
 	if reply == nil {
 		reply = []byte("{}")
+	}
+	if self.config.GetFlag("debug.show_output") {
+		fmt.Printf(">>>%s:%s\n", self.logCat, string(reply))
 	}
 	resp.Write(reply)
 }
@@ -1730,7 +1784,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 	if ni, ok := loginSession.Values["nonce"]; !ok {
 		// No nonce, no service
 		self.logger.Error(self.logCat, "Missing nonce", nil)
-		http.Error(resp, "Unauthorized", 401)
+		http.Redirect(resp, req, "/", http.StatusFound)
 		return
 	} else {
 		nonce = ni.(string)
@@ -1746,7 +1800,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 
 	if ok, err := store.CheckNonce(nonce); !ok || err != nil {
 		self.logger.Error(self.logCat, "Invalid Nonce", nil)
-		http.Error(resp, "Unauthorized", 401)
+		http.Redirect(resp, req, "/", http.StatusFound)
 		return
 	}
 	// Nuke the login session cookie
@@ -1761,17 +1815,17 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 		// TODO: check "state" matches magic code thingy
 		if state == "" {
 			self.logger.Error(self.logCat, "No State", nil)
-			http.Error(resp, "Unauthorized", 401)
+			http.Redirect(resp, req, "/", http.StatusFound)
 			return
 		}
 		if state != strings.SplitN(nonce, ".", 2)[0] {
 			self.logger.Error(self.logCat, "Invalid nonce", nil)
-			http.Error(resp, "Unauthorized", 401)
+			http.Redirect(resp, req, "/", http.StatusFound)
 			return
 		}
 		if code == "" {
 			self.logger.Error(self.logCat, "Missing code value", nil)
-			http.Error(resp, "Unauthorized", 401)
+			http.Redirect(resp, req, "/", http.StatusFound)
 			return
 		}
 
@@ -1781,7 +1835,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not get access token",
 				util.Fields{"error": err.Error()})
-			http.Error(resp, "Unauthorized", 401)
+			http.Redirect(resp, req, "/", http.StatusFound)
 			return
 		}
 		// fmt.Printf("### store user token %s\n", token)
@@ -1794,7 +1848,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not get email",
 				util.Fields{"error": err.Error()})
-			http.Error(resp, "Unauthorized", 401)
+			http.Redirect(resp, req, "/", http.StatusFound)
 			return
 		}
 		session.Values[SESSION_EMAIL] = email
@@ -1982,6 +2036,9 @@ func (self *Handler) Validate(resp http.ResponseWriter, req *http.Request) {
 	// OK, write out the reply object (if you can)
 	// as {valid: (true|false), [uid: ... ]}
 	if response, err := json.Marshal(reply); err == nil {
+		if self.config.GetFlag("debug.show_output") {
+			fmt.Printf(">>>%s:%s\n", self.logCat, string(response))
+		}
 		resp.Write(response)
 	} else {
 		self.logger.Error(self.logCat, "Could not write reply",
