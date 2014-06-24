@@ -69,7 +69,7 @@ func main() {
 	}
 	config, err := util.ReadMzConfig(opts.ConfigFile)
 	if err != nil {
-		log.Fatal("Could not read config file %s: %s", opts.ConfigFile, err.Error())
+		log.Fatalf("Could not read config file %s: %s", opts.ConfigFile, err.Error())
 		return
 	}
 	fullVers := fmt.Sprintf("%s-%s", config.Get("VERSION", VERSION),
