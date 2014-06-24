@@ -83,6 +83,7 @@ var (
 	ErrAuthorization = errors.New("Needs Authorization")
 	ErrNoUser        = errors.New("No User")
 	ErrOauth         = errors.New("OAuth Error")
+	ErrNoClient      = errors.New("No Client for Update")
 )
 
 // package globals
@@ -565,6 +566,21 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	return info, nil
 }
 
+func (self *Handler) stopTracking(devId string, store *storage.Storage) (err error) {
+	noTrack := storage.Unstructured{"t": replyType{"d": 0}}
+	jnt, err := json.Marshal(noTrack)
+	if err != nil {
+		self.logger.Warn(self.logCat, "Could not disable tracking",
+			util.Fields{"device": devId,
+				"error": err.Error()})
+	} else {
+		self.logger.Info(self.logCat, "Disabling tracking",
+			util.Fields{"device": devId})
+		store.StoreCommand(devId, string(jnt))
+	}
+	return err
+}
+
 // log the device's position reply
 func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, logPosition bool) (err error) {
 	var location storage.Position
@@ -626,6 +642,8 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 		self.logger.Warn(self.logCat,
 			"No client for device",
 			util.Fields{"deviceid": devId})
+		// turn off tracking, no client is there to get it.
+		self.stopTracking(devId, store)
 	}
 	return nil
 }
@@ -1119,8 +1137,9 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	// Do the command.
 	self.logger.Info(self.logCat, "Handling cmd response from device",
 		util.Fields{
-			"cmd":    string(body),
-			"length": fmt.Sprintf("%d", l),
+			"deviceid": deviceId,
+			"cmd":      string(body),
+			"length":   fmt.Sprintf("%d", l),
 		})
 	// Ignore effectively null commands (e.g. "" or {})
 	if l > 2 {
@@ -1931,6 +1950,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	sock.Run()
 	self.metrics.Decrement("page.socket")
 	self.metrics.Timer("page.socket", time.Now().Unix()-sock.Born.Unix())
+	self.stopTracking(deviceId, store)
 	rmClient(deviceId)
 }
 
