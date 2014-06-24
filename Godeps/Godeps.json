@@ -1,0 +1,62 @@
+{
+	"ImportPath": "github.com/mozilla-services/FindMyDevice",
+	"GoVersion": "go1.3",
+	"Packages": [
+		".",
+		"./wmf",
+		"./wmf/storage",
+		"./util"
+	],
+	"Deps": [
+		{
+			"ImportPath": "code.google.com/p/go-uuid/uuid",
+			"Comment": "null-12",
+			"Rev": "7dda39b2e7d5e265014674c5af696ba4186679e9"
+		},
+		{
+			"ImportPath": "code.google.com/p/go.net/websocket",
+			"Comment": "null-136",
+			"Rev": "28ff664507e453c4455b8c65e701bbe2b2ac980d"
+		},
+		{
+			"ImportPath": "code.google.com/p/goprotobuf/proto",
+			"Comment": "go.r60-146",
+			"Rev": "f5ac12b15e49095c60ae0acc6da0e28d47e2a29f"
+		},
+		{
+			"ImportPath": "github.com/cactus/go-statsd-client/statsd",
+			"Rev": "5b5607a786a6be31226ca2063e49695712aebc6d"
+		},
+		{
+			"ImportPath": "github.com/gorilla/context",
+			"Rev": "14f550f51af52180c2eefed15e5fd18d63c0a64a"
+		},
+		{
+			"ImportPath": "github.com/gorilla/securecookie",
+			"Rev": "1b0c7f6e9ab3d7f500fd7d50c7ad835ff428139b"
+		},
+		{
+			"ImportPath": "github.com/gorilla/sessions",
+			"Rev": "aa5e036e6c44aec69a32eb41097001978b29ad31"
+		},
+		{
+			"ImportPath": "github.com/jessevdk/go-flags",
+			"Comment": "v1-200-g7047cf7",
+			"Rev": "7047cf7a8dc6f41e53365420ab62d415055232c6"
+		},
+		{
+			"ImportPath": "github.com/lib/pq",
+			"Rev": "ae7391529ced9c12f06bf01eae33dadb4c70e49f"
+		},
+		{
+			"ImportPath": "github.com/mozilla-services/heka/client",
+			"Comment": "v0.5.2-7-gf3fce9f",
+			"Rev": "f3fce9f463c2c78a8205f3c0b48e19e4986ae5ba"
+		},
+		{
+			"ImportPath": "github.com/mozilla-services/heka/message",
+			"Comment": "v0.5.2-7-gf3fce9f",
+			"Rev": "f3fce9f463c2c78a8205f3c0b48e19e4986ae5ba"
+		}
+	]
+}
