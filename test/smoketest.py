@@ -30,22 +30,28 @@ import pdb
 
 import websocket
 
+
 def on_close(ws):
     print "## closed"
+
 
 def on_error(ws, error):
     print "!! error:: " + error
     exit()
 
+
 def on_message(ws, message):
     print "<<< Rcv'd:: " + ws.state + ">> " + message
+
 
 def on_open(ws):
     print "## Opened"
 
+
 def listener(url, devid):
-    ws = websocket.WebSocketApp(url+devid)
+    ws = websocket.WebSocketApp(url + devid)
     ws.run_forever()
+
 
 def genHash(body, ctype="application/json"):
     """ Generate a HAWK hash from the body of the sent message
@@ -122,7 +128,6 @@ def checkHawk(response, secret):
                                  hawk["nonce"],
                                  ct)
     # remove "white space
-    pdb.set_trace();
     return mac.replace('=', '') == hawk["mac"].replace('=', '')
 
 
@@ -182,7 +187,6 @@ def registerNew(config, cred):
                   "deviceid": "deadbeef00000000decafbad00000000"}
         # with HAWK
         reply = send(trg, regObj, cred)
-    import pdb; pdb.set_trace()
     cred = reply.json()
     print "### Returned Credentials: "
     pprint(cred)
