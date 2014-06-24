@@ -577,6 +577,10 @@ func (self *Handler) stopTracking(devId string, store *storage.Storage) (err err
 		self.logger.Info(self.logCat, "Disabling tracking",
 			util.Fields{"device": devId})
 		store.StoreCommand(devId, string(jnt))
+		// send the push if possible.
+		if devRec, err := store.GetDeviceInfo(devId); err == nil {
+			SendPush(devRec, self.config)
+		}
 	}
 	return err
 }
