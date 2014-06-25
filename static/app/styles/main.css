@@ -37,15 +37,28 @@
   font-stretch: normal;
   font-variant: normal; }
 
-@keyframes spin {
+@-webkit-keyframes spin {
   from {
+    -webkit-transform: rotate(0deg);
     transform: rotate(0deg); }
 
   to {
+    -webkit-transform: rotate(360deg);
+    transform: rotate(360deg); } }
+
+@keyframes spin {
+  from {
+    -webkit-transform: rotate(0deg);
+    transform: rotate(0deg); }
+
+  to {
+    -webkit-transform: rotate(360deg);
     transform: rotate(360deg); } }
 
 /* Border box all the things */
 *, *:before, *:after {
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
   box-sizing: border-box; }
 
 html, body, input, select {
@@ -116,6 +129,7 @@ a {
       right: 20px;
       top: 50%; }
   #stage #map {
+    background: url("../images/bg.png") no-repeat 50% 50%, -webkit-linear-gradient(270deg, #f4f4f4, #fff);
     background: url("../images/bg.png") no-repeat 50% 50%, linear-gradient(180deg, #f4f4f4, #fff);
     position: relative; }
     #stage #map .locating {
@@ -132,9 +146,13 @@ a {
         font-size: 14px;
         font-weight: normal; }
         #stage #map .locating h2::before {
+          -webkit-animation-name: spin;
           animation-name: spin;
+          -webkit-animation-duration: 1500ms;
           animation-duration: 1500ms;
+          -webkit-animation-iteration-count: infinite;
           animation-iteration-count: infinite;
+          -webkit-animation-timing-function: linear;
           animation-timing-function: linear;
           background: url("../images/radar-spinner.png") no-repeat;
           content: '';
@@ -356,9 +374,11 @@ a {
         #stage footer .button.erase a {
           background-image: url("../images/icon-erase.png"); }
   #modal {
+    -webkit-background-clip: padding-box;
     background-clip: padding-box;
     border-radius: 6px;
     border: 1px solid rgba(0, 0, 0, 0.1);
+    -webkit-box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
     box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
     margin-top: 12px;
     width: 300px; }
@@ -403,6 +423,7 @@ a {
     width: 100%; }
     #modal.drawer {
       border-bottom: 1px solid #e0e0e0;
+      -webkit-box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
       box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
       height: auto;
       top: 47px !important; } }
