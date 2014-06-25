@@ -3,9 +3,9 @@
 set -e
 
 echo "Installing required go libraries..."
-GOPATH="$(pwd)/Godeps/_workspace"
+export GOPATH="${PWD}/Godeps/_workspace"
+export GOBIN=$PWD
 
-GOBIN=$(pwd)
 go install
 
 echo "Libraries installed"
