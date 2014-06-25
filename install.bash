@@ -3,10 +3,10 @@
 set -e
 
 echo "Installing required go libraries..."
-GOPATH="$(pwd)/Godeps/_workspace"
+export GOPATH="${PWD}/Godeps/_workspace"
+export GOBIN=$PWD
 
-GOBIN=$(pwd)
-go install
+go install github.com/mozilla-services/FindMyDevice
 
 echo "Libraries installed"
 if [ ! -e config.ini ]; then
