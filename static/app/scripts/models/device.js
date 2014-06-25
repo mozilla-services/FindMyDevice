@@ -82,6 +82,21 @@ define([
     listenForUpdates: function () {
       this.socket = new WebSocket(this.get('url'));
       this.socket.onmessage = this.onWebSocketUpdate.bind(this);
+
+      // WebSocket debugging for the debuggers
+      console.log('socket opening...');
+
+      this.socket.onopen = function () {
+        console.log('socket open.');
+      };
+
+      this.socket.onerror = function (error) {
+        console.log('socket error:', error);
+      };
+
+      this.socket.onclose = function (close) {
+        console.log('socket close:', close);
+      };
     },
 
     stopListening: function () {

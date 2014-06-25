@@ -1953,7 +1953,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	addClient(deviceId, sock)
 	sock.Run()
 	self.metrics.Decrement("page.socket")
-	self.metrics.Timer("page.socket", time.Now().Unix()-sock.Born.Unix())
+	self.metrics.Timer("page.socket", int64(time.Since(sock.Born).Seconds()))
 	self.stopTracking(deviceId, store)
 	rmClient(deviceId)
 }

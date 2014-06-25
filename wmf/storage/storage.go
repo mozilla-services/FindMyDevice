@@ -343,14 +343,13 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 // Get pending commands.
 func (self *Storage) GetPending(devId string) (cmd string, err error) {
 	dbh := self.db
-	var createt = time.Time{}
-	var created int64
+	var created = time.Time{}
 
 	statement := "select id, cmd, time from pendingCommands where deviceId = $1 order by time limit 1;"
 	rows, err := dbh.Query(statement, devId)
 	if rows.Next() {
 		var id string
-		err = rows.Scan(&id, &cmd, &createt)
+		err = rows.Scan(&id, &cmd, &created)
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not read pending command",
 				util.Fields{"error": err.Error(),
@@ -358,8 +357,7 @@ func (self *Storage) GetPending(devId string) (cmd string, err error) {
 			return "", err
 		}
 		// Convert the date string to an int64
-		created = createt.Unix()
-		lifespan := time.Now().Unix() - created
+		lifespan := int64(time.Now().UTC().Sub(created).Seconds())
 		self.metrics.Timer("cmd.pending", lifespan)
 		statement = "delete from pendingCommands where id = $1"
 		dbh.Exec(statement, id)
