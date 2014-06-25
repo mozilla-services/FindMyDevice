@@ -1,30 +1,21 @@
 /*! This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* TypoPRO Fira Sans Bold */
-@font-face {
-  font-family: 'TypoPRO Fira Sans';
-  src: url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Bold.eot?#iefix') format('embedded-opentype'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Bold.woff') format('woff'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Bold.ttf') format('truetype');
-  font-style: normal;
-  font-weight: bold;
-  font-stretch: normal;
-  font-variant: normal; }
-
-/* TypoPRO Fira Sans Bold Italic */
-@font-face {
-  font-family: 'TypoPRO Fira Sans';
-  src: url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BoldItalic.eot?#iefix') format('embedded-opentype'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BoldItalic.woff') format('woff'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BoldItalic.ttf') format('truetype');
-  font-style: italic;
-  font-weight: bold;
-  font-stretch: normal;
-  font-variant: normal; }
-
 /* TypoPRO Fira Sans */
 @font-face {
   font-family: 'TypoPRO Fira Sans';
   src: url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Regular.eot?#iefix') format('embedded-opentype'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Regular.woff') format('woff'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Regular.ttf') format('truetype');
   font-style: normal;
   font-weight: normal;
+  font-stretch: normal;
+  font-variant: normal; }
+
+/* TypoPRO Fira Sans Bold */
+@font-face {
+  font-family: 'TypoPRO Fira Sans';
+  src: url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Bold.eot?#iefix') format('embedded-opentype'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Bold.woff') format('woff'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Bold.ttf') format('truetype');
+  font-style: normal;
+  font-weight: bold;
   font-stretch: normal;
   font-variant: normal; }
 
@@ -37,28 +28,24 @@
   font-stretch: normal;
   font-variant: normal; }
 
-@-webkit-keyframes spin {
-  from {
-    -webkit-transform: rotate(0deg);
-    transform: rotate(0deg); }
-
-  to {
-    -webkit-transform: rotate(360deg);
-    transform: rotate(360deg); } }
+/* TypoPRO Fira Sans Bold Italic */
+@font-face {
+  font-family: 'TypoPRO Fira Sans';
+  src: url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BoldItalic.eot?#iefix') format('embedded-opentype'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BoldItalic.woff') format('woff'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BoldItalic.ttf') format('truetype');
+  font-style: italic;
+  font-weight: bold;
+  font-stretch: normal;
+  font-variant: normal; }
 
 @keyframes spin {
   from {
-    -webkit-transform: rotate(0deg);
     transform: rotate(0deg); }
 
   to {
-    -webkit-transform: rotate(360deg);
     transform: rotate(360deg); } }
 
 /* Border box all the things */
 *, *:before, *:after {
-  -webkit-box-sizing: border-box;
-  -moz-box-sizing: border-box;
   box-sizing: border-box; }
 
 html, body, input, select {
@@ -129,7 +116,6 @@ a {
       right: 20px;
       top: 50%; }
   #stage #map {
-    background: url("../images/bg.png") no-repeat 50% 50%, -webkit-linear-gradient(270deg, #f4f4f4, #fff);
     background: url("../images/bg.png") no-repeat 50% 50%, linear-gradient(180deg, #f4f4f4, #fff);
     position: relative; }
     #stage #map .locating {
@@ -146,13 +132,9 @@ a {
         font-size: 14px;
         font-weight: normal; }
         #stage #map .locating h2::before {
-          -webkit-animation-name: spin;
           animation-name: spin;
-          -webkit-animation-duration: 1500ms;
           animation-duration: 1500ms;
-          -webkit-animation-iteration-count: infinite;
           animation-iteration-count: infinite;
-          -webkit-animation-timing-function: linear;
           animation-timing-function: linear;
           background: url("../images/radar-spinner.png") no-repeat;
           content: '';
@@ -298,7 +280,7 @@ a {
       #modal .buttons button:active {
         background: #aeaeae; }
       #modal .buttons button.danger {
-        background: red; }
+        background: #f00; }
         #modal .buttons button.danger:hover {
           background: #ff1a1a; }
         #modal .buttons button.danger:active {
@@ -374,18 +356,16 @@ a {
         #stage footer .button.erase a {
           background-image: url("../images/icon-erase.png"); }
   #modal {
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 6px;
-    -webkit-box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
-    box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
-    -webkit-background-clip: padding-box;
     background-clip: padding-box;
+    border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
     margin-top: 12px;
     width: 300px; }
     #modal::before {
+      border-color: transparent transparent #f4f4f4 transparent;
       border-style: solid;
       border-width: 0 10px 10px 10px;
-      border-color: transparent transparent #f4f4f4 transparent;
       content: '';
       height: 0;
       left: 48px;
@@ -394,9 +374,9 @@ a {
       width: 0;
       z-index: 1001; }
     #modal::after {
+      border-color: transparent transparent rgba(0, 0, 0, 0.2) transparent;
       border-style: solid;
       border-width: 0 11px 11px 11px;
-      border-color: transparent transparent rgba(0, 0, 0, 0.2) transparent;
       content: '';
       height: 0;
       left: 47px;
@@ -423,7 +403,6 @@ a {
     width: 100%; }
     #modal.drawer {
       border-bottom: 1px solid #e0e0e0;
-      -webkit-box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
       box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
-      top: 47px !important;
-      height: auto; } }
+      height: auto;
+      top: 47px !important; } }
