@@ -16,8 +16,7 @@ You will need:
 
 ## How to install:
 
-- set `GOPATH` to the root install directory (e.g. ``export GOPATH=`pwd` ``)
-- run `./install.bash`
+- run `./install.bash` (will generate "./FindMyDevice")
   - for Production level installs, you will need to also run:
     `grunt build` in the ./static library. This will create a
     ./static/dist directory containing prebuilt items.
@@ -29,7 +28,7 @@ You will need:
 `GOPATH` needs to be set to the root install directory. e.g.
 
 ```sh
-$ GOPATH=`pwd` go run main.go
+./runserver
 ```
 
 ## TODO:
