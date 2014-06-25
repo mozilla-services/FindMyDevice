@@ -7,9 +7,9 @@ package main
 import (
 	"code.google.com/p/go.net/websocket"
 	flags "github.com/jessevdk/go-flags"
-	"mozilla.org/util"
-	"mozilla.org/wmf"
-	"mozilla.org/wmf/storage"
+	"github.com/mozilla-services/FindMyDevice/util"
+	"github.com/mozilla-services/FindMyDevice/wmf"
+	"github.com/mozilla-services/FindMyDevice/wmf/storage"
 	// Only add the following for devel.
 	//	_ "net/http/pprof"
 
@@ -69,7 +69,7 @@ func main() {
 	}
 	config, err := util.ReadMzConfig(opts.ConfigFile)
 	if err != nil {
-		log.Fatal("Could not read config file %s: %s", opts.ConfigFile, err.Error())
+		log.Fatalf("Could not read config file %s: %s", opts.ConfigFile, err.Error())
 		return
 	}
 	fullVers := fmt.Sprintf("%s-%s", config.Get("VERSION", VERSION),
