@@ -27,10 +27,10 @@ import (
 )
 
 var opts struct {
-	ConfigFile string `short:"c" long:"config" optional:true description:"Configuration file"`
-	Profile    string `long:"profile" optional:true`
-	MemProfile string `long:"memprofile" optional:true`
-	LogLevel   int    `short:"l" long:"loglevel" optional:true`
+	ConfigFile string `short:"c" long:"config" description:"Configuration file"`
+	Profile    string `long:"profile"`
+	MemProfile string `long:"memprofile"`
+	LogLevel   int    `short:"l" long:"loglevel"`
 }
 
 var (
@@ -41,7 +41,7 @@ var (
 
 const (
 	// VERSION is the version number for system.
-	VERSION = "1.0"
+	VERSION = "1.1"
 )
 
 // get the latest version from git.
