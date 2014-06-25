@@ -17,7 +17,7 @@ import (
 var metrex sync.Mutex
 
 type trec struct {
-	Count int64
+	Count uint64
 	Avg   float64
 }
 
@@ -120,7 +120,7 @@ func (self *Metrics) Timer(metric string, value int64) {
 	metrex.Lock()
 	if t, ok := self.timer[metric]; !ok {
 		self.timer[metric] = trec{
-			Count: int64(1),
+			Count: uint64(1),
 			Avg:   float64(value),
 		}
 	} else {
