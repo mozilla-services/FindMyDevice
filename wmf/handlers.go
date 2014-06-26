@@ -707,6 +707,12 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 		return false
 	}
 
+    if self.config.GetFlag("hawk.OKBlank") && devRec.Secret == "" {
+        self.logger.Info(self.logCat, "Allowing old device",
+            util.Fields{"deviceId": devRec.ID})
+        return true
+    }
+
 	if self.config.GetFlag("hawk.disabled") {
 		return true
 	}
