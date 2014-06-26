@@ -167,7 +167,7 @@ func (self *Storage) Init() (err error) {
 		"create table if not exists deviceInfo (deviceId varchar unique, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar, pushurl varchar, accepts varchar, accesstoken varchar);",
 		"create index on deviceInfo (deviceId);",
 
-		"create table if not exists pendingCommands (id bigserial, deviceId varchar, time timestamp, cmd varchar);",
+		"create table if not exists pendingCommands (id bigserial, deviceId varchar, time timestamp, cmd varchar, type varchar);",
 		"create index on pendingCommands (deviceId);",
 
 		"create table if not exists position (id bigserial, deviceId varchar, time  timestamp, latitude real, longitude real, altitude real);",
@@ -200,47 +200,57 @@ func (self *Storage) Init() (err error) {
 		}
 	}
 	// burn off the excess indexes
-    // TEMPORARY!!
+	// TEMPORARY!!
 	statement = "select indexrelname from pg_stat_user_indexes where indexrelname similar to'%_idx\\d+';"
 	if rows, err := dbh.Query(statement); err == nil {
 		for rows.Next() {
 			if err = rows.Scan(&tmp); err == nil {
-                st := fmt.Sprintf("drop index %s;", tmp);
-                fmt.Printf("=== %s\n", st)
-                // again, Exec doesn't do var replacements for some reason.
+				st := fmt.Sprintf("drop index %s;", tmp)
+				fmt.Printf("=== %s\n", st)
+				// again, Exec doesn't do var replacements for some reason.
 				if _, err = dbh.Exec(st); err != nil {
 					fmt.Printf("=== Index Cleanup Err %s\n", err.Error())
 				}
 			}
 		}
 	}
+	//TODO get lastDbUpdate from meta, if there's a file in sql older
+	// than that, run it. (allows for db patching.)
+
 	return err
 }
 
 // Register a new device to a given userID.
 func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, err error) {
-	// value check?
+	var deviceId string
 	dbh := self.db
-	statement := "insert into deviceInfo (deviceId, lockable, loggedin, lastExchange, hawkSecret, accepts, pushUrl) values ($1, $2, $3, $4, $5, $6, $7);"
+
 	if dev.ID == "" {
 		dev.ID, _ = util.GenUUID4()
 	}
-	// Purge old registration records.
-	if _, err = dbh.Exec("delete from deviceInfo where deviceId = $1;", dev.ID); err != nil {
-		self.logger.Error(self.logCat,
-			"Could not purge old deviceinfo record",
-			util.Fields{"error": err.Error(),
-				"deviceId": dev.ID})
-		return "", err
+	// if the device belongs to the user already...
+	err = dbh.QueryRow("select deviceid from userToDeviceMap where userId = $1 and deviceid=$2;", userid, dev.ID).Scan(&deviceId)
+	if err == nil && deviceId == dev.ID {
+		self.logger.Debug(self.logCat, "Updating db",
+			util.Fields{"userId": userid, "deviceid": dev.ID})
+		_, err := dbh.Query("update deviceinfo set lockable=$1, loggedin=$2, lastExchange=$3, hawkSecret=$4, accepts=$5, pushUrl=$6 where deviceid=$7;",
+			dev.HasPasscode,
+			dev.LoggedIn,
+			dbNow(),
+			dev.Secret,
+			dev.Accepts,
+			dev.PushUrl,
+			dev.ID)
+		if err != nil {
+			fmt.Printf("!!!!! pgError: %+v\n", err)
+			return "", err
+		} else {
+			return dev.ID, nil
+		}
 	}
-	if _, err = dbh.Exec("delete from userToDeviceMap where deviceId = $1;", dev.ID); err != nil {
-		self.logger.Error(self.logCat,
-			"Could not purge old usertodevicemap record",
-			util.Fields{"error": err.Error(),
-				"deviceId": dev.ID})
-		return "", err
-	}
-	if _, err = dbh.Exec(statement,
+	// otherwise insert it.
+	statement := "insert into deviceInfo (deviceId, lockable, loggedin, lastExchange, hawkSecret, accepts, pushUrl) values ($1, $2, $3, $4, $5, $6, $7);"
+	if _, err = dbh.Query(statement,
 		string(dev.ID),
 		dev.HasPasscode,
 		dev.LoggedIn,
@@ -253,7 +263,7 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 				"device": fmt.Sprintf("%+v", dev)})
 		return "", err
 	}
-	if _, err = dbh.Exec("insert into userToDeviceMap (userId, deviceId, name, date) values ($1, $2, $3, now());", userid, dev.ID, dev.Name); err != nil {
+	if _, err = dbh.Query("insert into userToDeviceMap (userId, deviceId, name, date) values ($1, $2, $3, now());", userid, dev.ID, dev.Name); err != nil {
 		switch {
 		default:
 			self.logger.Error(self.logCat,
@@ -431,23 +441,36 @@ func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err
 }
 
 // Store a command into the list of pending commands for a device.
-func (self *Storage) StoreCommand(devId, command string) (err error) {
+func (self *Storage) StoreCommand(devId, command, cType string) (err error) {
 	//update device table to store command where devId = $1
-	statement := "insert into pendingCommands (deviceId, time, cmd) values ($1, $2,  $3);"
 	dbh := self.db
 
+	result, err := dbh.Exec("update pendingCommands set time=$1, cmd=$2 where deviceid=$3 and type=$4;",
+		dbNow(),
+		command,
+		devId,
+		cType)
 	if err != nil {
-		self.logger.Error(self.logCat, "Could not open db",
+		self.logger.Error(self.logCat,
+			"Could not update command",
 			util.Fields{"error": err.Error()})
 		return err
 	}
-	self.logger.Debug(self.logCat, "Storing Command",
-		util.Fields{"deviceId": devId, "command": command})
-
-	if _, err = dbh.Exec(statement, devId, dbNow(), command); err != nil {
-		self.logger.Error(self.logCat, "Could not store pending command",
-			util.Fields{"error": err.Error()})
-		return err
+	if cnt, err := result.RowsAffected(); cnt == 0 || err != nil {
+		self.logger.Debug(self.logCat,
+			"Storing Command",
+			util.Fields{"deviceId": devId,
+				"command": command})
+		if _, err = dbh.Exec("insert into pendingCommands (deviceid, time, cmd, type) values( $1, $2, $3, $4);",
+			devId,
+			dbNow(),
+			command,
+			cType); err != nil {
+			self.logger.Error(self.logCat,
+				"Could not store pending command",
+				util.Fields{"error": fmt.Sprintf("%+v", err)})
+			return err
+		}
 	}
 	return nil
 }

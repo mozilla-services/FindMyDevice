@@ -576,7 +576,7 @@ func (self *Handler) stopTracking(devId string, store *storage.Storage) (err err
 	} else {
 		self.logger.Info(self.logCat, "Disabling tracking",
 			util.Fields{"device": devId})
-		store.StoreCommand(devId, string(jnt))
+		store.StoreCommand(devId, string(jnt), "track")
 		// send the push if possible.
 		if devRec, err := store.GetDeviceInfo(devId); err == nil {
 			SendPush(devRec, self.config)
@@ -597,6 +597,8 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 		return err
 	}
 	defer store.Close()
+
+	fmt.Printf("### Sending update to page: %s : %+v\n", cmd, args)
 
 	// Only record a location if there is one.
 	// Device reports OK:false on errors
@@ -1063,8 +1065,8 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	self.metrics.Increment("device.registration")
 	self.updatePage(self.devId, "register", buffer, false)
 	reply, err := json.Marshal(util.Fields{"deviceid": self.devId,
-		"secret":   secret,
-		"email":    email,
+		"secret": secret,
+		//"email":    email,
 		"clientid": userid,
 	})
 	if err != nil {
@@ -1139,7 +1141,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 	// Do the command.
-	self.logger.Info(self.logCat, "Handling cmd response from device",
+	self.logger.Info(self.logCat, "### Handling cmd response from device",
 		util.Fields{
 			"deviceid": deviceId,
 			"cmd":      string(body),
@@ -1162,14 +1164,20 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 
 		for cmd, args := range reply {
 			var margs replyType
-			c := strings.ToLower(string(cmd))
-			cs := string(c[0])
-			if !strings.Contains(devRec.Accepts, cs) {
-				self.logger.Warn(self.logCat, "Unacceptable Command",
-					util.Fields{"unacceptable": cs,
-						"acceptable": devRec.Accepts})
+			if cmd == "" {
 				continue
 			}
+			c := strings.ToLower(string(cmd))
+			cs := string(c[0])
+			/*
+			            // TODO : fix command filter
+						if !strings.Contains(devRec.Accepts, cs) {
+							self.logger.Warn(self.logCat, "Unacceptable Command",
+								util.Fields{"unacceptable": cs,
+									"acceptable": devRec.Accepts})
+							continue
+						}
+			*/
 			self.metrics.Increment("cmd.received." + cs)
 			// Normalize the args.
 			switch args.(type) {
@@ -1179,10 +1187,9 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				margs = args.(map[string]interface{})
 			}
 			// handle the client response
-			switch string(c[0]) {
-			case "l", "r", "m", "e", "h":
-				err = store.Touch(deviceId)
-				self.updatePage(deviceId, c, margs, false)
+			err = store.Touch(deviceId)
+			fmt.Printf("#### c = \"%s\"\n", c)
+			switch cs {
 			case "t":
 				err = self.updatePage(deviceId, c, margs, true)
 			case "q":
@@ -1190,6 +1197,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				if self.config.GetFlag("cmd.q.allow") {
 					err = store.DeleteDevice(deviceId)
 				}
+			default:
+				err = self.updatePage(deviceId, c, margs, false)
 			}
 			if err != nil {
 				// Log the error
@@ -1241,7 +1250,8 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	// sanitize values.
 	var v interface{}
 	var ok bool
-	c := strings.ToLower(string(cmd[0]))
+	lcmd := strings.ToLower(cmd)
+	c := string(cmd[0])
 	self.logger.Debug(self.logCat, "Processing UI Command",
 		util.Fields{"cmd": cmd})
 	if !strings.Contains(devRec.Accepts, c) {
@@ -1330,7 +1340,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	}
 	defer store.Close()
 
-	err = store.StoreCommand(deviceId, string(fixed))
+	err = store.StoreCommand(deviceId, string(fixed), lcmd)
 	if err != nil {
 		// Log the error
 		self.logger.Error(self.logCat, "Error storing command",
