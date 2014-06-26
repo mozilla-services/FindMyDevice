@@ -167,7 +167,7 @@ func (self *Storage) Init() (err error) {
 		"create table if not exists deviceInfo (deviceId varchar unique, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar, pushurl varchar, accepts varchar, accesstoken varchar);",
 		"create index on deviceInfo (deviceId);",
 
-		"create table if not exists pendingCommands (id bigserial, deviceId varchar, time timestamp, cmd varchar);",
+		"create table if not exists pendingCommands (id bigserial, deviceId varchar, time timestamp, cmd varchar, type varchar);",
 		"create index on pendingCommands (deviceId);",
 
 		"create table if not exists position (id bigserial, deviceId varchar, time  timestamp, latitude real, longitude real, altitude real);",
@@ -214,6 +214,9 @@ func (self *Storage) Init() (err error) {
 			}
 		}
 	}
+	//TODO get lastDbUpdate from meta, if there's a file in sql older
+	// than that, run it. (allows for db patching.)
+
 	return err
 }
 
@@ -438,23 +441,36 @@ func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err
 }
 
 // Store a command into the list of pending commands for a device.
-func (self *Storage) StoreCommand(devId, command string) (err error) {
+func (self *Storage) StoreCommand(devId, command, cType string) (err error) {
 	//update device table to store command where devId = $1
-	statement := "insert into pendingCommands (deviceId, time, cmd) values ($1, $2,  $3);"
 	dbh := self.db
 
+	result, err := dbh.Exec("update pendingCommands set time=$1, cmd=$2 where deviceid=$3 and type=$4;",
+		dbNow(),
+		command,
+		devId,
+		cType)
 	if err != nil {
-		self.logger.Error(self.logCat, "Could not open db",
+		self.logger.Error(self.logCat,
+			"Could not update command",
 			util.Fields{"error": err.Error()})
 		return err
 	}
-	self.logger.Debug(self.logCat, "Storing Command",
-		util.Fields{"deviceId": devId, "command": command})
-
-	if _, err = dbh.Exec(statement, devId, dbNow(), command); err != nil {
-		self.logger.Error(self.logCat, "Could not store pending command",
-			util.Fields{"error": err.Error()})
-		return err
+	if cnt, err := result.RowsAffected(); cnt == 0 || err != nil {
+		self.logger.Debug(self.logCat,
+			"Storing Command",
+			util.Fields{"deviceId": devId,
+				"command": command})
+		if _, err = dbh.Exec("insert into pendingCommands (deviceid, time, cmd, type) values( $1, $2, $3, $4);",
+			devId,
+			dbNow(),
+			command,
+			cType); err != nil {
+			self.logger.Error(self.logCat,
+				"Could not store pending command",
+				util.Fields{"error": fmt.Sprintf("%+v", err)})
+			return err
+		}
 	}
 	return nil
 }
