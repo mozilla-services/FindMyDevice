@@ -648,8 +648,6 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 		self.logger.Warn(self.logCat,
 			"No client for device",
 			util.Fields{"deviceid": devId})
-		// turn off tracking, no client is there to get it.
-		self.stopTracking(devId, store)
 	}
 	return nil
 }
@@ -713,9 +711,6 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
         return true
     }
 
-	if self.config.GetFlag("hawk.disabled") {
-		return true
-	}
 	// Remote Hawk
 	rhawk := Hawk{logger: self.logger, config: self.config}
 	// Local Hawk
@@ -747,6 +742,9 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 				"expecting": lhawk.Signature,
 				"got":       rhawk.Signature,
 			})
+	    if self.config.GetFlag("hawk.disabled") {
+		    return true
+        }
 		return false
 	}
 	return true
