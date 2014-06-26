@@ -182,20 +182,39 @@ func (self *Storage) Init() (err error) {
 		"create index on nonce (time);",
 		"set time zone utc;",
 	}
-
 	dbh := self.db
-	for _, s := range cmds {
-		res, err := dbh.Exec(s)
-		self.logger.Debug(self.logCat, "db init",
-			util.Fields{"cmd": s, "res": fmt.Sprintf("%+v", res)})
-		if err != nil {
-			self.logger.Error(self.logCat, "Could not initialize db",
-				util.Fields{"cmd": s, "error": err.Error()})
-			return err
+	statement := "select table_name from information_schema.tables where table_name='meta' and table_schema='public';"
+	var tmp string
+	err = dbh.QueryRow(statement).Scan(&tmp)
+	if err == sql.ErrNoRows {
+		//initialize the table
+		for _, s := range cmds {
+			res, err := dbh.Exec(s)
+			self.logger.Debug(self.logCat, "db init",
+				util.Fields{"cmd": s, "res": fmt.Sprintf("%+v", res)})
+			if err != nil {
+				self.logger.Error(self.logCat, "Could not initialize db",
+					util.Fields{"cmd": s, "error": err.Error()})
+				return err
+			}
 		}
 	}
-
-	return nil
+	// burn off the excess indexes
+    // TEMPORARY!!
+	statement = "select indexrelname from pg_stat_user_indexes where indexrelname similar to'%_idx\\d+';"
+	if rows, err := dbh.Query(statement); err == nil {
+		for rows.Next() {
+			if err = rows.Scan(&tmp); err == nil {
+                st := fmt.Sprintf("drop index %s;", tmp);
+                fmt.Printf("=== %s\n", st)
+                // again, Exec doesn't do var replacements for some reason.
+				if _, err = dbh.Exec(st); err != nil {
+					fmt.Printf("=== Index Cleanup Err %s\n", err.Error())
+				}
+			}
+		}
+	}
+	return err
 }
 
 // Register a new device to a given userID.
