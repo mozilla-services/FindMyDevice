@@ -299,6 +299,9 @@ def main(argv):
         # Burn through the command queue.
         print "Processing commands...\n"
         cmd = processCmd(config, cred, cmd)
+        #import pdb; pdb.set_trace()
+        print "!!! Sending reregister... \n"
+        cmd, cred = registerNew(config, cred)
 
     # Send a fake statement saying that the client has no passcode.
     response = sendCmd(config, cred, {'has_passcode': False})
