@@ -40,6 +40,16 @@ const (
 	DEBUG
 )
 
+type HekaStdoutSender struct{}
+
+func (h *HekaStdoutSender) SendMessage(outBytes []byte) (err error) {
+	_, err = os.Stdout.Write(outBytes)
+	return
+}
+
+func (h *HekaStdoutSender) Close() {
+}
+
 // The fields to relay. NOTE: object reflection is VERY CPU expensive.
 // I specify strings here to reduce that as much as possible. Please do
 // not change this to something like map[string]interface{} since that
@@ -58,16 +68,20 @@ func NewHekaLogger(conf *MzConfig) *HekaLogger {
 
 	pid := int32(os.Getpid())
 
-    dhost, _ := os.Hostname()
+	dhost, _ := os.Hostname()
 	conf.SetDefaultFlag("heka.show_caller", false)
-    conf.SetDefault("logger.filter", "10")
+	conf.SetDefault("logger.filter", "10")
 	filter, _ = strconv.ParseInt(conf.Get("logger.filter", "10"), 0, 0)
 	if conf.GetFlag("heka.use") {
 		encoder = client.NewProtobufEncoder(nil)
-		sender, err = client.NewNetworkSender(conf.Get("heka.sender", "tcp"),
-            conf.Get("heka.server_addr", "127.0.0.1:5565"))
-		if err != nil {
-			log.Panic("Could not create sender ", err)
+		if conf.GetFlag("heka.stdout") {
+			sender = new(HekaStdoutSender)
+		} else {
+			sender, err = client.NewNetworkSender(conf.Get("heka.sender", "tcp"),
+				conf.Get("heka.server_addr", "127.0.0.1:5565"))
+			if err != nil {
+				log.Panic("Could not create sender ", err)
+			}
 		}
 		logname = conf.Get("heka.logger_name", "package")
 	}
