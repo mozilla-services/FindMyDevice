@@ -576,7 +576,7 @@ func (self *Handler) stopTracking(devId string, store *storage.Storage) (err err
 	} else {
 		self.logger.Info(self.logCat, "Disabling tracking",
 			util.Fields{"device": devId})
-		store.StoreCommand(devId, string(jnt), "track")
+		store.StoreCommand(devId, string(jnt), "t")
 		// send the push if possible.
 		if devRec, err := store.GetDeviceInfo(devId); err == nil {
 			SendPush(devRec, self.config)
@@ -705,11 +705,11 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 		return false
 	}
 
-    if self.config.GetFlag("hawk.OKBlank") && devRec.Secret == "" {
-        self.logger.Info(self.logCat, "Allowing old device",
-            util.Fields{"deviceId": devRec.ID})
-        return true
-    }
+	if self.config.GetFlag("hawk.OKBlank") && devRec.Secret == "" {
+		self.logger.Info(self.logCat, "Allowing old device",
+			util.Fields{"deviceId": devRec.ID})
+		return true
+	}
 
 	// Remote Hawk
 	rhawk := Hawk{logger: self.logger, config: self.config}
@@ -742,9 +742,9 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 				"expecting": lhawk.Signature,
 				"got":       rhawk.Signature,
 			})
-	    if self.config.GetFlag("hawk.disabled") {
-		    return true
-        }
+		if self.config.GetFlag("hawk.disabled") {
+			return true
+		}
 		return false
 	}
 	return true
@@ -955,6 +955,8 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		if val, ok := buffer["deviceid"]; !ok || len(val.(string)) == 0 {
 			deviceid, _ = util.GenUUID4()
 		} else {
+			// User provided a deviceid in the PATH, screen and see if we
+			// have any info about it.
 			deviceid = strings.Map(deviceIdFilter, val.(string))
 			if len(deviceid) > 32 {
 				deviceid = deviceid[:32]
@@ -966,6 +968,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 						"error": err.Error()})
 			}
 		}
+		// If there's an assertion, validate it and pull user info.
 		if assertion, ok := buffer["assert"]; ok {
 			if self.config.GetFlag("auth.persona") {
 				userid, email, err = self.verifyPersonaAssertion(assertion.(string))
@@ -979,10 +982,15 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			self.logger.Debug(self.logCat, "Got user "+email, nil)
 			loggedIn = true
 		} else {
+			// Huh, no assertion. Check the HAWK header to see if the
+			// user is valid or not. If so, get the user registered for
+			// this device.
 			self.logger.Warn(self.logCat, "Missing 'assert' value",
 				util.Fields{"body": raw})
 			// Use HAWK + deviceid to determine if this is a re-registration.
-			if hv := self.verifyHawkHeader(req, []byte(raw), devRec); devRec != nil && hv {
+			if hv := self.verifyHawkHeader(req,
+				[]byte(raw),
+				devRec); devRec != nil && hv {
 				self.logger.Info(self.logCat,
 					"Hawk Verified, getting user info ...\n",
 					nil)
@@ -993,17 +1001,24 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 							"name":   user,
 							"device": deviceid})
 					loggedIn = true
+				} else {
+					self.logger.Error(self.logCat,
+						"No user associated with valid device!!",
+						util.Fields{"deviceId": deviceid})
 				}
 			} else {
-				self.logger.Warn(self.logCat, "Failed Hawk Header Check", nil)
+				self.logger.Warn(self.logCat,
+					"Failed Hawk Header Check",
+					util.Fields{"deviceId": deviceid})
 			}
 		}
 		if !loggedIn {
-			self.logger.Error(self.logCat, "Not logged in", nil)
+			self.logger.Error(self.logCat, "Device Not logged in",
+				util.Fields{"deviceId": deviceid})
 			http.Error(resp, "Unauthorized", 401)
 			return
 		}
-
+		// If there's a pushUrl specified, make sure it's not empty.
 		if val, ok := buffer["pushurl"]; !ok || val == nil || len(val.(string)) == 0 {
 			self.logger.Error(self.logCat, "Missing SimplePush url", nil)
 			http.Error(resp, "Bad Data", 400)
@@ -1174,13 +1189,13 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			c := strings.ToLower(string(cmd))
 			cs := string(c[0])
 			/*
-			            // TODO : fix command filter
-						if !strings.Contains(devRec.Accepts, cs) {
-							self.logger.Warn(self.logCat, "Unacceptable Command",
-								util.Fields{"unacceptable": cs,
-									"acceptable": devRec.Accepts})
-							continue
-						}
+				            // TODO : fix command filter
+							if !strings.Contains(devRec.Accepts, cs) {
+								self.logger.Warn(self.logCat, "Unacceptable Command",
+									util.Fields{"unacceptable": cs,
+										"acceptable": devRec.Accepts})
+								continue
+							}
 			*/
 			self.metrics.Increment("cmd.received." + cs)
 			// Normalize the args.
