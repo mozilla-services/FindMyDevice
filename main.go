@@ -5,6 +5,8 @@ package main
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import (
+	"io/ioutil"
+
 	"code.google.com/p/go.net/websocket"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/mozilla-services/FindMyDevice/util"
@@ -44,19 +46,31 @@ const (
 	VERSION = "1.1"
 )
 
+// get the latest version from the file, "GITREF"
+func getCodeVersionFromFile() string {
+	vers, err := ioutil.ReadFile("GITREF")
+	if err != nil {
+		log.Print(err)
+		return ""
+	}
+	return strings.TrimSpace(string(vers))
+}
+
 // get the latest version from git.
 // If this isn't a git install, report "Unknown"
 func getCodeVersion() string {
+	if vers := getCodeVersionFromFile(); vers != "" {
+		return vers
+	}
 	var buffer = new(bytes.Buffer)
-	cmd := exec.Command("git", "log", "-1")
+	cmd := exec.Command("git", "rev-parse", "HEAD")
 	cmd.Stdout = buffer
 	err := cmd.Run()
 	if err != nil {
 		log.Printf("Could not get Git Version: %s", err.Error())
 		return "Unknown"
 	}
-	vers := strings.Split(strings.Split(buffer.String(), "\n")[0], " ")[1]
-	return vers
+	return strings.TrimSpace(buffer.String())
 }
 
 func main() {
