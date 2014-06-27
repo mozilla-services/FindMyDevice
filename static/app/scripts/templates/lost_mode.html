@@ -10,13 +10,13 @@
     </ul>
   {{/hasPasscode}}
   <section>
-    <p>Enter a note that will be shown on the phone.</p>
+    <p>Enter a note that will be shown on the device.</p>
 
     <textarea class="note" maxlength="100" placeholder="Note (optional)">{{ note }}</textarea>
 
     <div class="buttons">
       {{#hasPasscode}}
-        <button class="activate primary">Activate Lost Mode</button>
+        <button class="activate primary">Lock Device</button>
       {{/hasPasscode}}
       {{^hasPasscode}}
         <button class="next primary">Next</button>

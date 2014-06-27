@@ -1,11 +1,14 @@
 // FONT FAMILIES
-$default-font-family: 'TypoPRO Fira Sans', sans-serif;
+$default-font-family: 'TypoPRO Fira Sans';
 
 // COLORS
+$anchor-color: #79c8ee;
+$drawer-border-color: #e0e0e0;
+$drawer-box-shadow-color: rgba(#000, 0.2);
 $footer-background-color--desktop: #fff;
 $footer-background-color: #fff;
-$footer-height: 39px;
 $footer-height--desktop: 47px;
+$footer-height: 39px;
 $footer-link-active-background-color: #79c8ee;
 $footer-link-background-color: #6f7181;
 $footer-link-hover-background-color--desktop: #ebebeb;
@@ -13,9 +16,14 @@ $footer-text-color--desktop: #56565a;
 $footer-text-color: #56565a;
 $header-background-color: #f4f4f4;
 $header-height: 47px;
+$heading-color: #aaa;
 $heading-text-color: #999;
+$hero-color: #333;
+$map-heading-color: #555;
 $modal-background-color: #f4f4f4;
-$modal-text-color: #686868;
+$modal-border-color: rgba(#000, 0.1);
+$modal-box-shadow-color: rgba(#000, 0.2);
 $modal-button-background-color: #bbb;
-$modal-button-danger-background-color: red;
+$modal-button-danger-background-color: #f00;
 $modal-button-primary-background-color: #79c8ee;
+$modal-text-color: #686868;
