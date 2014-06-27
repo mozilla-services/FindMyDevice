@@ -17,7 +17,7 @@ html,
 body,
 input,
 select {
-  font-family: $default-font-family;
+  font-family: $default-font-family, sans-serif;
 }
 
 html,
@@ -30,20 +30,13 @@ body,
 }
 
 a {
-  color: #79c8ee;
+  color: $anchor-color;
   cursor: pointer;
   text-decoration: none;
 }
 
-// "To Be Determined" style for placeholder-ish things
-// .tbd {
-//   background: yellow !important;
-//   color: purple !important;
-//   font-style: italic !important;
-// }
-
 .hero {
-  color: #333;
+  color: $hero-color;
   padding: 60px 20px 20px 20px;
   text-align: center;
 
@@ -52,7 +45,7 @@ a {
   }
 
   h2 {
-    color: #aaa;
+    color: $heading-color;
     font-size: 20px;
     font-style: italic;
     font-weight: normal;
@@ -128,7 +121,7 @@ a {
       width: 200px;
 
       h2 {
-        color: #555;
+        color: $map-heading-color;
         font-size: 14px;
         font-weight: normal;
 
