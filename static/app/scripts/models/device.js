@@ -5,9 +5,8 @@
 define([
   'underscore',
   'backbone',
-  'jquery',
-  'lib/notifier'
-], function (_, Backbone, $, Notifier) {
+  'jquery'
+], function (_, Backbone, $) {
   'use strict';
 
   var Device = Backbone.Model.extend({
@@ -24,59 +23,98 @@ define([
     },
 
     onWebSocketUpdate: function (message) {
-      var data = JSON.parse(message.data);
+      console.log('socket message received', message && message.data);
 
-      if (data) {
-        var updatedAttributes = {};
+      if (message && message.data) {
+        var data = JSON.parse(message.data);
+        var attrs;
 
-        updatedAttributes.hasPasscode = data.HasPasscode;
-
-        if (data.Latitude > 0) {
-          clearTimeout(this.locationTimeout);
-
-          updatedAttributes.latitude = data.Latitude;
-          updatedAttributes.longitude = data.Longitude;
-          updatedAttributes.altitude = data.Altitude;
-          updatedAttributes.located = true;
-
-          // Lose location after 60 seconds of no location updates
-          this.locationTimeout = setTimeout(_.bind(this.locationTimedout, this), this.LOCATION_TIMEOUT);
+        if (data.Cmd) {
+          attrs = this.parseCommand(data.Cmd);
         }
 
         if (data.Time > 0) {
-          updatedAttributes.time = new Date(data.Time);
-        }
-
-        console.log('device:updated', this.get('id'), updatedAttributes, message.data);
-
-        // Just for notifications right now
-        if (data.Cmd) {
-          this.parseCommand(data.Cmd);
+          attrs.time = new Date(data.Time);
         }
 
         // Set the new attributes all at once so there's only one change event
-        this.set(updatedAttributes);
+        this.set(attrs);
       }
+    },
+
+    parseCommand: function (command) {
+      /* jshint camelcase: false */
+
+      var attrs;
+
+      if (command.e) {
+        attrs = this.parseEraseCommand(command);
+      } else if (command.has_passcode) {
+        attrs = this.parseHasPasscodeCommand(command);
+      } else if (command.l) {
+        attrs = this.parseLockCommand(command);
+      } else if (command.r) {
+        attrs = this.parseRingCommand(command);
+      } else if (command.t) {
+        attrs = this.parseTrackCommand(command);
+      }
+
+      return attrs;
+    },
+
+    parseEraseCommand: function (command) {
+      this.trigger('command:received:erase', command.e);
+
+      return {};
+    },
+
+    parseHasPasscodeCommand: function (command) {
+       /* jshint camelcase: false */
+
+      var hasPasscodeCommand = command.has_passcode;
+
+      this.trigger('command:received:hasPasscode', hasPasscodeCommand);
+
+      return {
+        hasPasscode: hasPasscodeCommand.has_passcode
+      };
+    },
+
+    parseLockCommand: function (command) {
+      this.trigger('command:received:lock', command.l);
+
+      return {};
+    },
+
+    parseRingCommand: function (command) {
+      this.trigger('command:received:ring', command.r);
+
+      return {};
+    },
+
+    parseTrackCommand: function(command) {
+      var trackCommand = command.t;
+      var attrs = {};
+
+      if (trackCommand.ok && trackCommand.la && trackCommand.lo) {
+        // Clear location timeout
+        clearTimeout(this.locationTimeout);
+
+        attrs.latitude = trackCommand.la;
+        attrs.longitude = trackCommand.lo;
+        attrs.located = true;
+
+        // Lose location after 60 seconds of no location updates
+        this.locationTimeout = setTimeout(_.bind(this.locationTimedout, this), this.LOCATION_TIMEOUT);
+      }
+
+      this.trigger('command:received:track', trackCommand);
+
+      return attrs;
     },
 
     locationTimedout: function () {
       this.set('located', false);
-    },
-
-    parseCommand: function (command) {
-      var message;
-
-      if (command.r && command.r.ok) {
-        message = 'playing a sound.';
-      } else if (command.e && command.e.ok) {
-        message = 'erasing.';
-      } else if (command.l && command.l.ok) {
-        message = 'in lost mode.';
-      }
-
-      if (message) {
-        Notifier.notify('Your device is ' + message);
-      }
     },
 
     listenForUpdates: function () {
@@ -104,6 +142,8 @@ define([
     },
 
     sendCommand: function (command) {
+      this.trigger('command:sent', command);
+
       return $.ajax({
         data: command.toJSON(),
         dataType: 'json',

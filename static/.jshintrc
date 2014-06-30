@@ -4,6 +4,7 @@
   "boss": true,
   "browser": true,
   "debug": true,
+  "camelcase": true,
   "eqeqeq": true,
   "esnext": true,
   "eqnull": false,

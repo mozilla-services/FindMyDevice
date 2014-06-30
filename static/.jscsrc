@@ -17,7 +17,6 @@
 
   "maximumLineLength": 160,
 
-  "requireCamelCaseOrUpperCaseIdentifiers": true,
   "requireCapitalizedConstructors": true,
   "requireCommaBeforeLineBreak": true,
   "requireCurlyBraces": ["if", "else", "for", "while", "do", "try", "catch"],
