@@ -96,6 +96,7 @@ var (
 // Client Mapping functions
 // Add a new trackable client.
 func addClient(id string, sock *WWS) {
+	fmt.Printf("+++ Adding client for %s\n", id)
 	defer muClient.Unlock()
 	muClient.Lock()
 	Clients[id] = sock
@@ -103,6 +104,7 @@ func addClient(id string, sock *WWS) {
 
 // remove a trackable client
 func rmClient(id string) {
+	fmt.Printf("--- Removing client for %s\n", id)
 	defer muClient.Unlock()
 	muClient.Lock()
 	if _, ok := Clients[id]; ok {
