@@ -5,8 +5,9 @@
 define([
   'underscore',
   'backbone',
-  'jquery'
-], function (_, Backbone, $) {
+  'jquery',
+  'reconnectingWebsocket'
+], function (_, Backbone, $, ReconnectingWebsocket) {
   'use strict';
 
   var Device = Backbone.Model.extend({
@@ -23,7 +24,7 @@ define([
     },
 
     onWebSocketUpdate: function (message) {
-      console.log('socket message received', message && message.data);
+      console.log('ws:message', message && message.data);
 
       if (message && message.data) {
         var data = JSON.parse(message.data);
@@ -98,14 +99,14 @@ define([
 
       if (trackCommand.ok && trackCommand.la && trackCommand.lo) {
         // Clear location timeout
-        clearTimeout(this.locationTimeout);
+        clearTimeout(this.locationTimer);
 
         attrs.latitude = trackCommand.la;
         attrs.longitude = trackCommand.lo;
         attrs.located = true;
 
         // Lose location after 60 seconds of no location updates
-        this.locationTimeout = setTimeout(_.bind(this.locationTimedout, this), this.LOCATION_TIMEOUT);
+        this.locationTimer = setTimeout(_.bind(this.locationTimedout, this), this.LOCATION_TIMEOUT);
       }
 
       this.trigger('command:received:track', trackCommand);
@@ -118,22 +119,22 @@ define([
     },
 
     listenForUpdates: function () {
-      this.socket = new WebSocket(this.get('url'));
-      this.socket.onmessage = this.onWebSocketUpdate.bind(this);
+      this.socket = new ReconnectingWebsocket(this.get('url'));
+      this.socket.onmessage = _.bind(this.onWebSocketUpdate, this);
 
-      // WebSocket debugging for the debuggers
-      console.log('socket opening...');
+      // DEBUG: WebSocket debugging for the debuggers
+      console.log('ws:opening');
 
       this.socket.onopen = function () {
-        console.log('socket open.');
+        console.log('ws:open');
       };
 
       this.socket.onerror = function (error) {
-        console.log('socket error:', error);
+        console.log('ws:error', error);
       };
 
       this.socket.onclose = function (close) {
-        console.log('socket close:', close);
+        console.log('ws:close', close);
       };
     },
 
