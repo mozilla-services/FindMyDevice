@@ -17,6 +17,15 @@ define([
       'devices/:id': 'showDevice'
     },
 
+    initialize: function () {
+      // Redirect to root on any 401 errors.
+      $(document).ajaxError(function (event, jqxhr, settings, exception) {
+        if (jqxhr.status === 401) {
+          window.location = '/';
+        }
+      });
+    },
+
     showIndex: function () {
       if (window.devices.length > 0) {
         // Navigate to the device
