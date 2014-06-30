@@ -104,12 +104,14 @@ func addClient(id string, sock *WWS) {
 
 // remove a trackable client
 func rmClient(id string) {
-	fmt.Printf("--- Removing client for %s\n", id)
 	defer muClient.Unlock()
 	muClient.Lock()
 	if _, ok := Clients[id]; ok {
+	    fmt.Printf("--- Removing client for %s\n", id)
 		delete(Clients, id)
-	}
+	} else {
+        fmt.Printf("--- !!! No record of %s!\n", id)
+    }
 }
 
 //Handler private functions
