@@ -633,12 +633,7 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 
 	// Only record a location if there is one.
 	// Device reports OK:false on errors
-	if b, ok := args["ok"]; ok {
-		if b.(bool) != true {
-			// Not Ok.
-			return nil
-		}
-
+	if b, ok := args["ok"]; ok && b.(bool) == true {
 		for key, arg := range args {
 			if len(key) < 2 {
 				continue
