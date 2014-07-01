@@ -91,7 +91,7 @@ define([
 
     trackReceived: function (command) {
       if (!command.ok) {
-        this.notify('An error occurred while trying to track your device.');
+        this.notify('An error occurred while trying to locate your device. Trying again...');
       }
     },
 
