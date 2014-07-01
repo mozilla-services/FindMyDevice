@@ -12,6 +12,7 @@ import (
 	"github.com/mozilla-services/FindMyDevice/wmf/storage"
 
 	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -75,7 +76,6 @@ type initDataStruct struct {
 }
 
 // Map of clientIDs to socket handlers
-type ClientMap map[string]*WWS
 
 //Errors
 var (
@@ -84,30 +84,61 @@ var (
 	ErrNoUser        = errors.New("No User")
 	ErrOauth         = errors.New("OAuth Error")
 	ErrNoClient      = errors.New("No Client for Update")
+	ErrTooManyClient = errors.New("Too Many Clients for device")
 )
 
 // package globals
 var (
-	muClient     sync.Mutex
-	Clients      = make(ClientMap)
+	muClient sync.RWMutex
+	// using a map of maps here because it's less hassle than iterating
+	// over a list. Need to investigate if there's significant memory loss
+	Clients      = make(map[string]map[string]*WWS)
 	sessionStore *sessions.CookieStore
 )
 
 // Client Mapping functions
 // Add a new trackable client.
-func addClient(id string, sock *WWS) {
+func addClient(id, instance string, sock *WWS) error {
+	fmt.Printf("+++ Adding client for %s:%s\n", id, instance)
 	defer muClient.Unlock()
 	muClient.Lock()
-	Clients[id] = sock
+	if clients, ok := Clients[id]; ok {
+		if _, ok := clients[instance]; !ok {
+			Clients[id][instance] = sock
+			return nil
+		} else {
+			fmt.Printf("+++ !!! Instance clash %s::%s\n", id, instance)
+			return ErrTooManyClient
+		}
+	} else {
+		Clients[id] = make(map[string]*WWS)
+		Clients[id][instance] = sock
+	}
+	return nil
 }
 
 // remove a trackable client
-func rmClient(id string) {
+func rmClient(id, instance string) error {
 	defer muClient.Unlock()
 	muClient.Lock()
-	if _, ok := Clients[id]; ok {
-		delete(Clients, id)
+	if clients, ok := Clients[id]; ok {
+		// remove the instance
+		if _, ok := clients[instance]; ok {
+			fmt.Printf("--- removing instance %s::%s\n", id, instance)
+			delete(clients, instance)
+			if len(clients) == 0 {
+				fmt.Printf("--- Purging instances for %s\n", id)
+				delete(Clients, id)
+			} else {
+				Clients[id] = clients
+			}
+			return nil
+		}
+		fmt.Printf("--- !!! No instance of %s::%s\n", id, instance)
+		return ErrNoClient
 	}
+	fmt.Printf("--- !!! No clients for %s!\n", id)
+	return ErrNoClient
 }
 
 //Handler private functions
@@ -641,12 +672,17 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 		}
 	}
 	location.Cmd = storage.Unstructured{cmd: args}
-	if client, ok := Clients[devId]; ok {
+
+	defer muClient.Unlock()
+	muClient.Lock()
+	if clients, ok := Clients[devId]; ok {
 		js, _ := json.Marshal(location)
-		client.Write(js)
+		for _, i := range clients {
+			i.Write(js)
+		}
 	} else {
 		self.logger.Warn(self.logCat,
-			"No client for device",
+			"No clients for device",
 			util.Fields{"deviceid": devId})
 	}
 	return nil
@@ -1925,6 +1961,11 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	}
 	defer store.Close()
 
+	// generate small token ID for this instance. UUID4 probably overkill.
+	// covert to int?
+	ib := make([]byte, 4)
+	rand.Read(ib)
+	instance := hex.EncodeToString(ib)
 	self.devId = getDevFromUrl(ws.Request().URL)
 	if !self.checkSig(ws.Request(), self.devId) {
 		self.logger.Error(self.logCat, "Unauthorized access.",
@@ -1959,32 +2000,32 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		}
 	}(sock.Logger)
 
-	// get the device id from the localAddress:
-	Url, err := url.Parse(ws.LocalAddr().String())
-	if err != nil {
-		self.logger.Error(self.logCat, "Unparsable URL for websocket",
-			util.Fields{"error": err.Error()})
-		return
-	}
-	deviceId := getDevFromUrl(Url)
-	if deviceId == "" {
+	if self.devId == "" {
 		self.logger.Error(self.logCat, "No deviceID found",
 			util.Fields{"error": err.Error(),
-				"path": Url.Path})
+				"path": ws.Request().URL.Path})
 		return
-	}
-	// Kill the old client.
-	if client, ok := Clients[deviceId]; ok {
-		client.Quit = true
 	}
 
 	self.metrics.Increment("page.socket")
-	addClient(deviceId, sock)
+	if err := addClient(self.devId, instance, sock); err != nil {
+		self.logger.Error(self.logCat,
+			"Could not add WebUI client",
+			util.Fields{"deviceId": self.devId,
+				"instance": instance,
+				"error":    err.Error()})
+		return
+	}
 	sock.Run()
 	self.metrics.Decrement("page.socket")
 	self.metrics.Timer("page.socket", int64(time.Since(sock.Born).Seconds()))
-	self.stopTracking(deviceId, store)
-	rmClient(deviceId)
+	self.stopTracking(self.devId, store)
+	if err := rmClient(self.devId, instance); err != nil {
+		self.logger.Error(self.logCat,
+			"Could not clean up closed instance!",
+			util.Fields{"error": err.Error(),
+				"deviceId": self.devId})
+	}
 }
 
 func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
