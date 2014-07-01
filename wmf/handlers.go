@@ -117,8 +117,8 @@ func addClient(id, instance string, sock *WWS) error {
 	return nil
 }
 
-// remove a trackable client
-func rmClient(id, instance string) error {
+// remove a trackable client, returns if tracking should stop
+func rmClient(id, instance string) (bool, error) {
 	defer muClient.Unlock()
 	muClient.Lock()
 	if clients, ok := Clients[id]; ok {
@@ -129,16 +129,17 @@ func rmClient(id, instance string) error {
 			if len(clients) == 0 {
 				fmt.Printf("--- Purging instances for %s\n", id)
 				delete(Clients, id)
+                return true, nil
 			} else {
 				Clients[id] = clients
 			}
-			return nil
+			return false, nil
 		}
 		fmt.Printf("--- !!! No instance of %s::%s\n", id, instance)
-		return ErrNoClient
+		return true, ErrNoClient
 	}
 	fmt.Printf("--- !!! No clients for %s!\n", id)
-	return ErrNoClient
+	return true, ErrNoClient
 }
 
 //Handler private functions
@@ -2013,13 +2014,16 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	sock.Run()
 	self.metrics.Decrement("page.socket")
 	self.metrics.Timer("page.socket", int64(time.Since(sock.Born).Seconds()))
-	self.stopTracking(self.devId, store)
-	if err := rmClient(self.devId, instance); err != nil {
+	if stopTrack, err := rmClient(self.devId, instance); err != nil {
 		self.logger.Error(self.logCat,
 			"Could not clean up closed instance!",
 			util.Fields{"error": err.Error(),
 				"deviceId": self.devId})
-	}
+	} else {
+        if stopTrack {
+	        self.stopTracking(self.devId, store)
+        }
+    }
 }
 
 func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
