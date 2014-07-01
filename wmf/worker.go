@@ -103,6 +103,9 @@ func (self *WWS) Run() {
 		select {
 		case <-self.quitter:
 			self.Quit = true
+			self.Logger.Debug("worker",
+				"Killing client",
+				util.Fields{"deviceId": self.Device.ID})
 			return
 		case input := <-self.input:
 			msg := make(replyType)
