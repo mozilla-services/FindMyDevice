@@ -129,7 +129,7 @@ func rmClient(id, instance string) (bool, error) {
 			if len(clients) == 0 {
 				fmt.Printf("--- Purging instances for %s\n", id)
 				delete(Clients, id)
-                return true, nil
+				return true, nil
 			} else {
 				Clients[id] = clients
 			}
@@ -757,6 +757,9 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 	// Generate the comparator signature from what we know.
 	lhawk.Nonce = rhawk.Nonce
 	lhawk.Time = rhawk.Time
+	// getting intermittent sig clashes. I'm copying time, but i don't know if the
+	// proxy could be causing issues as well. Set the method from the source here.
+	lhawk.Method = rhawk.Method
 	//lhawk.Hash = rhawk.Hash
 
 	err = lhawk.GenerateSignature(req, rhawk.Extra, string(body),
@@ -2020,10 +2023,10 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 			util.Fields{"error": err.Error(),
 				"deviceId": self.devId})
 	} else {
-        if stopTrack {
-	        self.stopTracking(self.devId, store)
-        }
-    }
+		if stopTrack {
+			self.stopTracking(self.devId, store)
+		}
+	}
 }
 
 func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
