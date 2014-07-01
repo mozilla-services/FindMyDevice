@@ -7,14 +7,24 @@ define([
   'backbone',
   'models/device',
   'views/device',
-  'views/device_not_found'
-], function ($, Backbone, Device, DeviceView, DeviceNotFoundView) {
+  'views/device_not_found',
+  'lib/notifier'
+], function ($, Backbone, Device, DeviceView, DeviceNotFoundView, Notifier) {
   'use strict';
 
   var Router = Backbone.Router.extend({
     routes: {
       '': 'showIndex',
       'devices/:id': 'showDevice'
+    },
+
+    initialize: function () {
+      // Redirect to root on any 401 errors.
+      $(document).ajaxError(function (event, jqxhr, settings, exception) {
+        if (jqxhr.status === 401) {
+          window.location = '/';
+        }
+      });
     },
 
     showIndex: function () {
@@ -27,7 +37,16 @@ define([
     },
 
     showDevice: function (id) {
-      this.setStage(new DeviceView({ model: window.devices.get(id) }));
+      var device = window.devices.get(id);
+
+      // Show the device if it exists, otherwise redirect to index
+      if (device) {
+        this.setStage(new DeviceView({ model: window.devices.get(id) }));
+      } else {
+        Notifier.notify('Sorry device not found.');
+
+        this.navigate('', { trigger: true });
+      }
     },
 
     showDeviceNotFound: function () {

@@ -6,8 +6,8 @@ define([
   'underscore',
   'backbone',
   'jquery',
-  'lib/notifier'
-], function (_, Backbone, $, Notifier) {
+  'reconnectingWebsocket'
+], function (_, Backbone, $, ReconnectingWebsocket) {
   'use strict';
 
   var Device = Backbone.Model.extend({
@@ -24,78 +24,117 @@ define([
     },
 
     onWebSocketUpdate: function (message) {
-      var data = JSON.parse(message.data);
+      console.log('ws:message', message && message.data);
 
-      if (data) {
-        var updatedAttributes = {};
+      if (message && message.data) {
+        var data = JSON.parse(message.data);
+        var attrs;
 
-        updatedAttributes.hasPasscode = data.HasPasscode;
-
-        if (data.Latitude > 0) {
-          clearTimeout(this.locationTimeout);
-
-          updatedAttributes.latitude = data.Latitude;
-          updatedAttributes.longitude = data.Longitude;
-          updatedAttributes.altitude = data.Altitude;
-          updatedAttributes.located = true;
-
-          // Lose location after 60 seconds of no location updates
-          this.locationTimeout = setTimeout(_.bind(this.locationTimedout, this), this.LOCATION_TIMEOUT);
+        if (data.Cmd) {
+          attrs = this.parseCommand(data.Cmd);
         }
 
         if (data.Time > 0) {
-          updatedAttributes.time = new Date(data.Time);
-        }
-
-        console.log('device:updated', this.get('id'), updatedAttributes, message.data);
-
-        // Just for notifications right now
-        if (data.Cmd) {
-          this.parseCommand(data.Cmd);
+          attrs.time = new Date(data.Time);
         }
 
         // Set the new attributes all at once so there's only one change event
-        this.set(updatedAttributes);
+        this.set(attrs);
       }
+    },
+
+    parseCommand: function (command) {
+      /* jshint camelcase: false */
+
+      var attrs;
+
+      if (command.e) {
+        attrs = this.parseEraseCommand(command);
+      } else if (command.has_passcode) {
+        attrs = this.parseHasPasscodeCommand(command);
+      } else if (command.l) {
+        attrs = this.parseLockCommand(command);
+      } else if (command.r) {
+        attrs = this.parseRingCommand(command);
+      } else if (command.t) {
+        attrs = this.parseTrackCommand(command);
+      }
+
+      return attrs;
+    },
+
+    parseEraseCommand: function (command) {
+      this.trigger('command:received:erase', command.e);
+
+      return {};
+    },
+
+    parseHasPasscodeCommand: function (command) {
+       /* jshint camelcase: false */
+
+      var hasPasscodeCommand = command.has_passcode;
+
+      this.trigger('command:received:hasPasscode', hasPasscodeCommand);
+
+      return {
+        hasPasscode: hasPasscodeCommand.has_passcode
+      };
+    },
+
+    parseLockCommand: function (command) {
+      this.trigger('command:received:lock', command.l);
+
+      return {};
+    },
+
+    parseRingCommand: function (command) {
+      this.trigger('command:received:ring', command.r);
+
+      return {};
+    },
+
+    parseTrackCommand: function(command) {
+      var trackCommand = command.t;
+      var attrs = {};
+
+      if (trackCommand.ok && trackCommand.la && trackCommand.lo) {
+        // Clear location timeout
+        clearTimeout(this.locationTimer);
+
+        attrs.latitude = trackCommand.la;
+        attrs.longitude = trackCommand.lo;
+        attrs.located = true;
+
+        // Lose location after 60 seconds of no location updates
+        this.locationTimer = setTimeout(_.bind(this.locationTimedout, this), this.LOCATION_TIMEOUT);
+      }
+
+      this.trigger('command:received:track', trackCommand);
+
+      return attrs;
     },
 
     locationTimedout: function () {
       this.set('located', false);
     },
 
-    parseCommand: function (command) {
-      var message;
-
-      if (command.r && command.r.ok) {
-        message = 'playing a sound.';
-      } else if (command.e && command.e.ok) {
-        message = 'erasing.';
-      } else if (command.l && command.l.ok) {
-        message = 'in lost mode.';
-      }
-
-      if (message) {
-        Notifier.notify('Your device is ' + message);
-      }
-    },
-
     listenForUpdates: function () {
-      this.socket = new WebSocket(this.get('url'));
-      this.socket.onmessage = this.onWebSocketUpdate.bind(this);
+      this.socket = new ReconnectingWebsocket(this.get('url'));
+      this.socket.onmessage = _.bind(this.onWebSocketUpdate, this);
 
-      // WebSocket debugging for the debuggers
-      console.log('socket opening...');
+      // DEBUG: WebSocket debugging for the debuggers
+      console.log('ws:opening');
 
       this.socket.onopen = function () {
-        console.log('socket open.');
+        console.log('ws:open');
       };
 
       this.socket.onerror = function (error) {
-        console.log('socket error:', error);
+        console.log('ws:error', error);
       };
 
       this.socket.onclose = function (close) {
-        console.log('socket close:', close);
+        console.log('ws:close', close);
       };
     },
 
@@ -104,8 +143,12 @@ define([
     },
 
     sendCommand: function (command) {
+      var commandJSON = command.toJSON();
+
+      this.trigger('command:sent', commandJSON);
+
       return $.ajax({
-        data: command.toJSON(),
+        data: commandJSON,
         dataType: 'json',
         type: 'PUT',
         url: '/1/queue/' + this.get('id')
