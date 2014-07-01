@@ -670,7 +670,7 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 	muClient.Lock()
 	if clients, ok := Clients[devId]; ok {
 		js, _ := json.Marshal(location)
-		fmt.Printf("### Sending update to %d pages: %s : %+s\n", len(clients), js)
+		fmt.Printf("### Sending update to %d pages: %s\n", len(clients), js)
 		for _, i := range clients {
 			i.Write(js)
 		}
