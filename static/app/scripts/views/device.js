@@ -54,6 +54,9 @@ define([
       this.listenTo(this.model, 'command:received:ring', this.ringReceived);
       this.listenTo(this.model, 'command:received:track', this.trackReceived);
 
+      // Listen just once for these model changes
+      this.listenToOnce(this.model, 'command:received:hasPasscode command:received:track', this.updateLocatingMessage);
+
       // DEBUG: Log all device events
       this.listenTo(this.model, 'all', function (event, obj) {
         console.log(['device', this.model.get('id'), event].join(':'), obj && obj.attributes ? obj.attributes : obj);
@@ -94,6 +97,10 @@ define([
 
     notify: function (message) {
       Notifier.notify(message);
+    },
+
+    updateLocatingMessage: function () {
+      this.$('.locating h2').html('Locating device...');
     },
 
     openDeviceSelector: function (event) {
