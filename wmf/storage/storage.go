@@ -202,7 +202,9 @@ func (self *Storage) Init() (err error) {
 	// burn off the excess indexes
 	// TEMPORARY!!
 	statement = "select indexrelname from pg_stat_user_indexes where indexrelname similar to'%_idx\\d+';"
-	if rows, err := dbh.Query(statement); err == nil {
+	rows, err := dbh.Query(statement)
+    defer rows.Close()
+    if err == nil {
 		for rows.Next() {
 			if err = rows.Scan(&tmp); err == nil {
 				st := fmt.Sprintf("drop index %s;", tmp)
@@ -233,7 +235,7 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 	if err == nil && deviceId == dev.ID {
 		self.logger.Debug(self.logCat, "Updating db",
 			util.Fields{"userId": userid, "deviceid": dev.ID})
-		_, err := dbh.Query("update deviceinfo set lockable=$1, loggedin=$2, lastExchange=$3, hawkSecret=$4, accepts=$5, pushUrl=$6 where deviceid=$7;",
+		rows, err := dbh.Query("update deviceinfo set lockable=$1, loggedin=$2, lastExchange=$3, hawkSecret=$4, accepts=$5, pushUrl=$6 where deviceid=$7;",
 			dev.HasPasscode,
 			dev.LoggedIn,
 			dbNow(),
@@ -241,6 +243,7 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 			dev.Accepts,
 			dev.PushUrl,
 			dev.ID)
+        defer rows.Close()
 		if err != nil {
 			fmt.Printf("!!!!! pgError: %+v\n", err)
 			return "", err
@@ -250,20 +253,24 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 	}
 	// otherwise insert it.
 	statement := "insert into deviceInfo (deviceId, lockable, loggedin, lastExchange, hawkSecret, accepts, pushUrl) values ($1, $2, $3, $4, $5, $6, $7);"
-	if _, err = dbh.Query(statement,
+    rows, err := dbh.Query(statement,
 		string(dev.ID),
 		dev.HasPasscode,
 		dev.LoggedIn,
 		dbNow(),
 		dev.Secret,
 		dev.Accepts,
-		dev.PushUrl); err != nil {
+		dev.PushUrl)
+    defer rows.Close()
+    if err != nil {
 		self.logger.Error(self.logCat, "Could not create device",
 			util.Fields{"error": err.Error(),
 				"device": fmt.Sprintf("%+v", dev)})
 		return "", err
 	}
-	if _, err = dbh.Query("insert into userToDeviceMap (userId, deviceId, name, date) values ($1, $2, $3, now());", userid, dev.ID, dev.Name); err != nil {
+    rows2, err := dbh.Query("insert into userToDeviceMap (userId, deviceId, name, date) values ($1, $2, $3, now());", userid, dev.ID, dev.Name)
+    defer rows2.Close()
+    if err != nil {
 		switch {
 		default:
 			self.logger.Error(self.logCat,
@@ -300,8 +307,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		return nil, err
 	}
 	defer stmt.Close()
-	row := stmt.QueryRow(devId)
-	err = row.Scan(&deviceId, &userId, &name, &hasPasscode,
+	err = stmt.QueryRow(devId).Scan(&deviceId, &userId, &name, &hasPasscode,
 		&loggedIn, &pushUrl, &accepts, &secret, &lestr, &accesstoken)
 	switch {
 	case err == sql.ErrNoRows:
@@ -328,6 +334,7 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		Accepts:      accepts,
 		AccessToken:  string(accesstoken),
 	}
+    fmt.Printf(">> device: %+v\n", reply)
 
 	return reply, nil
 }
@@ -338,6 +345,7 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 
 	statement := "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time limit 1;"
 	rows, err := dbh.Query(statement, devId)
+    defer rows.Close()
 	if err == nil {
 		var time int32
 		var latitude float32
@@ -359,7 +367,6 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 				Time:      int64(time)})
 		}
 		// gather the positions
-		rows.Close()
 	} else {
 		self.logger.Error(self.logCat, "Could not get positions",
 			util.Fields{"error": err.Error()})
@@ -376,6 +383,7 @@ func (self *Storage) GetPending(devId string) (cmd string, err error) {
 
 	statement := "select id, cmd, time from pendingCommands where deviceId = $1 order by time limit 1;"
 	rows, err := dbh.Query(statement, devId)
+    defer rows.Close()
 	if rows.Next() {
 		var id string
 		err = rows.Scan(&id, &cmd, &created)
@@ -400,6 +408,7 @@ func (self *Storage) GetUserFromDevice(deviceId string) (userId, name string, er
 	dbh := self.db
 	statement := "select userId, name from userToDeviceMap where deviceId = $1 limit 1;"
 	rows, err := dbh.Query(statement, deviceId)
+    defer rows.Close()
 	if err == nil {
 		for rows.Next() {
 			err = rows.Scan(&userId, &name)
@@ -423,6 +432,7 @@ func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err
 	dbh := self.db
 	statement := "select deviceId, coalesce(name,deviceId) from userToDeviceMap where userId = $1 order by date;"
 	rows, err := dbh.Query(statement, userId)
+    defer rows.Close()
 	if err == nil {
 		for rows.Next() {
 			var id, name string
@@ -684,6 +694,7 @@ func (self *Storage) CheckNonce(nonce string) (bool, error) {
 	}
 	statement = "select val from nonce where key = $1 limit 1;"
 	rows, err := dbh.Query(statement, keysig[0])
+    defer rows.Close()
 	if err == nil {
 		for rows.Next() {
 			var val string
