@@ -143,10 +143,12 @@ define([
     },
 
     sendCommand: function (command) {
-      this.trigger('command:sent', command);
+      var commandJSON = command.toJSON();
+
+      this.trigger('command:sent', commandJSON);
 
       return $.ajax({
-        data: command.toJSON(),
+        data: commandJSON,
         dataType: 'json',
         type: 'PUT',
         url: '/1/queue/' + this.get('id')
