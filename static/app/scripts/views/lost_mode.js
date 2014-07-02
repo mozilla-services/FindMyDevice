@@ -33,6 +33,8 @@ define([
     activate: function (event) {
       event.preventDefault();
 
+      this.note = this.$('.note').val();
+
       this.device.sendCommand(new LockCommand({ message: this.note }));
 
       this.device.set('activity', 'lost');
