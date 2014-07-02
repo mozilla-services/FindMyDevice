@@ -225,6 +225,7 @@ func (self *Hawk) ParseAuthHeader(req *http.Request, logger *util.HekaLogger) (e
 		}
 	}
 	self.Path = getFullPath(req)
+	self.Method = strings.ToUpper(req.Method)
 	self.Host, self.Port = self.getHostPort(req)
 	if self.config.GetFlag("hawk.show_hash") {
 		self.logger.Debug("hawk", "Parsed Header",
