@@ -42,6 +42,7 @@ type Handler struct {
 	logCat  string
 	accepts []string
 	hawk    *Hawk
+	store   *storage.Storage
 }
 
 const (
@@ -123,11 +124,13 @@ func rmClient(id, instance string) (bool, error) {
 	muClient.Lock()
 	if clients, ok := Clients[id]; ok {
 		// remove the instance
-		if _, ok := clients[instance]; ok {
+		if cli, ok := clients[instance]; ok {
 			fmt.Printf("--- removing instance %s::%s\n", id, instance)
 			delete(clients, instance)
 			if len(clients) == 0 {
 				fmt.Printf("--- Purging instances for %s\n", id)
+				// forcing the socket closed
+				cli.Socket.Close()
 				delete(Clients, id)
 				return true, nil
 			} else {
@@ -446,11 +449,7 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 	data = &initDataStruct{}
 	self.logCat = "handler:initData"
 
-	store, err := storage.Open(self.config, self.logger, self.metrics)
-	if err != nil {
-		return nil, err
-	}
-	defer store.Close()
+	store := self.store
 
 	// Get this from the config file?
 	data.ProductName = self.config.Get("productname", "Find My Device")
@@ -505,6 +504,11 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (userid, email string, err error) {
 
 	var session *sessions.Session
+
+	// because oauth may not always be present.
+	if em := self.config.Get("auth.force_user", ""); len(em) > 0 {
+		return self.genHash(em), em, nil
+	}
 
 	session, err = sessionStore.Get(req, SESSION_NAME)
 	// fmt.Printf("### Your session is: %+v\n", session.Values)
@@ -622,13 +626,7 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 	var location storage.Position
 	var hasPasscode bool
 
-	store, err := storage.Open(self.config, self.logger, self.metrics)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not open database",
-			util.Fields{"error": err.Error()})
-		return err
-	}
-	defer store.Close()
+	store := self.store
 
 	// Only record a location if there is one.
 	// Device reports OK:false on errors
@@ -697,13 +695,7 @@ func (self *Handler) logReply(devId, cmd string, args replyType) (err error) {
 			return errors.New("Unknown error")
 		}
 		// log the state? (Device is currently cmd-ing)?
-		store, err := storage.Open(self.config, self.logger, self.metrics)
-		if err != nil {
-			self.logger.Error(self.logCat, "Could not open database",
-				util.Fields{"error": err.Error()})
-			return err
-		}
-		defer store.Close()
+		store := self.store
 		err = store.Touch(devId)
 	}
 	return err
@@ -911,7 +903,6 @@ func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Me
 			util.Fields{"error": err.Error()})
 		return nil
 	}
-	defer store.Close()
 
 	sessionSecret := config.Get("session.secret", "")
 	if sessionSecret == "" {
@@ -946,7 +937,9 @@ func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Me
 	return &Handler{config: config,
 		logger:  logger,
 		logCat:  "handler",
-		metrics: metrics}
+		metrics: metrics,
+		store:   store,
+	}
 }
 
 // Register a new device
@@ -971,14 +964,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	// Do not set a session here. Use HAWK and URL to validate future
 	// calls from the device.
 
-	store, err := storage.Open(self.config, self.logger, self.metrics)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not open database",
-			util.Fields{"error": err.Error()})
-		http.Error(resp, "Server error", 500)
-		return
-	}
-	defer store.Close()
+	store := self.store
 
 	buffer, raw, err = parseBody(req.Body)
 	if err != nil {
@@ -1141,14 +1127,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 
 	self.logCat = "handler:Cmd"
 	resp.Header().Set("Content-Type", "application/json")
-	store, err := storage.Open(self.config, self.logger, self.metrics)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not open database",
-			util.Fields{"error": err.Error()})
-		http.Error(resp, "Server error", 500)
-		return
-	}
-	defer store.Close()
+	store := self.store
 
 	// fmt.Printf("### req.URL: %s", req.URL)
 	deviceId := getDevFromUrl(req.URL)
@@ -1385,13 +1364,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 
-	store, err := storage.Open(self.config, self.logger, self.metrics)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not open database",
-			util.Fields{"error": err.Error()})
-		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
-	}
-	defer store.Close()
+	store := self.store
 
 	err = store.StoreCommand(deviceId, string(fixed), lcmd)
 	if err != nil {
@@ -1434,14 +1407,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
-	store, err := storage.Open(self.config, self.logger, self.metrics)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not open database",
-			util.Fields{"error": err.Error()})
-		http.Error(resp, "Server error", 500)
-		return
-	}
-	defer store.Close()
+	store := self.store
 
 	deviceId := getDevFromUrl(req.URL)
 	if deviceId == "" {
@@ -1581,15 +1547,7 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 		//TODO: return error, clear cookie?
 		return
 	}
-	store, err := storage.Open(self.config, self.logger, self.metrics)
-	if err != nil {
-		self.logger.Error(self.logCat,
-			"Could not open database",
-			util.Fields{"error": err.Error()})
-		http.Error(resp, "Server error", 500)
-		return
-	}
-	defer store.Close()
+	store := self.store
 
 	sessionInfo, err := self.getSessionInfo(resp, req, session)
 	if err == nil && len(sessionInfo.UserId) > 0 {
@@ -1759,14 +1717,7 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 
 	resp.Header().Set("Content-Type", "application/json")
 
-	store, err := storage.Open(self.config, self.logger, self.metrics)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not open database",
-			util.Fields{"error": err.Error()})
-		http.Error(resp, "Server error", 500)
-		return
-	}
-	defer store.Close()
+	store := self.store
 
 	session, err := sessionStore.Get(req, SESSION_NAME)
 	if err != nil {
@@ -1876,13 +1827,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 		nonce = ni.(string)
 	}
 
-	store, err := storage.Open(self.config, self.logger, self.metrics)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not open database",
-			util.Fields{"error": err.Error()})
-		return
-	}
-	defer store.Close()
+	store := self.store
 
 	if ok, err := store.CheckNonce(nonce); !ok || err != nil {
 		self.logger.Error(self.logCat, "Invalid Nonce", nil)
@@ -1951,13 +1896,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 // Handle Websocket processing.
 func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	self.logCat = "handler:Socket"
-	store, err := storage.Open(self.config, self.logger, self.metrics)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not open database",
-			util.Fields{"error": err.Error()})
-		return
-	}
-	defer store.Close()
+	store := self.store
 
 	// generate small token ID for this instance. UUID4 probably overkill.
 	// covert to int?
@@ -2030,14 +1969,8 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 }
 
 func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
-	store, err := storage.Open(self.config, self.logger, self.metrics)
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not open database",
-			util.Fields{"error": err.Error()})
-		http.Error(resp, "Server error", 500)
-		return
-	}
-	defer store.Close()
+	var err error
+	store := self.store
 
 	session, _ := sessionStore.Get(req, SESSION_LOGIN)
 	if session.Values["nonce"], err = store.GetNonce(); err != nil {
