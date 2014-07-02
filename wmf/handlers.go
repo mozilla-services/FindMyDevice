@@ -126,11 +126,13 @@ func rmClient(id, instance string) (bool, error) {
 		// remove the instance
 		if cli, ok := clients[instance]; ok {
 			fmt.Printf("--- removing instance %s::%s\n", id, instance)
+			// Forcing client connection closed
+			if cli.Socket.IsClientConn() {
+				cli.Socket.Close()
+			}
 			delete(clients, instance)
 			if len(clients) == 0 {
 				fmt.Printf("--- Purging instances for %s\n", id)
-				// forcing the socket closed
-				cli.Socket.Close()
 				delete(Clients, id)
 				return true, nil
 			} else {
