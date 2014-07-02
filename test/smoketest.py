@@ -143,7 +143,7 @@ def newLocation():
     utc = int(time.time())
     lat = 37.3883 + geoWalk()
     lon = -122.0615 + geoWalk()
-    return {"ok": True, "t": {"la": lat, "lo": lon, "ti": utc, "ha": True}}
+    return {"t": {"ok": True, "la": lat, "lo": lon, "ti": utc, "ha": True}}
 
 
 def getConfig(argv):
@@ -236,6 +236,8 @@ def processCmd(config, cred, cmd):
     """ Process the command like a client.
         Or a cat. Which it kinda does now.
     """
+    if cmd == None:
+        return
     #TODO: you can insert various responses to commands here
     # or just eat them like I'm doing right now.
     print "Command Recv'd: %s" % cmd
@@ -255,7 +257,7 @@ def processCmd(config, cred, cmd):
             reply = {"e": {"ok": True}}
         elif 't' in obj:
             print "Tracking device for %s seconds" % obj['t']['d']
-            reply = {"t": {"ok": True}}
+            reply = newLocation()
         else:
             print "Unknown command"
             pprint(obj)
@@ -295,19 +297,21 @@ def main(argv):
     # register a new device
     print "Registering client... \n"
     cmd, cred = registerNew(config, cred)
-    while cmd is not None:
+    #while cmd is not None:
+    while True:
         # Burn through the command queue.
         print "Processing commands...\n"
         cmd = processCmd(config, cred, cmd)
         #import pdb; pdb.set_trace()
-        print "!!! Sending reregister... \n"
-        cmd, cred = registerNew(config, cred)
+        #print "!!! Sending reregister... \n"
+        #time.sleep(1)
+        sendCmd(config, cred, newLocation())
+        #cmd, cred = registerNew(config, cred)
 
     # Send a fake statement saying that the client has no passcode.
     response = sendCmd(config, cred, {'has_passcode': False})
     if response is not None:
         print(response.text)
-#    sendCmd(config, cred, {'l': {'ok': True}, 'has_passcode': True})
     print "done"
 
 

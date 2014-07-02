@@ -90,7 +90,6 @@ func (self *WWS) Run() {
 					"Unhandled error in Run",
 					util.Fields{"error": r.(error).Error()})
 			}
-			sock.quitter <- true
 		}
 		sock.Logger.Debug("worker", "Cleaning up...", nil)
 		sock.Socket.Close()
@@ -140,8 +139,4 @@ func (self *WWS) Run() {
 			}
 		}
 	}
-}
-
-func (self *WWS) Write(out []byte) {
-	self.output <- out
 }
