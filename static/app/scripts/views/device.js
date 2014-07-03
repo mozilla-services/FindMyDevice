@@ -33,6 +33,19 @@ define([
       'sound-located': '../images/pin-sound-located.png'
     },
 
+    MARKER_ICONS_HIDPI: {
+      'blank': '../images/pin-blank@2x.png',
+      'blank-located': '../images/pin-blank-located@2x.png',
+      'erase': '../images/pin-erase@2x.png',
+      'erase-located': '../images/pin-erase-located@2x.png',
+      'lost': '../images/pin-lost@2x.png',
+      'lost-located': '../images/pin-lost-located@2x.png',
+      'sound': '../images/pin-sound@2x.png',
+      'sound-located': '../images/pin-sound-located@2x.png'
+    },
+
+    HIDPI_PIXEL_RATIO: 1.3,
+
     TRACKING_INTERVAL: 60,
 
     template: DeviceTemplate,
@@ -184,6 +197,14 @@ define([
       }
     },
 
+    getMarkerIconPath: function (name) {
+      if (window.devicePixelRatio && window.devicePixelRatio >= this.HIDPI_PIXEL_RATIO) {
+        return this.MARKER_ICONS_HIDPI[name];
+      } else {
+        return this.MARKER_ICONS[name];
+      }
+    },
+
     updateMarkerIcon: function (animate) {
       if (this.marker) {
         var iconURL;
@@ -191,10 +212,10 @@ define([
 
         if (this.model.get('located')) {
           className += ' pin-located';
-          iconURL = this.MARKER_ICONS[this.model.get('activity') + '-located'];
+          iconURL = this.getMarkerIconPath(this.model.get('activity') + '-located');
         } else {
           className += ' pin-locating';
-          iconURL = this.MARKER_ICONS[this.model.get('activity')];
+          iconURL = this.getMarkerIconPath(this.model.get('activity'));
         }
 
         this.marker.setIcon(L.icon({
