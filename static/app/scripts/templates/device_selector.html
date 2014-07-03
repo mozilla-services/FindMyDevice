@@ -1,9 +1,9 @@
 <section>
   <ul>
     {{#devices}}
-      <li>
+      <li {{#isCurrentDevice}}class="selected"{{/isCurrentDevice}}>
         {{#isCurrentDevice}}
-          <span class="selected">{{name}}</span>
+          <span>{{name}}</span>
         {{/isCurrentDevice}}
         {{^isCurrentDevice}}
           <a href="#devices/{{id}}">{{name}}</a>

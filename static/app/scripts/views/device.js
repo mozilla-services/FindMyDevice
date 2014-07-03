@@ -23,14 +23,14 @@ define([
   var DeviceView = BaseView.extend({
     // These paths are here so that usemin can replace them with revved paths
     MARKER_ICONS: {
-      'blank': '../images/pin-blank.png',
-      'blank-located': '../images/pin-blank-located.png',
-      'erase': '../images/pin-erase.png',
-      'erase-located': '../images/pin-erase-located.png',
-      'lost': '../images/pin-lost.png',
-      'lost-located': '../images/pin-lost-located.png',
-      'sound': '../images/pin-sound.png',
-      'sound-located': '../images/pin-sound-located.png'
+      'blank': '../images/pin-blank@2x.png',
+      'blank-located': '../images/pin-blank-located@2x.png',
+      'erase': '../images/pin-erase@2x.png',
+      'erase-located': '../images/pin-erase-located@2x.png',
+      'lost': '../images/pin-lost@2x.png',
+      'lost-located': '../images/pin-lost-located@2x.png',
+      'sound': '../images/pin-sound@2x.png',
+      'sound-located': '../images/pin-sound-located@2x.png'
     },
 
     TRACKING_INTERVAL: 60,
