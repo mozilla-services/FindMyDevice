@@ -392,7 +392,13 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 				"body":  raw})
 		return "", "", err
 	}
-
+	if status, ok := buff["status"]; ok {
+		if status == "failure" {
+			self.logger.Error(self.logCat, "FxA verification failed",
+				util.Fields{"error": buff["reason"].(string)})
+			return "", "", ErrOauth
+		}
+	}
 	// the response has either been a redirect or a validated assertion.
 	// fun times, fun times...
 	if idp, ok := buff["idpClaims"]; ok {
@@ -665,7 +671,7 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 				return err
 			}
 			// because go sql locking.
-			store.GcPosition(devId)
+			store.GcDatabase(devId, "")
 		}
 	}
 	location.Cmd = storage.Unstructured{cmd: args}
@@ -1337,7 +1343,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		}
 		if v, ok = rargs["m"]; ok {
 			vs := v.(string)
-			if self.config.Flag("ascii_message_only") {
+			if self.config.GetFlag("ascii_message_only") {
 				rargs["m"] = strings.Map(asciiOnly,
 					vs[:minInt(100, len(vs))])
 			} else {
