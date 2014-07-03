@@ -667,8 +667,8 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 	}
 	location.Cmd = storage.Unstructured{cmd: args}
 
+	// this defer also catches and logs panics from the i.Socket.Write()
 	defer func(logger *util.HekaLogger, logCat, devId string) {
-		muClient.RUnlock()
 		if r := recover(); r != nil {
 			err := r.(error)
 			logger.Error(logCat,
@@ -677,8 +677,12 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 					"deviceId": devId})
 		}
 	}(self.logger, self.logCat, devId)
+
 	muClient.RLock()
-	if clients, ok := Clients[devId]; ok {
+	clients, ok := Clients[devId]
+	muClient.RUnlock()
+
+	if ok {
 		js, _ := json.Marshal(location)
 		fmt.Printf("### Sending update to %d pages: %s\n", len(clients), js)
 		for _, i := range clients {
