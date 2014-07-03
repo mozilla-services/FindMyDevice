@@ -667,13 +667,26 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 	}
 	location.Cmd = storage.Unstructured{cmd: args}
 
-	defer muClient.Unlock()
-	muClient.Lock()
-	if clients, ok := Clients[devId]; ok {
+	// this defer also catches and logs panics from the i.Socket.Write()
+	defer func(logger *util.HekaLogger, logCat, devId string) {
+		if r := recover(); r != nil {
+			err := r.(error)
+			logger.Error(logCat,
+				"Panic in WS handler",
+				util.Fields{"error": err.Error(),
+					"deviceId": devId})
+		}
+	}(self.logger, self.logCat, devId)
+
+	muClient.RLock()
+	clients, ok := Clients[devId]
+	muClient.RUnlock()
+
+	if ok {
 		js, _ := json.Marshal(location)
 		fmt.Printf("### Sending update to %d pages: %s\n", len(clients), js)
 		for _, i := range clients {
-			i.Write(js)
+			i.Socket.Write(js)
 		}
 	} else {
 		self.logger.Warn(self.logCat,
@@ -1955,19 +1968,21 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 				"error":    err.Error()})
 		return
 	}
-	sock.Run()
-	self.metrics.Decrement("page.socket")
-	self.metrics.Timer("page.socket", int64(time.Since(sock.Born).Seconds()))
-	if stopTrack, err := rmClient(self.devId, instance); err != nil {
-		self.logger.Error(self.logCat,
-			"Could not clean up closed instance!",
-			util.Fields{"error": err.Error(),
-				"deviceId": self.devId})
-	} else {
-		if stopTrack {
-			self.stopTracking(self.devId, store)
+	defer func(self *Handler, sock *WWS, instance string) {
+		self.metrics.Decrement("page.socket")
+		self.metrics.Timer("page.socket", int64(time.Since(sock.Born).Seconds()))
+		if stopTrack, err := rmClient(self.devId, instance); err != nil {
+			self.logger.Error(self.logCat,
+				"Could not clean up closed instance!",
+				util.Fields{"error": err.Error(),
+					"deviceId": self.devId})
+		} else {
+			if stopTrack {
+				self.stopTracking(self.devId, store)
+			}
 		}
-	}
+	}(self, sock, instance)
+	sock.Run()
 }
 
 func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {

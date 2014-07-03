@@ -43,7 +43,7 @@ var (
 
 const (
 	// VERSION is the version number for system.
-	VERSION = "1.1"
+	VERSION = "1.2"
 )
 
 // get the latest version from the file, "GITREF"
@@ -214,7 +214,7 @@ func main() {
 		handlers.Index)
 
 	logger.Info("main", "startup...",
-		util.Fields{"host": host, "port": port})
+		util.Fields{"host": host, "port": port, "version": fullVers})
 
 	go func() {
 		errChan <- http.ListenAndServe(host+":"+port, nil)
