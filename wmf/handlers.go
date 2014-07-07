@@ -31,6 +31,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // base handler for REST and Socket calls.
@@ -653,6 +654,8 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 				location.Longitude = arg.(float64)
 			case "al":
 				location.Altitude = arg.(float64)
+			case "ac":
+				location.Accuracy = arg.(float64)
 			case "ti":
 				location.Time = int64(arg.(float64))
 				if location.Time == 0 {
@@ -1345,9 +1348,9 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 			vs := v.(string)
 			if self.config.GetFlag("ascii_message_only") {
 				rargs["m"] = strings.Map(asciiOnly,
-					vs[:minInt(100, len(vs))])
+					vs[:minInt(100, utf8.RuneCountInString(vs))])
 			} else {
-				rargs["m"] = vs[:minInt(100, len(vs))]
+				rargs["m"] = vs[:minInt(100, utf8.RuneCountInString(vs))]
 			}
 		}
 	case "r", "t":

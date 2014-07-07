@@ -39,6 +39,7 @@ type Position struct {
 	Latitude  float64
 	Longitude float64
 	Altitude  float64
+	Accuracy  float64
 	Time      int64
 	Cmd       map[string]interface{}
 }
@@ -95,6 +96,7 @@ type Unstructured map[string]interface{}
        latitude   float
        longitude  float
        altitude   float
+       accuracy   float
 
    // misc administrivia table.
    table meta:
@@ -177,7 +179,7 @@ func (self *Storage) Init() (err error) {
 		"create table if not exists pendingCommands (id bigserial, deviceId varchar, time timestamp, cmd varchar, type varchar);",
 		"create index on pendingCommands (deviceId);",
 
-		"create table if not exists position (id bigserial, deviceId varchar, time  timestamp, latitude real, longitude real, altitude real);",
+		"create table if not exists position (id bigserial, deviceId varchar, time  timestamp, latitude real, longitude real, altitude real, accuracy real);",
 		"create index on position (deviceId);",
 		"create or replace function update_time() returns trigger as $$ begin new.lastexchange = now(); return new; end; $$ language 'plpgsql';",
 		"drop trigger if exists update_le on deviceinfo;",
@@ -350,7 +352,7 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 
 	dbh := self.db
 
-	statement := "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time limit 1;"
+	statement := "select extract(epoch from time)::int, latitude, longitude, altitude, accuracy from position where deviceid=$1 order by time limit 1;"
 	rows, err := dbh.Query(statement, devId)
 	defer rows.Close()
 	if err == nil {
@@ -358,9 +360,10 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 		var latitude float32
 		var longitude float32
 		var altitude float32
+		var accuracy float32
 
 		for rows.Next() {
-			err = rows.Scan(&time, &latitude, &longitude, &altitude)
+			err = rows.Scan(&time, &latitude, &longitude, &altitude, &accuracy)
 			if err != nil {
 				self.logger.Error(self.logCat, "Could not get positions",
 					util.Fields{"error": err.Error(),
@@ -371,6 +374,7 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 				Latitude:  float64(latitude),
 				Longitude: float64(longitude),
 				Altitude:  float64(altitude),
+				Accuracy:  float64(accuracy),
 				Time:      int64(time)})
 		}
 		// gather the positions
@@ -531,14 +535,15 @@ func (self *Storage) SetDeviceLocation(devId string, position Position) (err err
 	// Only keep the latest positon (changed requirements from original design)
 	self.PurgePosition(devId)
 
-	statement := "insert into position (deviceId, time, latitude, longitude, altitude) values ($1, $2, $3, $4, $5);"
+	statement := "insert into position (deviceId, time, latitude, longitude, altitude, accuracy) values ($1, $2, $3, $4, $5, $6);"
 	st, err := dbh.Prepare(statement)
 	_, err = st.Exec(
 		devId,
 		dbNow(),
 		float32(position.Latitude),
 		float32(position.Longitude),
-		float32(position.Altitude))
+		float32(position.Altitude),
+		float32(position.Accuracy))
 	st.Close()
 	if err != nil {
 		self.logger.Error(self.logCat, "Error inserting postion",
