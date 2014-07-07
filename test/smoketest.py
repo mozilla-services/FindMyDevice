@@ -31,6 +31,9 @@ import pdb
 import websocket
 
 
+global accuracy
+
+
 def on_close(ws):
     print "## closed"
 
@@ -140,10 +143,17 @@ def geoWalk():
 def newLocation():
     """ Create a new, fake location
     """
+    global accuracy
+    accuracy = accuracy - random.randint(0, 300)
+    if (random.randint(0, 1000) == 42):
+        accuracy = random.randint(1000, 50000)
     utc = int(time.time())
-    lat = 37.3883 + geoWalk()
-    lon = -122.0615 + geoWalk()
-    return {"t": {"ok": True, "la": lat, "lo": lon, "ti": utc, "ha": True}}
+    lat = 37.3866 + geoWalk()
+    lon = -122.0608 + geoWalk()
+    if (accuracy < 10):
+        accuracy = 10
+    return {"t": {"ok": True, "la": lat, "lo": lon,
+        "ti": utc, "acc": accuracy, "has_passcode": True}}
 
 
 def getConfig(argv):
@@ -284,6 +294,8 @@ def sendCmd(config, cred, cmd):
 
 
 def main(argv):
+    global accuracy
+    accuracy = 5000
     config = getConfig(argv)
     cmd = {}
     try:
