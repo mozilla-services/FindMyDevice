@@ -392,7 +392,13 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 				"body":  raw})
 		return "", "", err
 	}
-
+	if status, ok := buff["status"]; ok {
+		if status == "failure" {
+			self.logger.Error(self.logCat, "FxA verification failed",
+				util.Fields{"error": buff["reason"].(string)})
+			return "", "", ErrOauth
+		}
+	}
 	// the response has either been a redirect or a validated assertion.
 	// fun times, fun times...
 	if idp, ok := buff["idpClaims"]; ok {
@@ -492,9 +498,9 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 				self.logger.Error(self.logCat,
 					"Could not get device's position information",
 					util.Fields{"error": err.Error(),
-						"userId": data.UserId,
-						"email":  sessionInfo.Email,
-						"device": sessionInfo.DeviceId})
+						"userId":   data.UserId,
+						"email":    sessionInfo.Email,
+						"deviceId": sessionInfo.DeviceId})
 				return nil, err
 			}
 		}
@@ -546,7 +552,7 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		if ret {
 			self.logger.Info(self.logCat, "::Got User::",
 				util.Fields{"source": "session",
-					"userid": userid,
+					"userId": userid,
 					"email":  email})
 			return userid, email, nil
 		}
@@ -569,7 +575,7 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 	}
 	self.logger.Info(self.logCat, "::Got User::",
 		util.Fields{"source": "assertion",
-			"userid": userid,
+			"userId": userid,
 			"email":  email})
 	return userid, email, nil
 }
@@ -609,14 +615,17 @@ func (self *Handler) stopTracking(devId string, store *storage.Storage) (err err
 	jnt, err := json.Marshal(noTrack)
 	if err != nil {
 		self.logger.Warn(self.logCat, "Could not disable tracking",
-			util.Fields{"device": devId,
+			util.Fields{"deviceId": devId,
 				"error": err.Error()})
 	} else {
 		self.logger.Info(self.logCat, "Disabling tracking",
-			util.Fields{"device": devId})
+			util.Fields{"deviceId": devId})
 		store.StoreCommand(devId, string(jnt), "t")
 		// send the push if possible.
 		if devRec, err := store.GetDeviceInfo(devId); err == nil {
+			self.logger.Debug(self.logCat, "Sending Push",
+				util.Fields{"deviceId": devId,
+					"cmd": "t:0"})
 			SendPush(devRec, self.config)
 		}
 	}
@@ -662,7 +671,7 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 				return err
 			}
 			// because go sql locking.
-			store.GcPosition(devId)
+			store.GcDatabase(devId, "")
 		}
 	}
 	location.Cmd = storage.Unstructured{cmd: args}
@@ -799,7 +808,7 @@ func (self *Handler) genSig(req *http.Request, devId string) (ret string, err er
 		return "", errors.New("Invalid")
 	} else {
 		sig := self.genHash(sess.(string) +
-			session.Values["userid"].(string))
+			session.Values[SESSION_USERID].(string))
 		/*
 		   fmt.Printf("@@@ Remote Addr: %s, %s, %s\n",
 		       req.RemoteAddr,
@@ -1032,9 +1041,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 				if userid, user, err = store.GetUserFromDevice(deviceid); err == nil {
 					self.logger.Debug(self.logCat,
 						"Got user info ",
-						util.Fields{"userid": userid,
-							"name":   user,
-							"device": deviceid})
+						util.Fields{"userId": userid,
+							"name":     user,
+							"deviceId": deviceid})
 					loggedIn = true
 				} else {
 					self.logger.Error(self.logCat,
@@ -1235,7 +1244,6 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			}
 			// handle the client response
 			err = store.Touch(deviceId)
-			fmt.Printf("#### c = \"%s\"\n", c)
 			switch cs {
 			case "t":
 				err = self.updatePage(deviceId, c, margs, true)
@@ -1251,9 +1259,9 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				// Log the error
 				self.logger.Error(self.logCat, "Error handling command",
 					util.Fields{"error": err.Error(),
-						"command": string(cmd),
-						"device":  deviceId,
-						"args":    fmt.Sprintf("%v", args)})
+						"cmd":      string(cmd),
+						"deviceId": deviceId,
+						"args":     fmt.Sprintf("%v", args)})
 				http.Error(resp,
 					"\"Server Error\"",
 					http.StatusServiceUnavailable)
@@ -1335,8 +1343,12 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		}
 		if v, ok = rargs["m"]; ok {
 			vs := v.(string)
-			rargs["m"] = strings.Map(asciiOnly,
-				vs[:minInt(100, len(vs))])
+			if self.config.GetFlag("ascii_message_only") {
+				rargs["m"] = strings.Map(asciiOnly,
+					vs[:minInt(100, len(vs))])
+			} else {
+				rargs["m"] = vs[:minInt(100, len(vs))]
+			}
 		}
 	case "r", "t":
 		if v, ok = rargs["d"]; ok {
@@ -1363,9 +1375,9 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		rargs = replyType{}
 	default:
 		self.logger.Warn(self.logCat, "Invalid Command",
-			util.Fields{"command": string(cmd),
-				"device": deviceId,
-				"args":   fmt.Sprintf("%v", rargs)})
+			util.Fields{"cmd": string(cmd),
+				"deviceId": deviceId,
+				"args":     fmt.Sprintf("%v", rargs)})
 		return http.StatusBadRequest, errors.New("\"Invalid Command\"")
 	}
 	fixed, err := json.Marshal(storage.Unstructured{c: rargs})
@@ -1373,9 +1385,9 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		// Log the error
 		self.logger.Error(self.logCat, "Error handling command",
 			util.Fields{"error": err.Error(),
-				"command": string(cmd),
-				"device":  deviceId,
-				"args":    fmt.Sprintf("%v", rargs)})
+				"cmd":      string(cmd),
+				"deviceId": deviceId,
+				"args":     fmt.Sprintf("%v", rargs)})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 
@@ -1386,14 +1398,18 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		// Log the error
 		self.logger.Error(self.logCat, "Error storing command",
 			util.Fields{"error": err.Error(),
-				"command": string(cmd),
-				"device":  deviceId,
-				"args":    fmt.Sprintf("%v", args)})
+				"cmd":      string(cmd),
+				"deviceId": deviceId,
+				"args":     fmt.Sprintf("%v", args)})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 	// trigger the push
 	self.metrics.Increment("cmd.store." + c)
 	self.metrics.Increment("push.send")
+	self.logger.Debug(self.logCat,
+		"Sending Push",
+		util.Fields{"deviceId": deviceId,
+			"cmd": c})
 	err = SendPush(devRec, self.config)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send Push",
@@ -1460,7 +1476,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	if devRec.User != userId {
 		self.logger.Error(self.logCat, "Unauthorized device",
 			util.Fields{"devrec": devRec.User,
-				"userid": userId})
+				"userId": userId})
 		self.clearSession(session)
 		session.Options.MaxAge = -1
 		session.Save(req, resp)
