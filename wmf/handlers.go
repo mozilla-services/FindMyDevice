@@ -1349,16 +1349,16 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				0, max))
 		}
 		if v, ok = rargs["m"]; ok {
-			vr := []rune(v.(string))
-			vb := []byte(v.(string))
+			vs = v.(string)
+			if self.config.GetFlag("ascii_message_only") {
+				vs = strings.Map(asciiOnly,
+					string(vs))
+			}
+			vr := []rune(vs)
+			vb := []byte(vs)
 			trimmed := vr[:minInt(100,
 				utf8.RuneCount(vb))]
-			if self.config.GetFlag("ascii_message_only") {
-				rargs["m"] = strings.Map(asciiOnly,
-					string(trimmed))
-			} else {
-				rargs["m"] = string(trimmed)
-			}
+			rargs["m"] = string(trimmed)
 		}
 	case "r", "t":
 		if v, ok = rargs["d"]; ok {
