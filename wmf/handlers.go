@@ -925,6 +925,11 @@ func (self *Handler) genHash(input string) (output string) {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
+func socketError(socket *websocket.Conn, msg string) {
+	out, _ := json.Marshal(util.Fields{"error": msg})
+	socket.Write(out)
+}
+
 //Handler Public Functions
 
 func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics) *Handler {
@@ -1975,6 +1980,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		self.logger.Error(self.logCat, "Invalid Device for socket",
 			util.Fields{"error": err.Error(),
 				"devId": self.devId})
+		socketError(ws, "Invalid Device")
 		return
 	}
 
@@ -1993,6 +1999,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 				logger.Error(self.logCat, "Uknown Error",
 					util.Fields{"error": r.(error).Error()})
 			} else {
+				socketError(ws, "Unknown Error")
 				log.Printf("Socket Unknown Error: %s\n", r.(error).Error())
 			}
 		}
@@ -2002,6 +2009,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		self.logger.Error(self.logCat, "No deviceID found",
 			util.Fields{"error": err.Error(),
 				"path": ws.Request().URL.Path})
+		socketError(ws, "Invalid Device")
 		return
 	}
 
@@ -2012,6 +2020,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 			util.Fields{"deviceId": self.devId,
 				"instance": instance,
 				"error":    err.Error()})
+		socketError(ws, "Too Many Connections")
 		return
 	}
 	defer func(self *Handler, sock *WWS, instance string) {
