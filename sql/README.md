@@ -8,7 +8,8 @@ prevent multiple modifications).
 
 e.g.
 
-```  $ psql --user=$USER --password --host=$HOST $DB <
+```
+$ psql --user=$USER --password --host=$HOST $DB <
 update\_20140707.sql
 ```
 
