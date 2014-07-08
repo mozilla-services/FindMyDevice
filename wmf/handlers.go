@@ -44,6 +44,7 @@ type Handler struct {
 	accepts []string
 	hawk    *Hawk
 	store   *storage.Storage
+	maxCli  int64
 }
 
 const (
@@ -100,11 +101,14 @@ var (
 
 // Client Mapping functions
 // Add a new trackable client.
-func addClient(id, instance string, sock *WWS) error {
+func addClient(id, instance string, sock *WWS, maxInstances int64) error {
 	fmt.Printf("+++ Adding client for %s:%s\n", id, instance)
 	defer muClient.Unlock()
 	muClient.Lock()
 	if clients, ok := Clients[id]; ok {
+		if maxInstances > 0 && len(clients) > int(maxInstances) {
+			return ErrTooManyClient
+		}
 		if _, ok := clients[instance]; !ok {
 			Clients[id][instance] = sock
 			return nil
@@ -956,6 +960,7 @@ func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Me
 		// This confuses gorilla, which winds up setting two "user" cookies.
 		//MaxAge: 3600 * 24,
 	}
+	maxCli, _ := strconv.ParseInt(config.Get("ws.max_clients", "0"), 10, 64)
 
 	// Initialize the data store once. This creates tables and
 	// applies required changes.
@@ -966,6 +971,7 @@ func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Me
 		logCat:  "handler",
 		metrics: metrics,
 		store:   store,
+		maxCli:  maxCli,
 	}
 }
 
@@ -2000,7 +2006,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	}
 
 	self.metrics.Increment("page.socket")
-	if err := addClient(self.devId, instance, sock); err != nil {
+	if err := addClient(self.devId, instance, sock, self.maxCli); err != nil {
 		self.logger.Error(self.logCat,
 			"Could not add WebUI client",
 			util.Fields{"deviceId": self.devId,
