@@ -471,7 +471,9 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 
 	// host information (for websocket callback)
 	data.Host = make(map[string]string)
-	data.Host["Hostname"] = self.config.Get("ws_hostname", "localhost")
+	// TODO: transition away from old config name
+	data.Host["Hostname"] = self.config.Get("ws.hostname",
+		self.config.Get("ws_hostname", "localhost"))
 
 	// get the cached session info (if present)
 	// will also resolve assertions and other bits to get user and dev info.
@@ -1635,8 +1637,10 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 			ID:   d.ID,
 			Name: d.Name,
 			URL: fmt.Sprintf("%s://%s/%s/ws/%s/%s",
-				self.config.Get("ws_proto", "wss"),
-				self.config.Get("ws_hostname", "localhost"),
+				self.config.Get("ws.proto",
+					self.config.Get("ws_proto", "wss")),
+				self.config.Get("ws.hostname",
+					self.config.Get("ws_hostname", "localhost")),
 				verRoot,
 				sig,
 				d.ID)})
