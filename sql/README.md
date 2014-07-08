@@ -13,7 +13,7 @@ update\_20140707.sql
 
 will run the update for 20140707.sql.
 
-The output will indicate '1' for a successful executtion or '0' if the
+The output will indicate '1' for a successful execution or '0' if the
 command was not run (error, or unneeded)
 
 $USER is a placeholder for the "db.user" value defined in config.ini,
