@@ -669,9 +669,14 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 				}
 				// has_lockcode
 			case "ha":
-				hasPasscode = isTrue(arg)
-				if err = store.SetDeviceLock(devId, hasPasscode); err != nil {
-					return err
+				if self.config.GetFlag("ek.ignore_passcode_state") {
+					hasPasscode = false
+					args[key] = false
+				} else {
+					hasPasscode = isTrue(arg)
+					if err = store.SetDeviceLock(devId, hasPasscode); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -1095,6 +1100,13 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			if err != nil {
 				hasPasscode = false
 			}
+		}
+		if self.config.GetFlag("ek.ignore_passcode_state") {
+			// This overrides the passcode state reported by the device.
+			// This is a work around for a device lock screen bug that
+			// caches the last pass code, even if the user has disabled
+			// the device pass code.
+			hasPasscode = false
 		}
 		if val, ok := buffer["accepts"]; ok {
 			// collapse the array to a string
@@ -1807,6 +1819,9 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 		session.Values[SESSION_TOKEN] = sessionInfo.AccessToken
 	}
 	session.Save(req, resp)
+	if self.config.GetFlag("ek.ignore_passcode_state") {
+		devInfo.HasPasscode = false
+	}
 	// display the device info...
 	output, err := json.Marshal(devInfo)
 	if err == nil {
