@@ -126,18 +126,33 @@ a {
         color: $map-heading-color;
         font-size: 14px;
         font-weight: normal;
+        position: relative;
 
         &::before {
           animation-name: spin;
           animation-duration: 1500ms;
           animation-iteration-count: infinite;
           animation-timing-function: linear;
-          @include hidpi-background-image(radar-spinner, 150px 150px);
+          @include hidpi-background-image(spinner, 150px 150px);
           background-repeat: no-repeat;
           content: '';
           display: block;
           height: 150px;
           margin: 0 auto 35px auto;
+          width: 150px;
+        }
+
+        &::after {
+          @include hidpi-background-image(spinner-binoculars, 90px 90px);
+          background-repeat: no-repeat;
+          background-position: 50% 50%;
+          content: '';
+          display: block;
+          height: 150px;
+          left: 50%;
+          margin-left: -75px;
+          position: absolute;
+          top: 0;
           width: 150px;
         }
       }
@@ -156,7 +171,7 @@ a {
     }
 
     .pin-locating-spinner {
-      @include hidpi-background-image(radar-small-animated, 39px 39px, gif);
+      @include hidpi-background-image(spinner-small-animated, 39px 39px, gif);
       background-repeat: no-repeat;
       height: 39px;
       margin-top: -162px;
