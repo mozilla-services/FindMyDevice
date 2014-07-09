@@ -44,6 +44,7 @@ type Handler struct {
 	accepts []string
 	hawk    *Hawk
 	store   *storage.Storage
+	maxCli  int64
 }
 
 const (
@@ -100,11 +101,14 @@ var (
 
 // Client Mapping functions
 // Add a new trackable client.
-func addClient(id, instance string, sock *WWS) error {
+func addClient(id, instance string, sock *WWS, maxInstances int64) error {
 	fmt.Printf("+++ Adding client for %s:%s\n", id, instance)
 	defer muClient.Unlock()
 	muClient.Lock()
 	if clients, ok := Clients[id]; ok {
+		if maxInstances > 0 && len(clients) > int(maxInstances) {
+			return ErrTooManyClient
+		}
 		if _, ok := clients[instance]; !ok {
 			Clients[id][instance] = sock
 			return nil
@@ -467,7 +471,9 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 
 	// host information (for websocket callback)
 	data.Host = make(map[string]string)
-	data.Host["Hostname"] = self.config.Get("ws_hostname", "localhost")
+	// TODO: transition away from old config name
+	data.Host["Hostname"] = self.config.Get("ws.hostname",
+		self.config.Get("ws_hostname", "localhost"))
 
 	// get the cached session info (if present)
 	// will also resolve assertions and other bits to get user and dev info.
@@ -921,6 +927,11 @@ func (self *Handler) genHash(input string) (output string) {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
+func socketError(socket *websocket.Conn, msg string) {
+	out, _ := json.Marshal(util.Fields{"error": msg})
+	socket.Write(out)
+}
+
 //Handler Public Functions
 
 func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics) *Handler {
@@ -956,6 +967,7 @@ func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Me
 		// This confuses gorilla, which winds up setting two "user" cookies.
 		//MaxAge: 3600 * 24,
 	}
+	maxCli, _ := strconv.ParseInt(config.Get("ws.max_clients", "0"), 10, 64)
 
 	// Initialize the data store once. This creates tables and
 	// applies required changes.
@@ -966,6 +978,7 @@ func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Me
 		logCat:  "handler",
 		metrics: metrics,
 		store:   store,
+		maxCli:  maxCli,
 	}
 }
 
@@ -1624,8 +1637,10 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 			ID:   d.ID,
 			Name: d.Name,
 			URL: fmt.Sprintf("%s://%s/%s/ws/%s/%s",
-				self.config.Get("ws_proto", "wss"),
-				self.config.Get("ws_hostname", "localhost"),
+				self.config.Get("ws.proto",
+					self.config.Get("ws_proto", "wss")),
+				self.config.Get("ws.hostname",
+					self.config.Get("ws_hostname", "localhost")),
 				verRoot,
 				sig,
 				d.ID)})
@@ -1969,6 +1984,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		self.logger.Error(self.logCat, "Invalid Device for socket",
 			util.Fields{"error": err.Error(),
 				"devId": self.devId})
+		socketError(ws, "Invalid Device")
 		return
 	}
 
@@ -1987,6 +2003,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 				logger.Error(self.logCat, "Uknown Error",
 					util.Fields{"error": r.(error).Error()})
 			} else {
+				socketError(ws, "Unknown Error")
 				log.Printf("Socket Unknown Error: %s\n", r.(error).Error())
 			}
 		}
@@ -1996,16 +2013,18 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		self.logger.Error(self.logCat, "No deviceID found",
 			util.Fields{"error": err.Error(),
 				"path": ws.Request().URL.Path})
+		socketError(ws, "Invalid Device")
 		return
 	}
 
 	self.metrics.Increment("page.socket")
-	if err := addClient(self.devId, instance, sock); err != nil {
+	if err := addClient(self.devId, instance, sock, self.maxCli); err != nil {
 		self.logger.Error(self.logCat,
 			"Could not add WebUI client",
 			util.Fields{"deviceId": self.devId,
 				"instance": instance,
 				"error":    err.Error()})
+		socketError(ws, "Too Many Connections")
 		return
 	}
 	defer func(self *Handler, sock *WWS, instance string) {
