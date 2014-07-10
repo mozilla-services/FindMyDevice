@@ -24,7 +24,7 @@ type WWS struct {
 	Device  *storage.Device
 	Born    time.Time
 	Quit    bool
-	input   chan string
+	input   chan []byte
 	quitter chan bool
 	output  chan []byte
 }
@@ -67,13 +67,13 @@ func (self *WWS) sniffer() {
 		if len(raw) <= 0 {
 			continue
 		}
-		self.input <- string(raw)
+		self.input <- raw
 	}
 }
 
 // Workhorse function.
 func (self *WWS) Run() {
-	self.input = make(chan string)
+	self.input = make(chan []byte)
 	self.quitter = make(chan bool)
 	self.output = make(chan []byte)
 
@@ -90,7 +90,6 @@ func (self *WWS) Run() {
 					"Unhandled error in Run",
 					util.Fields{"error": r.(error).Error()})
 			}
-			sock.quitter <- true
 		}
 		sock.Logger.Debug("worker", "Cleaning up...", nil)
 		sock.Socket.Close()
@@ -109,9 +108,9 @@ func (self *WWS) Run() {
 			return
 		case input := <-self.input:
 			msg := make(replyType)
-			if err := json.Unmarshal([]byte(input), &msg); err != nil {
+			if err := json.Unmarshal(input, &msg); err != nil {
 				self.Logger.Error("worker", "Unparsable cmd",
-					util.Fields{"cmd": input,
+					util.Fields{"cmd": string(input),
 						"error": err.Error()})
 				self.Socket.Write([]byte("false"))
 				continue
@@ -140,8 +139,4 @@ func (self *WWS) Run() {
 			}
 		}
 	}
-}
-
-func (self *WWS) Write(out []byte) {
-	self.output <- out
 }

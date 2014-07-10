@@ -31,6 +31,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // base handler for REST and Socket calls.
@@ -43,6 +44,7 @@ type Handler struct {
 	accepts []string
 	hawk    *Hawk
 	store   *storage.Storage
+	maxCli  int64
 }
 
 const (
@@ -99,11 +101,14 @@ var (
 
 // Client Mapping functions
 // Add a new trackable client.
-func addClient(id, instance string, sock *WWS) error {
+func addClient(id, instance string, sock *WWS, maxInstances int64) error {
 	fmt.Printf("+++ Adding client for %s:%s\n", id, instance)
 	defer muClient.Unlock()
 	muClient.Lock()
 	if clients, ok := Clients[id]; ok {
+		if maxInstances > 0 && len(clients) > int(maxInstances) {
+			return ErrTooManyClient
+		}
 		if _, ok := clients[instance]; !ok {
 			Clients[id][instance] = sock
 			return nil
@@ -392,7 +397,13 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 				"body":  raw})
 		return "", "", err
 	}
-
+	if status, ok := buff["status"]; ok {
+		if status == "failure" {
+			self.logger.Error(self.logCat, "FxA verification failed",
+				util.Fields{"error": buff["reason"].(string)})
+			return "", "", ErrOauth
+		}
+	}
 	// the response has either been a redirect or a validated assertion.
 	// fun times, fun times...
 	if idp, ok := buff["idpClaims"]; ok {
@@ -460,7 +471,9 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 
 	// host information (for websocket callback)
 	data.Host = make(map[string]string)
-	data.Host["Hostname"] = self.config.Get("ws_hostname", "localhost")
+	// TODO: transition away from old config name
+	data.Host["Hostname"] = self.config.Get("ws.hostname",
+		self.config.Get("ws_hostname", "localhost"))
 
 	// get the cached session info (if present)
 	// will also resolve assertions and other bits to get user and dev info.
@@ -492,9 +505,9 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 				self.logger.Error(self.logCat,
 					"Could not get device's position information",
 					util.Fields{"error": err.Error(),
-						"userId": data.UserId,
-						"email":  sessionInfo.Email,
-						"device": sessionInfo.DeviceId})
+						"userId":   data.UserId,
+						"email":    sessionInfo.Email,
+						"deviceId": sessionInfo.DeviceId})
 				return nil, err
 			}
 		}
@@ -546,7 +559,7 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		if ret {
 			self.logger.Info(self.logCat, "::Got User::",
 				util.Fields{"source": "session",
-					"userid": userid,
+					"userId": userid,
 					"email":  email})
 			return userid, email, nil
 		}
@@ -569,7 +582,7 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 	}
 	self.logger.Info(self.logCat, "::Got User::",
 		util.Fields{"source": "assertion",
-			"userid": userid,
+			"userId": userid,
 			"email":  email})
 	return userid, email, nil
 }
@@ -609,14 +622,17 @@ func (self *Handler) stopTracking(devId string, store *storage.Storage) (err err
 	jnt, err := json.Marshal(noTrack)
 	if err != nil {
 		self.logger.Warn(self.logCat, "Could not disable tracking",
-			util.Fields{"device": devId,
+			util.Fields{"deviceId": devId,
 				"error": err.Error()})
 	} else {
 		self.logger.Info(self.logCat, "Disabling tracking",
-			util.Fields{"device": devId})
+			util.Fields{"deviceId": devId})
 		store.StoreCommand(devId, string(jnt), "t")
 		// send the push if possible.
 		if devRec, err := store.GetDeviceInfo(devId); err == nil {
+			self.logger.Debug(self.logCat, "Sending Push",
+				util.Fields{"deviceId": devId,
+					"cmd": "t:0"})
 			SendPush(devRec, self.config)
 		}
 	}
@@ -644,6 +660,8 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 				location.Longitude = arg.(float64)
 			case "al":
 				location.Altitude = arg.(float64)
+			case "ac":
+				location.Accuracy = arg.(float64)
 			case "ti":
 				location.Time = int64(arg.(float64))
 				if location.Time == 0 {
@@ -651,9 +669,14 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 				}
 				// has_lockcode
 			case "ha":
-				hasPasscode = isTrue(arg)
-				if err = store.SetDeviceLock(devId, hasPasscode); err != nil {
-					return err
+				if self.config.GetFlag("ek.ignore_passcode_state") {
+					hasPasscode = false
+					args[key] = false
+				} else {
+					hasPasscode = isTrue(arg)
+					if err = store.SetDeviceLock(devId, hasPasscode); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -662,18 +685,31 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 				return err
 			}
 			// because go sql locking.
-			store.GcPosition(devId)
+			store.GcDatabase(devId, "")
 		}
 	}
 	location.Cmd = storage.Unstructured{cmd: args}
 
-	defer muClient.Unlock()
-	muClient.Lock()
-	if clients, ok := Clients[devId]; ok {
+	// this defer also catches and logs panics from the i.Socket.Write()
+	defer func(logger *util.HekaLogger, logCat, devId string) {
+		if r := recover(); r != nil {
+			err := r.(error)
+			logger.Error(logCat,
+				"Panic in WS handler",
+				util.Fields{"error": err.Error(),
+					"deviceId": devId})
+		}
+	}(self.logger, self.logCat, devId)
+
+	muClient.RLock()
+	clients, ok := Clients[devId]
+	muClient.RUnlock()
+
+	if ok {
 		js, _ := json.Marshal(location)
 		fmt.Printf("### Sending update to %d pages: %s\n", len(clients), js)
 		for _, i := range clients {
-			i.Write(js)
+			i.Socket.Write(js)
 		}
 	} else {
 		self.logger.Warn(self.logCat,
@@ -780,13 +816,15 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 
 // A simple signature generator for WS connections
 // Unfortunately, remote IP is not reliable for WS.
-func (self *Handler) genSig(req *http.Request, devId string) (ret string, err error) {
-	session, _ := sessionStore.Get(req, SESSION_NAME)
-	if sess, ok := session.Values["deviceid"]; !ok {
+func (self *Handler) genSig(req *http.Request, session *sessions.Session) (ret string, err error) {
+	if session == nil {
+		session, _ = sessionStore.Get(req, SESSION_NAME)
+	}
+	if sess, ok := session.Values[SESSION_DEVICEID]; !ok {
 		return "", errors.New("Invalid")
 	} else {
 		sig := self.genHash(sess.(string) +
-			session.Values["userid"].(string))
+			session.Values[SESSION_USERID].(string))
 		/*
 		   fmt.Printf("@@@ Remote Addr: %s, %s, %s\n",
 		       req.RemoteAddr,
@@ -805,7 +843,7 @@ func (self *Handler) checkSig(req *http.Request, devId string) (ok bool) {
 	bits := strings.Split(req.URL.Path, "/")
 	// remember, leading "/" counts.
 	gotsig := bits[len(bits)-2]
-	testsig, err := self.genSig(req, devId)
+	testsig, err := self.genSig(req, nil)
 	if err != nil {
 		return false
 	}
@@ -896,6 +934,11 @@ func (self *Handler) genHash(input string) (output string) {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
+func socketError(socket *websocket.Conn, msg string) {
+	out, _ := json.Marshal(util.Fields{"error": msg})
+	socket.Write(out)
+}
+
 //Handler Public Functions
 
 func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics) *Handler {
@@ -931,6 +974,7 @@ func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Me
 		// This confuses gorilla, which winds up setting two "user" cookies.
 		//MaxAge: 3600 * 24,
 	}
+	maxCli, _ := strconv.ParseInt(config.Get("ws.max_clients", "0"), 10, 64)
 
 	// Initialize the data store once. This creates tables and
 	// applies required changes.
@@ -941,6 +985,7 @@ func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Me
 		logCat:  "handler",
 		metrics: metrics,
 		store:   store,
+		maxCli:  maxCli,
 	}
 }
 
@@ -1019,9 +1064,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 				if userid, user, err = store.GetUserFromDevice(deviceid); err == nil {
 					self.logger.Debug(self.logCat,
 						"Got user info ",
-						util.Fields{"userid": userid,
-							"name":   user,
-							"device": deviceid})
+						util.Fields{"userId": userid,
+							"name":     user,
+							"deviceId": deviceid})
 					loggedIn = true
 				} else {
 					self.logger.Error(self.logCat,
@@ -1057,6 +1102,13 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			if err != nil {
 				hasPasscode = false
 			}
+		}
+		if self.config.GetFlag("ek.ignore_passcode_state") {
+			// This overrides the passcode state reported by the device.
+			// This is a work around for a device lock screen bug that
+			// caches the last pass code, even if the user has disabled
+			// the device pass code.
+			hasPasscode = false
 		}
 		if val, ok := buffer["accepts"]; ok {
 			// collapse the array to a string
@@ -1105,7 +1157,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	}
 	self.metrics.Increment("device.registration")
 	self.updatePage(self.devId, "register", buffer, false)
-	reply, err := json.Marshal(util.Fields{"deviceid": self.devId,
+	output, err := json.Marshal(util.Fields{"deviceid": self.devId,
 		"secret": secret,
 		//"email":    email,
 		"clientid": userid,
@@ -1116,9 +1168,11 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if self.config.GetFlag("debug.show_output") {
-		fmt.Printf(">>>%s:%s\n", self.logCat, string(reply))
+		self.logger.Debug(self.logCat,
+			">>>output",
+			util.Fields{"output": string(output)})
 	}
-	resp.Write(reply)
+	resp.Write(output)
 	return
 }
 
@@ -1222,7 +1276,6 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			}
 			// handle the client response
 			err = store.Touch(deviceId)
-			fmt.Printf("#### c = \"%s\"\n", c)
 			switch cs {
 			case "t":
 				err = self.updatePage(deviceId, c, margs, true)
@@ -1238,9 +1291,9 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				// Log the error
 				self.logger.Error(self.logCat, "Error handling command",
 					util.Fields{"error": err.Error(),
-						"command": string(cmd),
-						"device":  deviceId,
-						"args":    fmt.Sprintf("%v", args)})
+						"cmd":      string(cmd),
+						"deviceId": deviceId,
+						"args":     fmt.Sprintf("%v", args)})
 				http.Error(resp,
 					"\"Server Error\"",
 					http.StatusServiceUnavailable)
@@ -1270,7 +1323,9 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		self.metrics.Increment("cmd.send." + string(cmd[2]))
 	}
 	if self.config.GetFlag("debug.show_output") {
-		fmt.Printf(">>>%s:%s\n", self.logCat, string(output))
+		self.logger.Debug(self.logCat,
+			">>>output",
+			util.Fields{"output": string(output)})
 	}
 	resp.Write(output)
 }
@@ -1321,9 +1376,16 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				0, max))
 		}
 		if v, ok = rargs["m"]; ok {
-			vs := v.(string)
-			rargs["m"] = strings.Map(asciiOnly,
-				vs[:minInt(100, len(vs))])
+			vs = v.(string)
+			if self.config.GetFlag("ascii_message_only") {
+				vs = strings.Map(asciiOnly,
+					string(vs))
+			}
+			vr := []rune(vs)
+			vb := []byte(vs)
+			trimmed := vr[:minInt(100,
+				utf8.RuneCount(vb))]
+			rargs["m"] = string(trimmed)
 		}
 	case "r", "t":
 		if v, ok = rargs["d"]; ok {
@@ -1350,9 +1412,9 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		rargs = replyType{}
 	default:
 		self.logger.Warn(self.logCat, "Invalid Command",
-			util.Fields{"command": string(cmd),
-				"device": deviceId,
-				"args":   fmt.Sprintf("%v", rargs)})
+			util.Fields{"cmd": string(cmd),
+				"deviceId": deviceId,
+				"args":     fmt.Sprintf("%v", rargs)})
 		return http.StatusBadRequest, errors.New("\"Invalid Command\"")
 	}
 	fixed, err := json.Marshal(storage.Unstructured{c: rargs})
@@ -1360,9 +1422,9 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		// Log the error
 		self.logger.Error(self.logCat, "Error handling command",
 			util.Fields{"error": err.Error(),
-				"command": string(cmd),
-				"device":  deviceId,
-				"args":    fmt.Sprintf("%v", rargs)})
+				"cmd":      string(cmd),
+				"deviceId": deviceId,
+				"args":     fmt.Sprintf("%v", rargs)})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 
@@ -1373,14 +1435,18 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		// Log the error
 		self.logger.Error(self.logCat, "Error storing command",
 			util.Fields{"error": err.Error(),
-				"command": string(cmd),
-				"device":  deviceId,
-				"args":    fmt.Sprintf("%v", args)})
+				"cmd":      string(cmd),
+				"deviceId": deviceId,
+				"args":     fmt.Sprintf("%v", args)})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 	// trigger the push
 	self.metrics.Increment("cmd.store." + c)
 	self.metrics.Increment("push.send")
+	self.logger.Debug(self.logCat,
+		"Sending Push",
+		util.Fields{"deviceId": deviceId,
+			"cmd": c})
 	err = SendPush(devRec, self.config)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send Push",
@@ -1447,7 +1513,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	if devRec.User != userId {
 		self.logger.Error(self.logCat, "Unauthorized device",
 			util.Fields{"devrec": devRec.User,
-				"userid": userId})
+				"userId": userId})
 		self.clearSession(session)
 		session.Options.MaxAge = -1
 		session.Save(req, resp)
@@ -1520,12 +1586,14 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 			}
 		}
 	}
-	repl, _ := json.Marshal(rep)
+	output, _ := json.Marshal(rep)
 	self.metrics.Increment("cmd.queued.rest")
 	if self.config.GetFlag("debug.show_output") {
-		fmt.Printf(">>>%s:%s\n", self.logCat, string(repl))
+		self.logger.Debug(self.logCat,
+			">>>output",
+			util.Fields{"output": string(output)})
 	}
-	resp.Write(repl)
+	resp.Write(output)
 }
 
 func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
@@ -1573,9 +1641,12 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 
 	var reply []devList
 	verRoot := strings.SplitN(self.config.Get("VERSION", "0"), ".", 2)[0]
-
+	if _, ok := session.Values[SESSION_USERID]; !ok {
+		session.Values[SESSION_USERID] = data.UserId
+	}
 	for _, d := range deviceList {
-		sig, err := self.genSig(req, d.ID)
+		session.Values[SESSION_DEVICEID] = d.ID
+		sig, err := self.genSig(req, session)
 		if err != nil {
 			continue
 		}
@@ -1583,13 +1654,15 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 			ID:   d.ID,
 			Name: d.Name,
 			URL: fmt.Sprintf("%s://%s/%s/ws/%s/%s",
-				self.config.Get("ws_proto", "wss"),
-				self.config.Get("ws_hostname", "localhost"),
+				self.config.Get("ws.proto",
+					self.config.Get("ws_proto", "wss")),
+				self.config.Get("ws.hostname",
+					self.config.Get("ws_hostname", "localhost")),
 				verRoot,
 				sig,
 				d.ID)})
 	}
-	breply, err := json.Marshal(map[string][]devList{
+	output, err := json.Marshal(map[string][]devList{
 		"devices": reply})
 	if err != nil {
 		self.logger.Error(self.logCat,
@@ -1601,9 +1674,11 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 
 	resp.Header().Set("Content-Type", "application/json")
 	if self.config.GetFlag("debug.show_output") {
-		fmt.Printf(">>>%s:%s\n", self.logCat, string(breply))
+		self.logger.Debug(self.logCat,
+			">>>output",
+			util.Fields{"output": string(output)})
 	}
-	resp.Write(breply)
+	resp.Write(output)
 	return
 }
 
@@ -1697,12 +1772,14 @@ func (self *Handler) InitDataJson(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	resp.Header().Set("Content-Type", "application/json")
-	reply, err := json.Marshal(initData)
+	output, err := json.Marshal(initData)
 	if err == nil {
 		if self.config.GetFlag("debug.show_output") {
-			fmt.Printf(">>>%s:%s\n", self.logCat, string(reply))
+			self.logger.Debug(self.logCat,
+				">>>output",
+				util.Fields{"output": string(output)})
 		}
-		resp.Write([]byte(reply))
+		resp.Write([]byte(output))
 		return
 	}
 	self.logger.Error(self.logCat,
@@ -1747,13 +1824,18 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 		session.Values[SESSION_TOKEN] = sessionInfo.AccessToken
 	}
 	session.Save(req, resp)
+	if self.config.GetFlag("ek.ignore_passcode_state") {
+		devInfo.HasPasscode = false
+	}
 	// display the device info...
-	reply, err := json.Marshal(devInfo)
+	output, err := json.Marshal(devInfo)
 	if err == nil {
 		if self.config.GetFlag("debug.show_output") {
-			fmt.Printf(">>>%s:%s\n", self.logCat, string(reply))
+			self.logger.Debug(self.logCat,
+				">>>output",
+				util.Fields{"output": string(output)})
 		}
-		resp.Write([]byte(reply))
+		resp.Write([]byte(output))
 	}
 }
 
@@ -1767,11 +1849,13 @@ func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
 		"goroutines": runtime.NumGoroutine(),
 		"version":    self.config.Get("VERSION", "unknown"),
 	}
-	rep, _ := json.Marshal(reply)
+	output, _ := json.Marshal(reply)
 	if self.config.GetFlag("debug.show_output") {
-		fmt.Printf(">>>%s:%s\n", self.logCat, string(rep))
+		self.logger.Debug(self.logCat,
+			">>>output",
+			util.Fields{"output": string(output)})
 	}
-	resp.Write(rep)
+	resp.Write(output)
 }
 
 // Handle requests for static content (should be an NGINX rule)
@@ -1793,23 +1877,27 @@ func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 	snapshot := self.metrics.Snapshot()
 
 	resp.Header().Set("Content-Type", "application/json")
-	reply, err := json.Marshal(snapshot)
+	output, err := json.Marshal(snapshot)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not generate metrics report",
 			util.Fields{"error": err.Error()})
 		if self.config.GetFlag("debug.show_output") {
-			fmt.Printf(">>>%s:{}\n", self.logCat)
+			self.logger.Debug(self.logCat,
+				">>>output",
+				util.Fields{"output": "{}"})
 		}
 		resp.Write([]byte("{}"))
 		return
 	}
-	if reply == nil {
-		reply = []byte("{}")
+	if output == nil {
+		output = []byte("{}")
 	}
 	if self.config.GetFlag("debug.show_output") {
-		fmt.Printf(">>>%s:%s\n", self.logCat, string(reply))
+		self.logger.Debug(self.logCat,
+			">>>output",
+			util.Fields{"output": string(output)})
 	}
-	resp.Write(reply)
+	resp.Write(output)
 }
 
 func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) {
@@ -1916,6 +2004,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		self.logger.Error(self.logCat, "Invalid Device for socket",
 			util.Fields{"error": err.Error(),
 				"devId": self.devId})
+		socketError(ws, "Invalid Device")
 		return
 	}
 
@@ -1934,6 +2023,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 				logger.Error(self.logCat, "Uknown Error",
 					util.Fields{"error": r.(error).Error()})
 			} else {
+				socketError(ws, "Unknown Error")
 				log.Printf("Socket Unknown Error: %s\n", r.(error).Error())
 			}
 		}
@@ -1943,31 +2033,35 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		self.logger.Error(self.logCat, "No deviceID found",
 			util.Fields{"error": err.Error(),
 				"path": ws.Request().URL.Path})
+		socketError(ws, "Invalid Device")
 		return
 	}
 
 	self.metrics.Increment("page.socket")
-	if err := addClient(self.devId, instance, sock); err != nil {
+	if err := addClient(self.devId, instance, sock, self.maxCli); err != nil {
 		self.logger.Error(self.logCat,
 			"Could not add WebUI client",
 			util.Fields{"deviceId": self.devId,
 				"instance": instance,
 				"error":    err.Error()})
+		socketError(ws, "Too Many Connections")
 		return
 	}
-	sock.Run()
-	self.metrics.Decrement("page.socket")
-	self.metrics.Timer("page.socket", int64(time.Since(sock.Born).Seconds()))
-	if stopTrack, err := rmClient(self.devId, instance); err != nil {
-		self.logger.Error(self.logCat,
-			"Could not clean up closed instance!",
-			util.Fields{"error": err.Error(),
-				"deviceId": self.devId})
-	} else {
-		if stopTrack {
-			self.stopTracking(self.devId, store)
+	defer func(self *Handler, sock *WWS, instance string) {
+		self.metrics.Decrement("page.socket")
+		self.metrics.Timer("page.socket", int64(time.Since(sock.Born).Seconds()))
+		if stopTrack, err := rmClient(self.devId, instance); err != nil {
+			self.logger.Error(self.logCat,
+				"Could not clean up closed instance!",
+				util.Fields{"error": err.Error(),
+					"deviceId": self.devId})
+		} else {
+			if stopTrack {
+				self.stopTracking(self.devId, store)
+			}
 		}
-	}
+	}(self, sock, instance)
+	sock.Run()
 }
 
 func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
@@ -2065,11 +2159,13 @@ func (self *Handler) Validate(resp http.ResponseWriter, req *http.Request) {
 
 	// OK, write out the reply object (if you can)
 	// as {valid: (true|false), [uid: ... ]}
-	if response, err := json.Marshal(reply); err == nil {
+	if output, err := json.Marshal(reply); err == nil {
 		if self.config.GetFlag("debug.show_output") {
-			fmt.Printf(">>>%s:%s\n", self.logCat, string(response))
+			self.logger.Debug(self.logCat,
+				">>>output",
+				util.Fields{"output": string(output)})
 		}
-		resp.Write(response)
+		resp.Write(output)
 	} else {
 		self.logger.Error(self.logCat, "Could not write reply",
 			util.Fields{"error": err.Error()})
