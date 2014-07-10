@@ -32,10 +32,10 @@ define([
         .findByCssSelector('#submit-btn')
           .click()
         .end()
-        .findByCssSelector('.hero h1')
+        .findByCssSelector('.fmd #stage h1')
           .text()
           .then(function (text) {
-            assert.strictEqual(text, "Sorry but you don't have any devices.");
+            assert.strictEqual(text, 'fmd-functional-test-user');
           })
         .end();
     }
