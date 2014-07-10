@@ -2,33 +2,38 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
- define([
-  'intern!object',
-  'intern/chai!assert',
+define([
+  'intern!bdd',
+  'intern/chai!expect',
   'require'
-], function (registerSuite, assert, require) {
-  registerSuite({
-    name: 'erase',
-
-    'erase device': function () {
-      return this.remote
-        .get('http://localhost:8000/')
-        .setFindTimeout(10000)
-        .findByCssSelector('.button.erase a')
-          .click()
-        .end()
-        .findByCssSelector('#modal button.erase')
-          .click()
-        .end()
-        .findByCssSelector('#modal button.erase.danger')
-          .click()
-        .end()
-        .findByCssSelector('#notifier.active')
-          .text()
-          .then(function (text) {
-            assert.strictEqual(text, 'Your device is erasing.');
-          })
-        .end();
-    }
-  });
+], function (bdd, expect, require) {
+  with(bdd) {
+    describe('erase', function () {
+      it('should erase the device', function () {
+        return this.remote
+          .get('http://localhost:8000/')
+          // Wait up to 10 seconds for the device to respond
+          .setFindTimeout(10000)
+          // Open erase dialog
+          .findByCssSelector('.button.erase a')
+            .click()
+          .end()
+          // Click Erase button
+          .findByCssSelector('#modal button.erase')
+            .click()
+          .end()
+          // Confirm erase
+          .findByCssSelector('#modal button.erase.danger')
+            .click()
+          .end()
+          // Wait for confirmation
+          .findByCssSelector('#notifier.active')
+            .text()
+            .then(function (text) {
+              expect(text).to.equal('Your device is erasing.');
+            })
+          .end();
+      });
+    });
+  }
 });

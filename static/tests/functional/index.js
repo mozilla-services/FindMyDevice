@@ -2,46 +2,54 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
- define([
-  'intern!object',
-  'intern/chai!assert',
+define([
+  'intern!bdd',
+  'intern/chai!expect',
   'require'
-], function (registerSuite, assert, require) {
-  registerSuite({
-    name: 'index',
+], function (bdd, expect, require) {
+  with(bdd) {
+    describe('index', function () {
+      it('should welcome unauthenticated users', function () {
+        return this.remote
+          .get('http://localhost:8000/')
+          // Check heading text to see that we're signed out
+          .findByCssSelector('h1')
+            .text()
+            .then(function (text) {
+              expect(text).to.equal("Rumor has it that you can't find your device.");
+            });
+      });
 
-    'shows welcome to unauthenticated users': function () {
-      return this.remote
-        .get('http://localhost:8000/')
-        .findByCssSelector('h1')
-        .getVisibleText()
-        .then(function (text) {
-            assert.strictEqual(text, "Rumor has it that you can't find your device.");
-        });
-    },
-
-    'signs in': function () {
-      return this.remote
-        .get('http://localhost:8000/')
-        .setFindTimeout(10000)
-        .findByCssSelector('#login a')
-          .click()
-        .end()
-        .findByCssSelector('input.email')
-          .type('fmd-functional-test-user@mailinator.com')
-        .end()
-        .findByCssSelector('input.password')
-          .type('fmdfxa123')
-        .end()
-        .findByCssSelector('#submit-btn')
-          .click()
-        .end()
-        .findByCssSelector('.fmd #stage h1')
-          .text()
-          .then(function (text) {
-            assert.strictEqual(text, 'fmd-functional-test-user');
-          })
-        .end();
-    }
-  });
+      it('should allow sign in', function () {
+        return this.remote
+          .get('http://localhost:8000/')
+          // Wait for up to 10 seconds for the FxA sign in step
+          .setFindTimeout(10000)
+          // Click sign in link
+          .findByCssSelector('#login a')
+            .click()
+          .end()
+          // -> Context: FxA sign in
+          // Fill in the email address
+          .findByCssSelector('input.email')
+            .type('fmd-functional-test-user@mailinator.com')
+          .end()
+          // Fill in the password
+          .findByCssSelector('input.password')
+            .type('fmdfxa123')
+          .end()
+          // Click the sign in button
+          .findByCssSelector('#submit-btn')
+            .click()
+          .end()
+          // Check the FMD header to make sure we're now signed in
+          .findByCssSelector('.fmd #stage h1')
+            .text()
+            .then(function (text) {
+              expect(text).to.equal('fmd-functional-test-user');
+            })
+          .end();
+      });
+    });
+  }
 });
