@@ -348,6 +348,28 @@ a {
     #modal section textarea {
       height: 75px;
       resize: none; }
+    #modal section .parsley-errors-list {
+      margin: 0;
+      padding: 0; }
+      #modal section .parsley-errors-list li {
+        background: #f5dd70;
+        color: #81795e;
+        display: inline-block;
+        font-size: 14px;
+        list-style: none;
+        margin: 4px 0 0 1px;
+        padding: 4px 10px 3px 10px;
+        position: relative; }
+        #modal section .parsley-errors-list li::before {
+          border-color: transparent transparent #f5dd70 transparent;
+          border-style: solid;
+          border-width: 0 8px 8px 8px;
+          content: '';
+          height: 0;
+          left: 10px;
+          position: absolute;
+          top: -8px;
+          width: 0; }
   #modal footer {
     padding: 0 20px 20px 20px; }
     #modal footer .buttons {
@@ -360,7 +382,7 @@ a {
     #modal .buttons button {
       background: #bbb;
       border: none;
-      border-radius: 20px;
+      border-radius: 22px;
       color: #fff;
       font-style: italic;
       outline: 0;

@@ -3,11 +3,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 define([
+  'parsley',
   'views/base',
   'stache!templates/lost_mode_passcode',
   'lib/modal_manager',
   'models/lock_command'
-], function (BaseView, LostModePasscodeTemplate, ModalManager, LockCommand) {
+], function (Parsley, BaseView, LostModePasscodeTemplate, ModalManager, LockCommand) {
   'use strict';
 
   var LostModePasscodeView = BaseView.extend({
@@ -23,34 +24,22 @@ define([
       this.note = options.note;
     },
 
-    back: function (event) {
-      ModalManager.pop();
+    afterRender: function() {
+      this.$('form').parsley();
     },
 
-    isValid: function () {
-      if (this.passcode1 === this.passcode2) {
-        return true;
-      } else {
-        // Show custom error on second passcode field
-        this.$('.passcode[name=passcode-2]')[0].setCustomValidity('Passcodes must match.');
-
-        return false;
-      }
+    back: function (event) {
+      ModalManager.pop();
     },
 
     activate: function (event) {
       event.preventDefault();
 
-      this.passcode1 = this.$('.passcode[name=passcode-1]').val();
-      this.passcode2 = this.$('.passcode[name=passcode-2]').val();
+      this.device.sendCommand(new LockCommand({ code: this.passcode2, message: this.note }));
 
-      if (this.isValid()) {
-        this.device.sendCommand(new LockCommand({ code: this.passcode2, message: this.note }));
+      this.device.set('activity', 'lost');
 
-        this.device.set('activity', 'lost');
-
-        ModalManager.close();
-      }
+      ModalManager.close();
     }
   });
 

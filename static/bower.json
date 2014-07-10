@@ -12,7 +12,8 @@
     "requirejs-text": "~2.0.12",
     "underscore": "~1.6.0",
     "typopro": "~2.0.3",
-    "reconnectingWebsocket": "6d43d26a75009a161404ac7f88beddb2ae32e057"
+    "reconnectingWebsocket": "6d43d26a75009a161404ac7f88beddb2ae32e057",
+    "parsleyjs": "~2.0.2"
   },
   "devDependencies": {}
 }
