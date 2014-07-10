@@ -10,11 +10,11 @@
   <section>
     <p>Lock your device by entering a passcode:</p>
 
-    <input type="text" name="passcode-1" class="passcode" required pattern="\d{4}" maxlength="4" data-parsley-required-message="Passcode is required." data-parsley-pattern-message="Passcode must be 4 digits." >
+    <input type="text" name="passcode-1" class="passcode passcode-1" required pattern="\d{4}" maxlength="4" data-parsley-required-message="Passcode is required." data-parsley-pattern-message="Passcode must be 4 digits." >
 
     <p>Enter passcode again:</p>
 
-    <input type="text" name="passcode-2" class="passcode" required pattern="\d{4}" maxlength="4" data-parsley-equalto="input[name=passcode-1]" data-parsley-required-message="Passcode is required." data-parsley-pattern-message="Passcode must be 4 digits." data-parsley-equalto-message="Passcodes must match.">
+    <input type="text" name="passcode-2" class="passcode passcode-2" required pattern="\d{4}" maxlength="4" data-parsley-equalto="input[name=passcode-1]" data-parsley-required-message="Passcode is required." data-parsley-pattern-message="Passcode must be 4 digits." data-parsley-equalto-message="Passcodes must match.">
 
     <p>Once your device is locked, you will not be able to change this code again.</p>
 
