@@ -317,7 +317,7 @@ def main(argv):
         #import pdb; pdb.set_trace()
         #print "!!! Sending reregister... \n"
         #time.sleep(1)
-        sendCmd(config, cred, newLocation())
+        cmd = sendCmd(config, cred, newLocation())
         #cmd, cred = registerNew(config, cred)
 
     # Send a fake statement saying that the client has no passcode.

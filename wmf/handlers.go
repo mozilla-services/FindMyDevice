@@ -31,7 +31,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 )
 
 // base handler for REST and Socket calls.
@@ -1257,15 +1256,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			}
 			c := strings.ToLower(string(cmd))
 			cs := string(c[0])
-			/*
-				            // TODO : fix command filter
-							if !strings.Contains(devRec.Accepts, cs) {
-								self.logger.Warn(self.logCat, "Unacceptable Command",
-									util.Fields{"unacceptable": cs,
-										"acceptable": devRec.Accepts})
-								continue
-							}
-			*/
+			// TODO : fix command filter
 			self.metrics.Increment("cmd.received." + cs)
 			// Normalize the args.
 			switch args.(type) {
@@ -1382,9 +1373,8 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 					string(vs))
 			}
 			vr := []rune(vs)
-			vb := []byte(vs)
 			trimmed := vr[:minInt(100,
-				utf8.RuneCount(vb))]
+				len(vr))]
 			rargs["m"] = string(trimmed)
 		}
 	case "r", "t":
@@ -1557,7 +1547,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	self.logger.Info(self.logCat, "Handling cmd from UI",
 		util.Fields{
 			"cmd":    string(body),
-			"length": fmt.Sprintf("%d", lbody),
+			"length": strconv.FormatInt(int64(lbody), 10),
 		})
 	if lbody > 0 {
 		reply := make(replyType)
@@ -1609,6 +1599,7 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 		DeviceList []devList
 	}
 
+	resp.Header().Set("Content-Type", "application/json")
 	session, err := sessionStore.Get(req, SESSION_NAME)
 	if err != nil {
 		self.logger.Error(self.logCat,
@@ -1672,7 +1663,6 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	resp.Header().Set("Content-Type", "application/json")
 	if self.config.GetFlag("debug.show_output") {
 		self.logger.Debug(self.logCat,
 			">>>output",

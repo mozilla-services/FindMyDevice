@@ -67,6 +67,9 @@ func (self *WWS) sniffer() {
 		if len(raw) <= 0 {
 			continue
 		}
+		self.Logger.Debug("worker",
+			"#### Recv'd",
+			util.Fields{"raw": string(raw)})
 		self.input <- raw
 	}
 }

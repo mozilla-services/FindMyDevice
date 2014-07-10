@@ -208,23 +208,6 @@ func (self *Storage) Init() (err error) {
 			}
 		}
 	}
-	// burn off the excess indexes
-	// TEMPORARY!!
-	statement = "select indexrelname from pg_stat_user_indexes where indexrelname similar to'%_idx\\d+';"
-	rows, err := dbh.Query(statement)
-	defer rows.Close()
-	if err == nil {
-		for rows.Next() {
-			if err = rows.Scan(&tmp); err == nil {
-				st := fmt.Sprintf("drop index %s;", tmp)
-				fmt.Printf("=== %s\n", st)
-				// again, Exec doesn't do var replacements for some reason.
-				if _, err = dbh.Exec(st); err != nil {
-					fmt.Printf("=== Index Cleanup Err %s\n", err.Error())
-				}
-			}
-		}
-	}
 	//TODO get lastDbUpdate from meta, if there's a file in sql older
 	// than that, run it. (allows for db patching.)
 
@@ -254,7 +237,8 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 			dev.ID)
 		defer rows.Close()
 		if err != nil {
-			fmt.Printf("!!!!! pgError: %+v\n", err)
+			self.logger.Warn(self.logCat, "Device Info Update error",
+				util.Fields{"error": err.Error()})
 			return "", err
 		} else {
 			return dev.ID, nil
@@ -343,7 +327,6 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		Accepts:      accepts,
 		AccessToken:  string(accesstoken),
 	}
-	fmt.Printf(">> device: %+v\n", reply)
 
 	return reply, nil
 }
