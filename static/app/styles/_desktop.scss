@@ -17,7 +17,7 @@
         width: auto;
 
         a {
-          background: image-url('icon-sound.png') no-repeat left 50%;
+          background: transparent no-repeat left 50%;
           display: inline-block;
           font-size: 14px;
           height: 47px;
@@ -28,19 +28,6 @@
           &:hover {
             background-color: $footer-link-hover-background-color--desktop;
           }
-        }
-
-        &.play-sound a {
-          background-image: image-url('icon-sound.png');
-        }
-
-        &.lost-mode a {
-          background-image: image-url('icon-lock.png');
-          margin: 0;
-        }
-
-        &.erase a {
-          background-image: image-url('icon-erase.png');
         }
       }
     }

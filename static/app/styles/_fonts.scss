@@ -1,18 +1,3 @@
-
-
-@mixin font-face($font-family, $path, $font-style: normal, $font-weight: normal, $font-stretch: normal, $font-variant: normal) {
-  @font-face {
-    font-family: $font-family;
-    src: url('#{$path}.eot?#iefix') format('embedded-opentype'),
-         url('#{$path}.woff') format('woff'),
-         url('#{$path}.ttf') format('truetype');
-    font-style: $font-style;
-    font-weight: $font-weight;
-    font-stretch: $font-stretch;
-    font-variant: $font-variant;
-  }
-}
-
 $font-base: '/bower_components/typopro/web/TypoPRO-FiraSans/';
 
 /* TypoPRO Fira Sans */

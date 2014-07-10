@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 @import "variables";
+@import "mixins";
 @import "fonts";
 @import "keyframes";
 
@@ -72,7 +73,7 @@ a {
     z-index: 1000;
 
     .menu {
-      background-image: image-url('nav-menu.png');
+      @include hidpi-background-image(nav-menu, 24px 24px);
       display: block;
       height: 24px;
       left: 17px;
@@ -107,7 +108,8 @@ a {
   }
 
   #map {
-    background: image-url('bg.png') no-repeat 50% 50%, linear-gradient(180deg, $header-background-color, #fff);
+    background: transparent no-repeat 50% 50%, linear-gradient(180deg, $header-background-color, #fff);
+    @include hidpi-background-image(bg, 2000px 950px);
     position: relative;
 
     .locating {
@@ -124,24 +126,41 @@ a {
         color: $map-heading-color;
         font-size: 14px;
         font-weight: normal;
+        position: relative;
 
         &::before {
           animation-name: spin;
           animation-duration: 1500ms;
           animation-iteration-count: infinite;
           animation-timing-function: linear;
-          background: image-url('radar-spinner.png') no-repeat;
+          @include hidpi-background-image(spinner, 150px 150px);
+          background-repeat: no-repeat;
           content: '';
           display: block;
           height: 150px;
           margin: 0 auto 35px auto;
           width: 150px;
         }
+
+        &::after {
+          @include hidpi-background-image(spinner-binoculars, 90px 90px);
+          background-repeat: no-repeat;
+          background-position: 50% 50%;
+          content: '';
+          display: block;
+          height: 150px;
+          left: 50%;
+          margin-left: -75px;
+          position: absolute;
+          top: 0;
+          width: 150px;
+        }
       }
     }
 
     .brand {
-      background: image-url('firefoxos.png') no-repeat;
+      @include hidpi-background-image(firefoxos, 147px 30px);
+      background-repeat: no-repeat;
       bottom: 38px;
       height: 30px;
       left: 38px;
@@ -152,7 +171,8 @@ a {
     }
 
     .pin-locating-spinner {
-      background: image-url('radar-small-animated.gif') no-repeat;
+      @include hidpi-background-image(spinner-small-animated, 39px 39px, gif);
+      background-repeat: no-repeat;
       height: 39px;
       margin-top: -162px;
       margin-left: 10px;
@@ -188,7 +208,7 @@ a {
       width: 33%;
 
       a {
-        background: image-url('icon-sound.png') no-repeat 50% 50%;
+        background: transparent no-repeat 50% 50%;
         color: $footer-text-color;
         display: block;
         font-size: 13px;
@@ -203,15 +223,15 @@ a {
       }
 
       &.play-sound a {
-        background-image: image-url('icon-sound.png');
+        @include hidpi-background-image(icon-sound, 39px 39px);
       }
 
       &.lost-mode a {
-        background-image: image-url('icon-lock.png');
+        @include hidpi-background-image(icon-lock, 39px 39px);
       }
 
       &.erase a {
-        background-image: image-url('icon-erase.png');
+        @include hidpi-background-image(icon-erase, 39px 39px);
       }
     }
   }
@@ -255,11 +275,11 @@ a {
     }
 
     .close {
-      background-image: image-url('nav-close.png');
+      @include hidpi-background-image(nav-close, 24px 24px);
     }
 
     .back {
-      background-image: image-url('nav-back.png');
+      @include hidpi-background-image(nav-back, 24px 24px);
     }
   }
 
@@ -309,6 +329,34 @@ a {
       height: 75px;
       resize: none;
     }
+
+    .parsley-errors-list {
+      margin: 0;
+      padding: 0;
+
+      li {
+        background: $parsley-error-background-color;
+        color: $parsley-error-text-color;
+        display: inline-block;
+        font-size: 14px;
+        list-style: none;
+        margin: 4px 0 0 1px;
+        padding: 4px 10px 3px 10px;
+        position: relative;
+
+        &::before {
+          border-color: transparent transparent $parsley-error-background-color transparent;
+          border-style: solid;
+          border-width: 0 8px 8px 8px;
+          content: '';
+          height: 0;
+          left: 10px;
+          position: absolute;
+          top: -8px;
+          width: 0;
+        }
+      }
+    }
   }
 
   footer {
@@ -330,7 +378,7 @@ a {
     button {
       background: $modal-button-background-color;
       border: none;
-      border-radius: 20px;
+      border-radius: 22px;
       color: #fff;
       font-style: italic;
       outline: 0;
@@ -381,26 +429,31 @@ a {
         padding: 0;
 
         li {
+          background: transparent no-repeat 16px 50%;
+          @include hidpi-background-image(icon-device, 32px 32px);
           border-bottom: 1px solid #e0e0e0;
           list-style: none;
+
+          &.selected {
+            background: transparent no-repeat left 16px top 50%;
+            @include hidpi-background-image(icon-device-active, 32px 32px);
+
+            a, span {
+              background: transparent no-repeat right 16px top 50%;
+              @include hidpi-background-image(icon-check, 24px 24px);
+            }
+          }
 
           &:last-child {
             border-bottom: 0;
           }
 
           a, span {
-            background:
-              image-url('icon-device.png') no-repeat 16px 50%,
-              image-url('nav-forward.png') no-repeat right 16px top 50%;
+            background: transparent no-repeat right 16px top 50%;
+            @include hidpi-background-image(nav-forward, 24px 24px);
             color: inherit;
             display: block;
             padding: 18px 0 18px 60px;
-
-            &.selected {
-              background:
-                image-url('icon-device-active.png') no-repeat left 16px top 50%,
-                image-url('icon-check.png') no-repeat right 16px top 50%;
-            }
           }
         }
       }
