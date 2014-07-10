@@ -669,9 +669,14 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 				}
 				// has_lockcode
 			case "ha":
-				hasPasscode = isTrue(arg)
-				if err = store.SetDeviceLock(devId, hasPasscode); err != nil {
-					return err
+				if self.config.GetFlag("ek.ignore_passcode_state") {
+					hasPasscode = false
+					args[key] = false
+				} else {
+					hasPasscode = isTrue(arg)
+					if err = store.SetDeviceLock(devId, hasPasscode); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -811,9 +816,11 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 
 // A simple signature generator for WS connections
 // Unfortunately, remote IP is not reliable for WS.
-func (self *Handler) genSig(req *http.Request, devId string) (ret string, err error) {
-	session, _ := sessionStore.Get(req, SESSION_NAME)
-	if sess, ok := session.Values["deviceid"]; !ok {
+func (self *Handler) genSig(req *http.Request, session *sessions.Session) (ret string, err error) {
+	if session == nil {
+		session, _ = sessionStore.Get(req, SESSION_NAME)
+	}
+	if sess, ok := session.Values[SESSION_DEVICEID]; !ok {
 		return "", errors.New("Invalid")
 	} else {
 		sig := self.genHash(sess.(string) +
@@ -836,7 +843,7 @@ func (self *Handler) checkSig(req *http.Request, devId string) (ok bool) {
 	bits := strings.Split(req.URL.Path, "/")
 	// remember, leading "/" counts.
 	gotsig := bits[len(bits)-2]
-	testsig, err := self.genSig(req, devId)
+	testsig, err := self.genSig(req, nil)
 	if err != nil {
 		return false
 	}
@@ -1095,6 +1102,13 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			if err != nil {
 				hasPasscode = false
 			}
+		}
+		if self.config.GetFlag("ek.ignore_passcode_state") {
+			// This overrides the passcode state reported by the device.
+			// This is a work around for a device lock screen bug that
+			// caches the last pass code, even if the user has disabled
+			// the device pass code.
+			hasPasscode = false
 		}
 		if val, ok := buffer["accepts"]; ok {
 			// collapse the array to a string
@@ -1627,9 +1641,12 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 
 	var reply []devList
 	verRoot := strings.SplitN(self.config.Get("VERSION", "0"), ".", 2)[0]
-
+	if _, ok := session.Values[SESSION_USERID]; !ok {
+		session.Values[SESSION_USERID] = data.UserId
+	}
 	for _, d := range deviceList {
-		sig, err := self.genSig(req, d.ID)
+		session.Values[SESSION_DEVICEID] = d.ID
+		sig, err := self.genSig(req, session)
 		if err != nil {
 			continue
 		}
@@ -1807,6 +1824,9 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 		session.Values[SESSION_TOKEN] = sessionInfo.AccessToken
 	}
 	session.Save(req, resp)
+	if self.config.GetFlag("ek.ignore_passcode_state") {
+		devInfo.HasPasscode = false
+	}
 	// display the device info...
 	output, err := json.Marshal(devInfo)
 	if err == nil {
