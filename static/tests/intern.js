@@ -33,7 +33,7 @@ define({
   ],
 
   // Maximum number of simultaneous integration tests that should be executed on the remote WebDriver service
-  maxConcurrency: 3,
+  maxConcurrency: 1,
 
   reporters: ['console'],
 
@@ -59,7 +59,10 @@ define({
   suites: [ /* 'myPackage/tests/foo', 'myPackage/tests/bar' */ ],
 
   // Functional test suite(s) to run in each browser once non-functional tests are completed
-  functionalSuites: [ 'tests/functional/index' ],
+  functionalSuites: [
+    'tests/functional/index',
+    'tests/functional/ring'
+  ],
 
   // A regular expression matching URLs to files that should not be included in code coverage analysis
   excludeInstrumentation: /^(?:tests|node_modules)\//
