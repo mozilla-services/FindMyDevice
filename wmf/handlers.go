@@ -1599,20 +1599,12 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 		DeviceList []devList
 	}
 
-	resp.Header().Set("Content-Type", "application/json")
-	session, err := sessionStore.Get(req, SESSION_NAME)
-	if err != nil {
-		self.logger.Error(self.logCat,
-			"Could not initialize session",
-			util.Fields{"error": err.Error()})
-		//TODO: return error, clear cookie?
-		return
-	}
 	store := self.store
-
-	sessionInfo, err := self.getSessionInfo(resp, req, session)
-	if err == nil && len(sessionInfo.UserId) > 0 {
-		data.UserId = sessionInfo.UserId
+	session, _ := sessionStore.Get(req, SESSION_NAME)
+	resp.Header().Set("Content-Type", "application/json")
+	userId, _, err := self.getUser(resp, req)
+	if err == nil && len(userId) > 0 {
+		data.UserId = userId
 	} else {
 		self.logger.Error(self.logCat,
 			"Could not get user id",
@@ -1633,7 +1625,7 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 	var reply []devList
 	verRoot := strings.SplitN(self.config.Get("VERSION", "0"), ".", 2)[0]
 	if _, ok := session.Values[SESSION_USERID]; !ok {
-		session.Values[SESSION_USERID] = data.UserId
+		session.Values[SESSION_USERID] = userId
 	}
 	for _, d := range deviceList {
 		session.Values[SESSION_DEVICEID] = d.ID
