@@ -35,7 +35,9 @@ define([
     activate: function (event) {
       event.preventDefault();
 
-      this.device.sendCommand(new LockCommand({ code: this.passcode2, message: this.note }));
+      this.passcode1 = this.$('input.passcode-1').val();
+
+      this.device.sendCommand(new LockCommand({ code: this.passcode1, message: this.note }));
 
       this.device.set('activity', 'lost');
 
