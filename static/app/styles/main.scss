@@ -340,7 +340,7 @@ a {
         display: inline-block;
         font-size: 14px;
         list-style: none;
-        margin: 2px 0 0 0;
+        margin: 4px 0 0 1px;
         padding: 4px 10px 3px 10px;
         position: relative;
 
@@ -378,7 +378,7 @@ a {
     button {
       background: $modal-button-background-color;
       border: none;
-      border-radius: 20px;
+      border-radius: 22px;
       color: #fff;
       font-style: italic;
       outline: 0;

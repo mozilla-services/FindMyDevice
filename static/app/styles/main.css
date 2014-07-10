@@ -352,16 +352,16 @@ a {
       margin: 0;
       padding: 0; }
       #modal section .parsley-errors-list li {
-        background: #f00;
-        color: #fff;
+        background: #f5dd70;
+        color: #81795e;
         display: inline-block;
         font-size: 14px;
         list-style: none;
-        margin: 2px 0 0 0;
+        margin: 4px 0 0 1px;
         padding: 4px 10px 3px 10px;
         position: relative; }
         #modal section .parsley-errors-list li::before {
-          border-color: transparent transparent #f00 transparent;
+          border-color: transparent transparent #f5dd70 transparent;
           border-style: solid;
           border-width: 0 8px 8px 8px;
           content: '';
@@ -382,7 +382,7 @@ a {
     #modal .buttons button {
       background: #bbb;
       border: none;
-      border-radius: 20px;
+      border-radius: 22px;
       color: #fff;
       font-style: italic;
       outline: 0;
