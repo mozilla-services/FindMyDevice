@@ -66,6 +66,7 @@ define({
   functionalSuites: [
     'tests/functional/index',
     'tests/functional/ring',
+    'tests/functional/lock',
     'tests/functional/erase'
   ],
 
