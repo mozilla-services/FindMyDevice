@@ -329,6 +329,34 @@ a {
       height: 75px;
       resize: none;
     }
+
+    .parsley-errors-list {
+      margin: 0;
+      padding: 0;
+
+      li {
+        background: $parsley-error-background-color;
+        color: $parsley-error-text-color;
+        display: inline-block;
+        font-size: 14px;
+        list-style: none;
+        margin: 4px 0 0 1px;
+        padding: 4px 10px 3px 10px;
+        position: relative;
+
+        &::before {
+          border-color: transparent transparent $parsley-error-background-color transparent;
+          border-style: solid;
+          border-width: 0 8px 8px 8px;
+          content: '';
+          height: 0;
+          left: 10px;
+          position: absolute;
+          top: -8px;
+          width: 0;
+        }
+      }
+    }
   }
 
   footer {
@@ -350,7 +378,7 @@ a {
     button {
       background: $modal-button-background-color;
       border: none;
-      border-radius: 20px;
+      border-radius: 22px;
       color: #fff;
       font-style: italic;
       outline: 0;

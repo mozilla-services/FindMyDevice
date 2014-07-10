@@ -5,6 +5,16 @@
 'use strict';
 
 require.config({
+  paths: {
+    jquery: '../bower_components/jquery/dist/jquery',
+    backbone: '../bower_components/backbone/backbone',
+    underscore: '../bower_components/underscore/underscore',
+    text: '../bower_components/requirejs-text/text',
+    mustache: '../bower_components/mustache/mustache',
+    stache: '../bower_components/requirejs-mustache/stache',
+    reconnectingWebsocket: '../bower_components/reconnectingWebsocket/reconnecting-websocket',
+    parsley: '../bower_components/parsleyjs/dist/parsley'
+  },
   shim: {
     underscore: {
       exports: '_'
@@ -15,16 +25,13 @@ require.config({
         'jquery'
       ],
       exports: 'Backbone'
+    },
+    parsley: {
+      deps: [
+        'jquery'
+      ],
+      exports: 'jQuery.Parsley'
     }
-  },
-  paths: {
-    jquery: '../bower_components/jquery/dist/jquery',
-    backbone: '../bower_components/backbone/backbone',
-    underscore: '../bower_components/underscore/underscore',
-    text: '../bower_components/requirejs-text/text',
-    mustache: '../bower_components/mustache/mustache',
-    stache: '../bower_components/requirejs-mustache/stache',
-    reconnectingWebsocket: '../bower_components/reconnectingWebsocket/reconnecting-websocket'
   }
 });
 
