@@ -35,6 +35,8 @@ define({
   // Maximum number of simultaneous integration tests that should be executed on the remote WebDriver service
   maxConcurrency: 3,
 
+  reporters: ['console'],
+
   // Name of the tunnel class to use for WebDriver tests
   //tunnel: 'SauceLabsTunnel',
   tunnel: 'NullTunnel',
