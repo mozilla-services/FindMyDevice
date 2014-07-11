@@ -26,14 +26,15 @@ define([
         // Confirm erase
         .findByCssSelector('#modal button.erase.danger')
           .click()
-        .end();
+        .end()
         // Wait for confirmation
-        // .findByCssSelector('#notifier.active')
-        //   .text()
-        //   .then(function (text) {
-        //     expect(text).to.equal('Your device is erasing.');
-        //   })
-        // .end();
+        .sleep(100)
+        .findByCssSelector('#notifier.active')
+          .text()
+          .then(function (text) {
+            expect(text).to.equal('Your device is erasing.');
+          })
+        .end();
     });
   });
 });

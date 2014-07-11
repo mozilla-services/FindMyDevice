@@ -22,14 +22,15 @@ define([
         // Click Ring Device button
         .findByCssSelector('#modal button.play-sound')
           .click()
-        .end();
+        .end()
         // Wait for confirmation
-        // .findByCssSelector('#notifier.active')
-        //   .text()
-        //   .then(function (text) {
-        //     expect(text).to.equal('Your device is ringing.');
-        //   })
-        // .end();
+        .sleep(100)
+        .findByCssSelector('#notifier.active')
+          .text()
+          .then(function (text) {
+            expect(text).to.equal('Your device is ringing.');
+          })
+        .end();
     });
   });
 });

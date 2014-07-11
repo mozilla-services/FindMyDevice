@@ -39,14 +39,15 @@ define([
           .findByCssSelector('button.activate')
             .click()
           .end()
-        .end();
+        .end()
         // Wait for confirmation
-        // .findByCssSelector('#notifier.active')
-        //   .text()
-        //   .then(function (text) {
-        //     expect(text).to.equal('Your device is locked.');
-        //   })
-        // .end();
+        .sleep(250)
+        .findByCssSelector('#notifier.active')
+          .text()
+          .then(function (text) {
+            expect(text).to.equal('Your device is locked.');
+          })
+        .end();
     });
 
     bdd.it('should allow an optional notes field', function () {
@@ -178,7 +179,7 @@ define([
           .findByCssSelector('input.passcode-2 + ul.parsley-errors-list li')
             .text()
             .then(function (text) {
-              expect(text).to.equal('Passcode must match.');
+              expect(text).to.equal('Passcodes must match.');
             })
           .end()
         .end();
