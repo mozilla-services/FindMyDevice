@@ -1,3 +1,9 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+'use strict';
+
 var express = require('express');
 var rest = require('restler');
 
@@ -14,16 +20,18 @@ function postCommand(postData) {
     .on('complete', function(data, response) {
       console.log('Received: ', data);
 
-      var response = generateResponse(data);
+      var commandResponse = generateCommandResponse(data);
 
-      if (response) {
-        postCommand(response);
+      if (commandResponse) {
+        postCommand(commandResponse);
       }
     }
   );
 }
 
-function generateResponse (command) {
+function generateCommandResponse (command) {
+  /* jshint camelcase: false */
+
   if (command.t) {
     return { t: { ok: true, la: 37.7895040, lo: -122.3890650, ti: Date.now(), has_passcode: false } };
   } else if (command.r) {

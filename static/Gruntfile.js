@@ -32,7 +32,7 @@ module.exports = function (grunt) {
   var yeomanConfig = {
     app: 'app',
     dist: 'dist',
-    test: 'test',
+    test: 'tests',
     tmp: '.tmp'
   };
 
@@ -238,7 +238,7 @@ module.exports = function (grunt) {
         'Gruntfile.js',
         '<%= yeoman.app %>/scripts/{,*/}*.js',
         '!<%= yeoman.app %>/scripts/vendor/*',
-        '<%= yeoman.test %>/spec/{,*/}*.js'
+        '<%= yeoman.test %>/{,*/}*.js'
       ]
     },
 
