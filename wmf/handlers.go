@@ -54,6 +54,7 @@ const (
 	SESSION_USERID   = "userid"
 	SESSION_EMAIL    = "email"
 	SESSION_TOKEN    = "token"
+	SESSION_CRSTOKEN = "crstoken"
 	SESSION_DEVICEID = "deviceid"
 )
 
@@ -66,6 +67,7 @@ type sessionInfoStruct struct {
 	DeviceId    string
 	Email       string
 	AccessToken string
+	CRSToken    string
 }
 
 type initDataStruct struct {
@@ -75,6 +77,7 @@ type initDataStruct struct {
 	DeviceList  []storage.DeviceList
 	Device      *storage.Device
 	Host        map[string]string
+	Token       string
 }
 
 // Map of clientIDs to socket handlers
@@ -451,6 +454,7 @@ func (self *Handler) clearSession(sess *sessions.Session) (err error) {
 	delete(sess.Values, SESSION_DEVICEID)
 	delete(sess.Values, SESSION_EMAIL)
 	delete(sess.Values, SESSION_TOKEN)
+	delete(sess.Values, SESSION_CRSTOKEN)
 	return
 }
 
@@ -467,6 +471,7 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 	data.ProductName = self.config.Get("productname", "Find My Device")
 
 	data.MapKey = self.config.Get("mapbox.key", "")
+	data.Token, _ = util.GenUUID4()
 
 	// host information (for websocket callback)
 	data.Host = make(map[string]string)
@@ -591,6 +596,7 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	var userid string
 	var email string
 	var accessToken string
+	var crsToken string
 
 	dev := getDevFromUrl(req.URL)
 	userid, email, err = self.getUser(resp, req)
@@ -608,11 +614,15 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	if token, ok := session.Values[SESSION_TOKEN]; ok {
 		accessToken = token.(string)
 	}
+	if token, ok := session.Values[SESSION_CRSTOKEN]; ok {
+		crsToken = token.(string)
+	}
 	info = &sessionInfoStruct{
 		UserId:      userid,
 		Email:       email,
 		DeviceId:    dev,
-		AccessToken: accessToken}
+		AccessToken: accessToken,
+		CRSToken:    crsToken}
 	return info, nil
 }
 
@@ -938,6 +948,32 @@ func socketError(socket *websocket.Conn, msg string) {
 	socket.Write(out)
 }
 
+func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (result bool) {
+	var stoken, token string
+	result = false
+
+	fmt.Printf("### checking Token %+v\n", session.Values[SESSION_CRSTOKEN])
+
+	if v, ok := session.Values[SESSION_CRSTOKEN]; !ok {
+		self.logger.Debug(self.logCat, "token fail",
+			util.Fields{"error": "No token in session"})
+		return false
+	} else {
+		stoken = v.(string)
+	}
+
+	// get the URL args
+	token = req.URL.Query().Get("token")
+	if token == "" {
+		self.logger.Warn(self.logCat, "token fail",
+			util.Fields{"error": "No token in URL"})
+		return self.config.GetFlag("auth.allow_tokenless")
+	}
+
+	// check to see if the "tok" field matches
+	return token == stoken
+}
+
 //Handler Public Functions
 
 func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics) *Handler {
@@ -967,8 +1003,10 @@ func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Me
 	sessionStore = sessions.NewCookieStore([]byte(sessionSecret),
 		[]byte(sessionCrypt))
 	sessionStore.Options = &sessions.Options{
-		Domain: config.Get("session.domain", "localhost"),
-		Path:   "/",
+		Domain:   config.Get("session.domain", "localhost"),
+		Path:     "/",
+		Secure:   !config.GetFlag("auth.allow_insecure_cookie"),
+		HttpOnly: true,
 		// Do not set a max age by default.
 		// This confuses gorilla, which winds up setting two "user" cookies.
 		//MaxAge: 3600 * 24,
@@ -1166,11 +1204,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			util.Fields{"error": err.Error()})
 		return
 	}
-	if self.config.GetFlag("debug.show_output") {
-		self.logger.Debug(self.logCat,
-			">>>output",
-			util.Fields{"output": string(output)})
-	}
+	self.logger.Debug(self.logCat,
+		"+++ New Register",
+		util.Fields{"output": string(output)})
 	resp.Write(output)
 	return
 }
@@ -1466,6 +1502,19 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	store := self.store
+	if !self.checkToken(session, req) {
+		var stoken string
+		if v, ok := session.Values[SESSION_CRSTOKEN]; !ok {
+			stoken = "None"
+		} else {
+			stoken = v.(string)
+		}
+		self.logger.Error(self.logCat, "Bad Token for request",
+			util.Fields{"url": req.URL.String(),
+				"expecting": stoken})
+		http.Error(resp, "Unauthorized", 401)
+		return
+	}
 
 	deviceId := getDevFromUrl(req.URL)
 	if deviceId == "" {
@@ -1705,6 +1754,8 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		session.Values[SESSION_USERID] = sessionInfo.UserId
 		session.Values[SESSION_EMAIL] = sessionInfo.Email
 		session.Values[SESSION_DEVICEID] = sessionInfo.DeviceId
+		session.Values[SESSION_CRSTOKEN] = initData.Token
+		fmt.Printf("### Saving new session info %+v\n", session.Values)
 		if err = session.Save(req, resp); err != nil {
 			self.logger.Error(self.logCat,
 				"Could not save session",
@@ -1732,6 +1783,12 @@ func (self *Handler) InitDataJson(resp http.ResponseWriter, req *http.Request) {
 			"Could not initialize session",
 			util.Fields{"error": err.Error()})
 		http.Error(resp, "Server Error", 500)
+		return
+	}
+
+	if !self.checkToken(session, req) {
+		self.logger.Error(self.logCat, "bad crstoken for request", nil)
+		http.Error(resp, "Not Authorized", 401)
 		return
 	}
 
@@ -1785,6 +1842,10 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 		self.logger.Error(self.logCat, "Could not get session info",
 			util.Fields{"error": err.Error()})
 		http.Error(resp, err.Error(), 500)
+	}
+	if !self.checkToken(session, req) {
+		self.logger.Error(self.logCat, "bad crstoken for request", nil)
+		http.Error(resp, err.Error(), 401)
 	}
 	sessionInfo, err := self.getSessionInfo(resp, req, session)
 	if err != nil && err != ErrNoUser {
