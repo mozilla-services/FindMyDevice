@@ -32,12 +32,31 @@ function postCommand(postData) {
 function generateCommandResponse (command) {
   /* jshint camelcase: false */
 
+  // Track command
   if (command.t) {
-    return { t: { ok: true, la: 37.7895040, lo: -122.3890650, ti: Date.now(), has_passcode: false } };
+    // Make sure duration is included
+    if (command.t.d) {
+      return { t: { ok: true, la: 37.7895040, lo: -122.3890650, ti: Date.now(), has_passcode: false } };
+    } else {
+      return { t: { ok: false } };
+    }
+  // Ring command
   } else if (command.r) {
-    return { r: { ok: true } };
+    // Make sure duration and period are included
+    if (command.r.d && command.r.p) {
+      return { r: { ok: true } };
+    } else {
+      return { r: { ok: false } };
+    }
+  // Lock command
   } else if (command.l) {
-    return { l: { ok: true } };
+    // Make sure message and code are included
+    if (command.l.m && command.l.c) {
+      return { l: { ok: true } };
+    } else {
+      return { l: { ok: false } };
+    }
+  // Erase command
   } else if (command.e) {
     return { e: { ok: true } };
   }
