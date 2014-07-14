@@ -1,11 +1,8 @@
 #!/bin/bash
 
-set -e
+. ./activate.sh
 
 echo "Installing required go libraries..."
-export GOPATH="${PWD}/Godeps/_workspace"
-export GOBIN=$PWD
-
 go install github.com/mozilla-services/FindMyDevice
 
 echo "Libraries installed"

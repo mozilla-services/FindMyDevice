@@ -1018,7 +1018,6 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "No body", http.StatusBadRequest)
 	} else {
 		loggedIn = false
-
 		if val, ok := buffer["deviceid"]; !ok || len(val.(string)) == 0 {
 			deviceid, _ = util.GenUUID4()
 		} else {
@@ -2112,6 +2111,9 @@ func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "Server error", 500)
 		return
 	}
+
+	session.Options.HttpOnly = true
+	session.Options.Secure = !config.GetFlag("auth.use_insecure_cookie")
 
 	session.Save(req, resp)
 	http.Redirect(resp, req, buffer.String(), http.StatusFound)
