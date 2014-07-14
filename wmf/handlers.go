@@ -963,14 +963,16 @@ func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (r
 	}
 
 	// get the URL args
-	token = req.URL.Query().Get("token")
-	if token == "" {
+	if tokens, ok := req.Header["X-CSRFTOKEN"]; !ok {
 		self.logger.Warn(self.logCat, "token fail",
-			util.Fields{"error": "No token in URL"})
+			util.Fields{"error": "No token in Request"})
 		return self.config.GetFlag("auth.allow_tokenless")
+	} else {
+		token = tokens[0]
 	}
 
 	// check to see if the "tok" field matches
+	fmt.Printf("### Checking %s == %s\n", token, stoken)
 	return token == stoken
 }
 
