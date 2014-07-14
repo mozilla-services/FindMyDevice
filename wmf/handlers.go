@@ -2111,10 +2111,10 @@ func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "Server error", 500)
 		return
 	}
-	if self.config.GetFlag("auth.secure_cookie") {
-		session.Options.HttpOnly = true
-		session.Options.Secure = true
-	}
+
+	session.Options.HttpOnly = true
+	session.Options.Secure = !config.GetFlag("auth.use_insecure_cookie")
+
 	session.Save(req, resp)
 	http.Redirect(resp, req, buffer.String(), http.StatusFound)
 	self.metrics.Increment("page.signin.attempt")
