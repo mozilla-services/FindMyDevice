@@ -22,6 +22,10 @@ import (
 var ErrDatabase = errors.New("Database Error")
 var ErrUnknownDevice = errors.New("Unknown device")
 
+const (
+	DB_VERSION = "20140707"
+)
+
 // Storage abstration
 type Storage struct {
 	config   *util.MzConfig
@@ -30,6 +34,7 @@ type Storage struct {
 	dsn      string
 	logCat   string
 	defExpry int64
+	maxDev   int64
 	db       *sql.DB
 }
 
@@ -38,6 +43,7 @@ type Position struct {
 	Latitude  float64
 	Longitude float64
 	Altitude  float64
+	Accuracy  float64
 	Time      int64
 	Cmd       map[string]interface{}
 }
@@ -94,6 +100,7 @@ type Unstructured map[string]interface{}
        latitude   float
        longitude  float
        altitude   float
+       accuracy   float
 
    // misc administrivia table.
    table meta:
@@ -140,86 +147,89 @@ func Open(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics)
 	if err = db.Ping(); err != nil {
 		return nil, err
 	}
+	maxDev, err := strconv.ParseInt(config.Get("db.max_devices_per_user", "1"), 0, 64)
+	if err != nil {
+		maxDev = 1
+	}
+
 	store = &Storage{
 		config:   config,
 		logger:   logger,
 		logCat:   logCat,
 		defExpry: defExpry,
+		maxDev:   maxDev,
 		metrics:  metrics,
 		dsn:      dsn,
 		db:       db}
-	//	if err = store.Init(); err != nil {
-	//		return nil, err
-	//	}
 	return store, nil
 }
 
 // Create the tables, indexes and other needed items.
 func (self *Storage) Init() (err error) {
-	// TODO: create a versioned db update system that contains commands
-	// to execute.
-	cmds := []string{
-		"create table if not exists userToDeviceMap (userId varchar, deviceId varchar, name varchar, date date);",
-		"create index on userToDeviceMap (userId);",
-		"create index on userToDeviceMap (deviceId);",
-		"create unique index on userToDeviceMap (userId, deviceId);",
-
-		"create table if not exists deviceInfo (deviceId varchar unique, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar, pushurl varchar, accepts varchar, accesstoken varchar);",
-		"create index on deviceInfo (deviceId);",
-
-		"create table if not exists pendingCommands (id bigserial, deviceId varchar, time timestamp, cmd varchar, type varchar);",
-		"create index on pendingCommands (deviceId);",
-
-		"create table if not exists position (id bigserial, deviceId varchar, time  timestamp, latitude real, longitude real, altitude real);",
-		"create index on position (deviceId);",
-		"create or replace function update_time() returns trigger as $$ begin new.lastexchange = now(); return new; end; $$ language 'plpgsql';",
-		"drop trigger if exists update_le on deviceinfo;",
-		"create trigger update_le before update on deviceinfo for each row execute procedure update_time();",
-		"create table if not exists meta (key varchar, value varchar);",
-		"create index on meta (key);",
-		"create table if not exists nonce (key varchar, val varchar, time timestamp);",
-		"create index on nonce (key);",
-		"create index on nonce (time);",
-		"set time zone utc;",
-	}
-	dbh := self.db
-	statement := "select table_name from information_schema.tables where table_name='meta' and table_schema='public';"
+	var statement string
 	var tmp string
+
+	dbh := self.db
+	err = dbh.QueryRow("select value from meta where key = 'db.ver';").Scan(&tmp)
+	if err == nil && tmp == DB_VERSION {
+		self.logger.Info(self.logCat, "Database up to date",
+			util.Fields{"version": DB_VERSION})
+		return err
+	}
+	if err != sql.ErrNoRows {
+		panic(fmt.Sprintf("err: %+v\n", err))
+	}
+	statement = "select table_name from information_schema.tables where table_name='meta' and table_schema='public';"
 	err = dbh.QueryRow(statement).Scan(&tmp)
 	if err == sql.ErrNoRows {
 		//initialize the table
-		for _, s := range cmds {
-			res, err := dbh.Exec(s)
-			self.logger.Debug(self.logCat, "db init",
-				util.Fields{"cmd": s, "res": fmt.Sprintf("%+v", res)})
-			if err != nil {
-				self.logger.Error(self.logCat, "Could not initialize db",
-					util.Fields{"cmd": s, "error": err.Error()})
-				return err
-			}
-		}
+		self.createDb()
 	}
-	// burn off the excess indexes
-	// TEMPORARY!!
-	statement = "select indexrelname from pg_stat_user_indexes where indexrelname similar to'%_idx\\d+';"
-	rows, err := dbh.Query(statement)
-    defer rows.Close()
-    if err == nil {
-		for rows.Next() {
-			if err = rows.Scan(&tmp); err == nil {
-				st := fmt.Sprintf("drop index %s;", tmp)
-				fmt.Printf("=== %s\n", st)
-				// again, Exec doesn't do var replacements for some reason.
-				if _, err = dbh.Exec(st); err != nil {
-					fmt.Printf("=== Index Cleanup Err %s\n", err.Error())
+	// check for updates
+	self.markDb(DB_VERSION)
+	return nil
+}
+
+func (self *Storage) createDb() (err error) {
+	// TODO: create a versioned db update system that contains commands
+	// to execute.
+	// read the create_db.sql file and build the database
+	panic("Please run the commands in sql/create_db.sql")
+	/*
+		        // note: indexes may return an error if they already exist.
+				for _, s := range cmds {
+					res, err := dbh.Exec(s)
+					self.logger.Debug(self.logCat, "db init",
+						util.Fields{"cmd": s, "res": fmt.Sprintf("%+v", res)})
+					if err != nil {
+						self.logger.Error(self.logCat, "Could not initialize db",
+							util.Fields{"cmd": s, "error": err.Error()})
+						return err
+					}
 				}
 			}
-		}
-	}
+	*/
 	//TODO get lastDbUpdate from meta, if there's a file in sql older
 	// than that, run it. (allows for db patching.)
+	// self.dbUpdated()
 
 	return err
+}
+
+func (self *Storage) markDb(date string) (err error) {
+	fmt.Printf("### marking db\n")
+	dbh := self.db
+	result, err := dbh.Exec("update meta set val=$2 where key=$1;",
+		"db.ver", date)
+	if err != nil {
+		return err
+	}
+	if cnt, err := result.RowsAffected(); cnt == 0 || err != nil {
+		_, err = dbh.Exec("insert into meta (key, val) values ($1, $2);",
+			"db.ver", date)
+		return err
+	}
+	return nil
 }
 
 // Register a new device to a given userID.
@@ -243,9 +253,10 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 			dev.Accepts,
 			dev.PushUrl,
 			dev.ID)
-        defer rows.Close()
+		defer rows.Close()
 		if err != nil {
-			fmt.Printf("!!!!! pgError: %+v\n", err)
+			self.logger.Warn(self.logCat, "Device Info Update error",
+				util.Fields{"error": err.Error()})
 			return "", err
 		} else {
 			return dev.ID, nil
@@ -253,7 +264,7 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 	}
 	// otherwise insert it.
 	statement := "insert into deviceInfo (deviceId, lockable, loggedin, lastExchange, hawkSecret, accepts, pushUrl) values ($1, $2, $3, $4, $5, $6, $7);"
-    rows, err := dbh.Query(statement,
+	rows, err := dbh.Query(statement,
 		string(dev.ID),
 		dev.HasPasscode,
 		dev.LoggedIn,
@@ -261,16 +272,16 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 		dev.Secret,
 		dev.Accepts,
 		dev.PushUrl)
-    defer rows.Close()
-    if err != nil {
+	defer rows.Close()
+	if err != nil {
 		self.logger.Error(self.logCat, "Could not create device",
 			util.Fields{"error": err.Error(),
 				"device": fmt.Sprintf("%+v", dev)})
 		return "", err
 	}
-    rows2, err := dbh.Query("insert into userToDeviceMap (userId, deviceId, name, date) values ($1, $2, $3, now());", userid, dev.ID, dev.Name)
-    defer rows2.Close()
-    if err != nil {
+	rows2, err := dbh.Query("insert into userToDeviceMap (userId, deviceId, name, date) values ($1, $2, $3, now());", userid, dev.ID, dev.Name)
+	defer rows2.Close()
+	if err != nil {
 		switch {
 		default:
 			self.logger.Error(self.logCat,
@@ -334,7 +345,6 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		Accepts:      accepts,
 		AccessToken:  string(accesstoken),
 	}
-    fmt.Printf(">> device: %+v\n", reply)
 
 	return reply, nil
 }
@@ -343,17 +353,18 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 
 	dbh := self.db
 
-	statement := "select extract(epoch from time)::int, latitude, longitude, altitude from position where deviceid=$1 order by time limit 1;"
+	statement := "select extract(epoch from time)::int, latitude, longitude, altitude, accuracy from position where deviceid=$1 order by time limit 1;"
 	rows, err := dbh.Query(statement, devId)
-    defer rows.Close()
+	defer rows.Close()
 	if err == nil {
 		var time int32
 		var latitude float32
 		var longitude float32
 		var altitude float32
+		var accuracy float32
 
 		for rows.Next() {
-			err = rows.Scan(&time, &latitude, &longitude, &altitude)
+			err = rows.Scan(&time, &latitude, &longitude, &altitude, &accuracy)
 			if err != nil {
 				self.logger.Error(self.logCat, "Could not get positions",
 					util.Fields{"error": err.Error(),
@@ -364,6 +375,7 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 				Latitude:  float64(latitude),
 				Longitude: float64(longitude),
 				Altitude:  float64(altitude),
+				Accuracy:  float64(accuracy),
 				Time:      int64(time)})
 		}
 		// gather the positions
@@ -383,7 +395,7 @@ func (self *Storage) GetPending(devId string) (cmd string, err error) {
 
 	statement := "select id, cmd, time from pendingCommands where deviceId = $1 order by time limit 1;"
 	rows, err := dbh.Query(statement, devId)
-    defer rows.Close()
+	defer rows.Close()
 	if rows.Next() {
 		var id string
 		err = rows.Scan(&id, &cmd, &created)
@@ -408,7 +420,7 @@ func (self *Storage) GetUserFromDevice(deviceId string) (userId, name string, er
 	dbh := self.db
 	statement := "select userId, name from userToDeviceMap where deviceId = $1 limit 1;"
 	rows, err := dbh.Query(statement, deviceId)
-    defer rows.Close()
+	defer rows.Close()
 	if err == nil {
 		for rows.Next() {
 			err = rows.Scan(&userId, &name)
@@ -430,9 +442,10 @@ func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err
 	var data []DeviceList
 
 	dbh := self.db
-	statement := "select deviceId, coalesce(name,deviceId) from userToDeviceMap where userId = $1 order by date;"
-	rows, err := dbh.Query(statement, userId)
-    defer rows.Close()
+	limit := self.config.Get("db.max_devices_for_user", "1")
+	statement := "select deviceId, coalesce(name,deviceId) from userToDeviceMap where userId = $1 order by date desc limit $2;"
+	rows, err := dbh.Query(statement, userId, limit)
+	defer rows.Close()
 	if err == nil {
 		for rows.Next() {
 			var id, name string
@@ -523,14 +536,15 @@ func (self *Storage) SetDeviceLocation(devId string, position Position) (err err
 	// Only keep the latest positon (changed requirements from original design)
 	self.PurgePosition(devId)
 
-	statement := "insert into position (deviceId, time, latitude, longitude, altitude) values ($1, $2, $3, $4, $5);"
+	statement := "insert into position (deviceId, time, latitude, longitude, altitude, accuracy) values ($1, $2, $3, $4, $5, $6);"
 	st, err := dbh.Prepare(statement)
 	_, err = st.Exec(
 		devId,
 		dbNow(),
 		float32(position.Latitude),
 		float32(position.Longitude),
-		float32(position.Altitude))
+		float32(position.Altitude),
+		float32(position.Accuracy))
 	st.Close()
 	if err != nil {
 		self.logger.Error(self.logCat, "Error inserting postion",
@@ -543,7 +557,7 @@ func (self *Storage) SetDeviceLocation(devId string, position Position) (err err
 // Remove old postion information for devices.
 // This previously removed "expired" location records. We currently only
 // retain the latest record for a user.
-func (self *Storage) GcPosition(devId string) (err error) {
+func (self *Storage) GcDatabase(devId, userId string) (err error) {
 	dbh := self.db
 
 	// because prepare doesn't like single quoted vars
@@ -564,6 +578,21 @@ func (self *Storage) GcPosition(devId string) (err error) {
 			util.Fields{"error": err.Error()})
 		return err
 	}
+	// TODO: convert the following into statements
+	/*
+	   // remove "extra" devices registered to the user
+	   // check this sql
+	   delete from usertodevicemap where id in (select id from
+	       (select id, row_number() over (order by date desc) RowNumber from
+	       usertodevicemap) tt where RowNumber > 1);
+
+	   // delete devices with no "owner".
+	   delete from deviceinfo where deviceinfo.deviceid in
+	       (select deviceinfo.deviceid from deviceinfo left join
+	        usertodevicemap on usertodevicemap.deviceid =
+	        deviceinfo.deviceid where usertodevicemap.deviceid is null);
+	*/
+
 	return nil
 }
 
@@ -616,7 +645,7 @@ func (self *Storage) getMeta(key string) (val string, err error) {
 	var row *sql.Row
 	dbh := self.db
 
-	statement := "select val from meta where key=$1;"
+	statement := "select value from meta where key=$1;"
 	if row = dbh.QueryRow(statement, key); row != nil {
 		row.Scan(&val)
 		return val, err
@@ -629,12 +658,12 @@ func (self *Storage) setMeta(key, val string) (err error) {
 	dbh := self.db
 
 	// try to update or insert.
-	statement = "update meta set val = $2 where key = $1;"
+	statement = "update meta set value = $2 where key = $1;"
 	if res, err := dbh.Exec(statement, key, val); err != nil {
 		return err
 	} else {
 		if cnt, _ := res.RowsAffected(); cnt == 0 {
-			statement = "insert into met (key, val) values ($1, $2);"
+			statement = "insert into met (key, value) values ($1, $2);"
 			if _, err = dbh.Exec(statement, key, val); err != nil {
 				return err
 			}
@@ -694,7 +723,7 @@ func (self *Storage) CheckNonce(nonce string) (bool, error) {
 	}
 	statement = "select val from nonce where key = $1 limit 1;"
 	rows, err := dbh.Query(statement, keysig[0])
-    defer rows.Close()
+	defer rows.Close()
 	if err == nil {
 		for rows.Next() {
 			var val string
