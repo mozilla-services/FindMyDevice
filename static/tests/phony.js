@@ -34,66 +34,74 @@ var REMOTE_BASE_URL = 'http://localhost:8000/1';
 // Ideally this would use the real registration endpoint but this cuts out a lot of complexity that
 // we don't care about for these tests. Unfortunately this is a bit brittle.
 function register (callback) {
-  pg.connect(pgConfig, function(err, client, done) {
-    if(err) {
-      console.error('Failed to connect to postgres.', err);
+  pg.connect(pgConfig,
+    function(err, client, done) {
+      if (err) {
+        console.error('Failed to connect to postgres.', err);
 
-      // No db connection means we aren't going any further. Aborting mission...
-      process.exit();
-    }
-
-    // Create deviceinfo record
-    client.query('INSERT INTO deviceinfo (deviceid, lockable, loggedin, lastexchange, hawksecret, pushurl, accepts) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [ DEVICE_ID, LOCKABLE, LOGGED_IN, new Date(), HAWK_SECRET, PUSH_URL, ACCEPTS ], function(err, result) {
-      if(err) {
-        console.error('- Failed to create deviceinfo record.', err);
-      } else {
-        console.info('- Inserted deviceinfo record.');
+        // No db connection means we aren't going any further. Aborting mission...
+        process.exit();
       }
 
-      // Create usertodevicemap
-      client.query('INSERT INTO usertodevicemap (userid, deviceid, name) VALUES ($1, $2, $3)',
-        [ USER_ID, DEVICE_ID, USER_NAME ], function(err, result) {
-        if(err) {
-          console.error('- Failed to create usertodevicemap record.', err);
-        } else {
-          console.info('- Inserted usertodevicemap record.');
-        }
+      // Create deviceinfo record
+      client.query('INSERT INTO deviceinfo (deviceid, lockable, loggedin, lastexchange, hawksecret, pushurl, accepts) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [ DEVICE_ID, LOCKABLE, LOGGED_IN, new Date(), HAWK_SECRET, PUSH_URL, ACCEPTS ],
+        function(err, result) {
+          if (err) {
+            console.error('- Failed to create deviceinfo record.', err);
+          } else {
+            console.info('- Inserted deviceinfo record.');
+          }
 
-        done();
-        callback();
-      });
-    });
-  });
+          // Create usertodevicemap
+          client.query('INSERT INTO usertodevicemap (userid, deviceid, name) VALUES ($1, $2, $3)',
+            [ USER_ID, DEVICE_ID, USER_NAME ],
+            function(err, result) {
+              if (err) {
+                console.error('- Failed to create usertodevicemap record.', err);
+              } else {
+                console.info('- Inserted usertodevicemap record.');
+              }
+
+              done();
+              callback();
+            }
+          );
+        }
+      );
+    }
+  );
 }
 
 function unregister (callback) {
-  pg.connect(pgConfig, function(err, client, done) {
-    if(err) {
-      console.error('Failed to connect to postgres.', err);
-    }
-
-    // Create deviceinfo record
-    client.query('DELETE FROM deviceinfo WHERE deviceid = $1', [ DEVICE_ID ], function(err, result) {
-      if(err) {
-        console.error('- Failed to delete deviceinfo record.', err);
-      } else {
-        console.info('- Deleted deviceinfo record.');
+  pg.connect(pgConfig,
+    function(err, client, done) {
+      if (err) {
+        console.error('Failed to connect to postgres.', err);
       }
 
-      // Create usertodevicemap
-      client.query('DELETE FROM usertodevicemap WHERE deviceid = $1', [ DEVICE_ID ], function(err, result) {
-        if(err) {
-          console.error('- Failed to delete usertodevicemap record.', err);
+      // Create deviceinfo record
+      client.query('DELETE FROM deviceinfo WHERE deviceid = $1', [ DEVICE_ID ], function(err, result) {
+        if (err) {
+          console.error('- Failed to delete deviceinfo record.', err);
         } else {
-          console.info('- Deleted usertodevicemap record.');
+          console.info('- Deleted deviceinfo record.');
         }
 
-        done();
-        callback();
+        // Create usertodevicemap
+        client.query('DELETE FROM usertodevicemap WHERE deviceid = $1', [ DEVICE_ID ], function(err, result) {
+          if (err) {
+            console.error('- Failed to delete usertodevicemap record.', err);
+          } else {
+            console.info('- Deleted usertodevicemap record.');
+          }
+
+          done();
+          callback();
+        });
       });
-    });
-  });
+    }
+  );
 }
 
 function postCommand (postData) {
@@ -155,7 +163,9 @@ function createCommandResponse (commandName, ok, attrs) {
   // Copy over attributes if specified
   if (attrs) {
     for (var i in attrs) {
-      command[commandName][i] = attrs[i];
+      if (attrs.hasOwnProperty(i)) {
+        command[commandName][i] = attrs[i];
+      }
     }
   }
 
@@ -189,4 +199,3 @@ register(function () {
     console.info('Listening on port %d', server.address().port);
   });
 });
-
