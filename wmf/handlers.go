@@ -54,7 +54,7 @@ const (
 	SESSION_USERID    = "userid"
 	SESSION_EMAIL     = "email"
 	SESSION_TOKEN     = "token"
-	SESSION_CRSFTOKEN = "crsftoken"
+	SESSION_CSRFTOKEN = "csrftoken"
 	SESSION_DEVICEID  = "deviceid"
 )
 
@@ -67,7 +67,7 @@ type sessionInfoStruct struct {
 	DeviceId    string
 	Email       string
 	AccessToken string
-	CRSToken    string
+	CSRFToken   string
 }
 
 type initDataStruct struct {
@@ -454,7 +454,7 @@ func (self *Handler) clearSession(sess *sessions.Session) (err error) {
 	delete(sess.Values, SESSION_DEVICEID)
 	delete(sess.Values, SESSION_EMAIL)
 	delete(sess.Values, SESSION_TOKEN)
-	delete(sess.Values, SESSION_CRSFTOKEN)
+	delete(sess.Values, SESSION_CSRFTOKEN)
 	return
 }
 
@@ -596,7 +596,7 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	var userid string
 	var email string
 	var accessToken string
-	var crsToken string
+	var csrfToken string
 
 	dev := getDevFromUrl(req.URL)
 	userid, email, err = self.getUser(resp, req)
@@ -614,15 +614,15 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	if token, ok := session.Values[SESSION_TOKEN]; ok {
 		accessToken = token.(string)
 	}
-	if token, ok := session.Values[SESSION_CRSFTOKEN]; ok {
-		crsToken = token.(string)
+	if token, ok := session.Values[SESSION_CSRFTOKEN]; ok {
+		csrfToken = token.(string)
 	}
 	info = &sessionInfoStruct{
 		UserId:      userid,
 		Email:       email,
 		DeviceId:    dev,
 		AccessToken: accessToken,
-		CRSToken:    crsToken}
+		CSRFToken:   csrfToken}
 	return info, nil
 }
 
@@ -952,9 +952,9 @@ func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (r
 	var stoken, token string
 	result = false
 
-	fmt.Printf("### checking Token %+v\n", session.Values[SESSION_CRSFTOKEN])
+	fmt.Printf("### checking Token %+v\n", session.Values[SESSION_CSRFTOKEN])
 
-	if v, ok := session.Values[SESSION_CRSFTOKEN]; !ok {
+	if v, ok := session.Values[SESSION_CSRFTOKEN]; !ok {
 		self.logger.Debug(self.logCat, "token fail",
 			util.Fields{"error": "No token in session"})
 		return false
@@ -1506,7 +1506,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	store := self.store
 	if !self.checkToken(session, req) {
 		var stoken string
-		if v, ok := session.Values[SESSION_CRSFTOKEN]; !ok {
+		if v, ok := session.Values[SESSION_CSRFTOKEN]; !ok {
 			stoken = "None"
 		} else {
 			stoken = v.(string)
@@ -1756,7 +1756,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		session.Values[SESSION_USERID] = sessionInfo.UserId
 		session.Values[SESSION_EMAIL] = sessionInfo.Email
 		session.Values[SESSION_DEVICEID] = sessionInfo.DeviceId
-		session.Values[SESSION_CRSFTOKEN] = initData.Token
+		session.Values[SESSION_CSRFTOKEN] = initData.Token
 		fmt.Printf("### Saving new session info %+v\n", session.Values)
 		if err = session.Save(req, resp); err != nil {
 			self.logger.Error(self.logCat,
@@ -1789,7 +1789,7 @@ func (self *Handler) InitDataJson(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	if !self.checkToken(session, req) {
-		self.logger.Error(self.logCat, "bad crsftoken for request", nil)
+		self.logger.Error(self.logCat, "bad csrftoken for request", nil)
 		http.Error(resp, "Not Authorized", 401)
 		return
 	}
@@ -1846,7 +1846,7 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, err.Error(), 500)
 	}
 	if !self.checkToken(session, req) {
-		self.logger.Error(self.logCat, "bad crsftoken for request", nil)
+		self.logger.Error(self.logCat, "bad csrftoken for request", nil)
 		http.Error(resp, err.Error(), 401)
 	}
 	sessionInfo, err := self.getSessionInfo(resp, req, session)
