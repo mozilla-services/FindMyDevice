@@ -22,6 +22,10 @@ import (
 var ErrDatabase = errors.New("Database Error")
 var ErrUnknownDevice = errors.New("Unknown device")
 
+const (
+	DB_VERSION = "20140707"
+)
+
 // Storage abstration
 type Storage struct {
 	config   *util.MzConfig
@@ -157,78 +161,75 @@ func Open(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics)
 		metrics:  metrics,
 		dsn:      dsn,
 		db:       db}
-	//	if err = store.Init(); err != nil {
-	//		return nil, err
-	//	}
 	return store, nil
 }
 
 // Create the tables, indexes and other needed items.
 func (self *Storage) Init() (err error) {
-	// TODO: create a versioned db update system that contains commands
-	// to execute.
-	cmds := []string{
-		"create table if not exists userToDeviceMap (userId varchar, deviceId varchar, name varchar, date date);",
-		"create index on userToDeviceMap (userId);",
-		"create index on userToDeviceMap (deviceId);",
-		"create unique index on userToDeviceMap (userId, deviceId);",
-
-		"create table if not exists deviceInfo (deviceId varchar unique, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar, pushurl varchar, accepts varchar, accesstoken varchar);",
-		"create index on deviceInfo (deviceId);",
-
-		"create table if not exists pendingCommands (id bigserial, deviceId varchar, time timestamp, cmd varchar, type varchar);",
-		"create index on pendingCommands (deviceId);",
-
-		"create table if not exists position (id bigserial, deviceId varchar, time  timestamp, latitude real, longitude real, altitude real, accuracy real);",
-		"create index on position (deviceId);",
-		"create or replace function update_time() returns trigger as $$ begin new.lastexchange = now(); return new; end; $$ language 'plpgsql';",
-		"drop trigger if exists update_le on deviceinfo;",
-		"create trigger update_le before update on deviceinfo for each row execute procedure update_time();",
-		"create table if not exists meta (key varchar, value varchar);",
-		"create index on meta (key);",
-		"create table if not exists nonce (key varchar, val varchar, time timestamp);",
-		"create index on nonce (key);",
-		"create index on nonce (time);",
-		"set time zone utc;",
-	}
-	dbh := self.db
-	statement := "select table_name from information_schema.tables where table_name='meta' and table_schema='public';"
+	var statement string
 	var tmp string
+
+	dbh := self.db
+	err = dbh.QueryRow("select val from meta where key = 'db.ver';").Scan(&tmp)
+	if err == nil && tmp == DB_VERSION {
+		self.logger.Info(self.logCat, "Database up to date",
+			util.Fields{"version": DB_VERSION})
+		return err
+	}
+	if err != sql.ErrNoRows {
+		panic(fmt.Sprintf("err: %+v\n", err))
+	}
+	statement = "select table_name from information_schema.tables where table_name='meta' and table_schema='public';"
 	err = dbh.QueryRow(statement).Scan(&tmp)
 	if err == sql.ErrNoRows {
 		//initialize the table
-		for _, s := range cmds {
-			res, err := dbh.Exec(s)
-			self.logger.Debug(self.logCat, "db init",
-				util.Fields{"cmd": s, "res": fmt.Sprintf("%+v", res)})
-			if err != nil {
-				self.logger.Error(self.logCat, "Could not initialize db",
-					util.Fields{"cmd": s, "error": err.Error()})
-				return err
-			}
-		}
+		self.createDb()
 	}
-	// burn off the excess indexes
-	// TEMPORARY!!
-	statement = "select indexrelname from pg_stat_user_indexes where indexrelname similar to'%_idx\\d+';"
-	rows, err := dbh.Query(statement)
-	defer rows.Close()
-	if err == nil {
-		for rows.Next() {
-			if err = rows.Scan(&tmp); err == nil {
-				st := fmt.Sprintf("drop index %s;", tmp)
-				fmt.Printf("=== %s\n", st)
-				// again, Exec doesn't do var replacements for some reason.
-				if _, err = dbh.Exec(st); err != nil {
-					fmt.Printf("=== Index Cleanup Err %s\n", err.Error())
+	// check for updates
+	self.markDb(DB_VERSION)
+	return nil
+}
+
+func (self *Storage) createDb() (err error) {
+	// TODO: create a versioned db update system that contains commands
+	// to execute.
+	// read the create_db.sql file and build the database
+	panic("Please run the commands in sql/create_db.sql")
+	/*
+		        // note: indexes may return an error if they already exist.
+				for _, s := range cmds {
+					res, err := dbh.Exec(s)
+					self.logger.Debug(self.logCat, "db init",
+						util.Fields{"cmd": s, "res": fmt.Sprintf("%+v", res)})
+					if err != nil {
+						self.logger.Error(self.logCat, "Could not initialize db",
+							util.Fields{"cmd": s, "error": err.Error()})
+						return err
+					}
 				}
 			}
-		}
-	}
+	*/
 	//TODO get lastDbUpdate from meta, if there's a file in sql older
 	// than that, run it. (allows for db patching.)
+	// self.dbUpdated()
 
 	return err
+}
+
+func (self *Storage) markDb(date string) (err error) {
+	fmt.Printf("### marking db\n")
+	dbh := self.db
+	result, err := dbh.Exec("update meta set val=$2 where key=$1;",
+		"db.ver", date)
+	if err != nil {
+		return err
+	}
+	if cnt, err := result.RowsAffected(); cnt == 0 || err != nil {
+		_, err = dbh.Exec("insert into meta (key, val) values ($1, $2);",
+			"db.ver", date)
+		return err
+	}
+	return nil
 }
 
 // Register a new device to a given userID.
@@ -254,7 +255,8 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 			dev.ID)
 		defer rows.Close()
 		if err != nil {
-			fmt.Printf("!!!!! pgError: %+v\n", err)
+			self.logger.Warn(self.logCat, "Device Info Update error",
+				util.Fields{"error": err.Error()})
 			return "", err
 		} else {
 			return dev.ID, nil
@@ -343,7 +345,6 @@ func (self *Storage) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		Accepts:      accepts,
 		AccessToken:  string(accesstoken),
 	}
-	fmt.Printf(">> device: %+v\n", reply)
 
 	return reply, nil
 }

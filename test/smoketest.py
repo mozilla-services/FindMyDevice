@@ -5,8 +5,6 @@ This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this
 file, You can obtain one at http://mozilla.org/MPL/2.0/.
 """
-
-
 """
 This is a simple test to ensure minimal API operations for the server
 """
@@ -246,7 +244,7 @@ def processCmd(config, cred, cmd):
     """ Process the command like a client.
         Or a cat. Which it kinda does now.
     """
-    if cmd == None:
+    if cmd is None:
         return
     #TODO: you can insert various responses to commands here
     # or just eat them like I'm doing right now.
@@ -317,7 +315,7 @@ def main(argv):
         #import pdb; pdb.set_trace()
         #print "!!! Sending reregister... \n"
         #time.sleep(1)
-        sendCmd(config, cred, newLocation())
+        cmd = sendCmd(config, cred, newLocation())
         #cmd, cred = registerNew(config, cred)
 
     # Send a fake statement saying that the client has no passcode.

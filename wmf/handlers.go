@@ -31,7 +31,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 )
 
 // base handler for REST and Socket calls.
@@ -48,14 +47,15 @@ type Handler struct {
 }
 
 const (
-	SESSION_NAME     = "user"
-	SESSION_LOGIN    = "login"
-	OAUTH_ENDPOINT   = "https://oauth.accounts.firefox.com"
-	CONTENT_ENDPOINT = "https://accounts.firefox.com"
-	SESSION_USERID   = "userid"
-	SESSION_EMAIL    = "email"
-	SESSION_TOKEN    = "token"
-	SESSION_DEVICEID = "deviceid"
+	SESSION_NAME      = "user"
+	SESSION_LOGIN     = "login"
+	OAUTH_ENDPOINT    = "https://oauth.accounts.firefox.com"
+	CONTENT_ENDPOINT  = "https://accounts.firefox.com"
+	SESSION_USERID    = "userid"
+	SESSION_EMAIL     = "email"
+	SESSION_TOKEN     = "token"
+	SESSION_CSRFTOKEN = "csrftoken"
+	SESSION_DEVICEID  = "deviceid"
 )
 
 // Generic reply structure (useful for JSON responses)
@@ -67,6 +67,7 @@ type sessionInfoStruct struct {
 	DeviceId    string
 	Email       string
 	AccessToken string
+	CSRFToken   string
 }
 
 type initDataStruct struct {
@@ -76,6 +77,7 @@ type initDataStruct struct {
 	DeviceList  []storage.DeviceList
 	Device      *storage.Device
 	Host        map[string]string
+	Token       string
 }
 
 // Map of clientIDs to socket handlers
@@ -452,6 +454,7 @@ func (self *Handler) clearSession(sess *sessions.Session) (err error) {
 	delete(sess.Values, SESSION_DEVICEID)
 	delete(sess.Values, SESSION_EMAIL)
 	delete(sess.Values, SESSION_TOKEN)
+	delete(sess.Values, SESSION_CSRFTOKEN)
 	return
 }
 
@@ -468,6 +471,7 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 	data.ProductName = self.config.Get("productname", "Find My Device")
 
 	data.MapKey = self.config.Get("mapbox.key", "")
+	data.Token, _ = util.GenUUID4()
 
 	// host information (for websocket callback)
 	data.Host = make(map[string]string)
@@ -592,6 +596,7 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	var userid string
 	var email string
 	var accessToken string
+	var csrfToken string
 
 	dev := getDevFromUrl(req.URL)
 	userid, email, err = self.getUser(resp, req)
@@ -609,11 +614,15 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	if token, ok := session.Values[SESSION_TOKEN]; ok {
 		accessToken = token.(string)
 	}
+	if token, ok := session.Values[SESSION_CSRFTOKEN]; ok {
+		csrfToken = token.(string)
+	}
 	info = &sessionInfoStruct{
 		UserId:      userid,
 		Email:       email,
 		DeviceId:    dev,
-		AccessToken: accessToken}
+		AccessToken: accessToken,
+		CSRFToken:   csrfToken}
 	return info, nil
 }
 
@@ -939,6 +948,34 @@ func socketError(socket *websocket.Conn, msg string) {
 	socket.Write(out)
 }
 
+func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (result bool) {
+	var stoken, token string
+	result = false
+
+	fmt.Printf("### checking Token %+v\n", session.Values[SESSION_CSRFTOKEN])
+
+	if v, ok := session.Values[SESSION_CSRFTOKEN]; !ok {
+		self.logger.Debug(self.logCat, "token fail",
+			util.Fields{"error": "No token in session"})
+		return false
+	} else {
+		stoken = v.(string)
+	}
+
+	// get the URL args
+	if tokens, ok := req.Header["X-CSRFTOKEN"]; !ok {
+		self.logger.Warn(self.logCat, "token fail",
+			util.Fields{"error": "No token in Request"})
+		return self.config.GetFlag("auth.allow_tokenless")
+	} else {
+		token = tokens[0]
+	}
+
+	// check to see if the "tok" field matches
+	fmt.Printf("### Checking %s == %s\n", token, stoken)
+	return token == stoken
+}
+
 //Handler Public Functions
 
 func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics) *Handler {
@@ -968,8 +1005,10 @@ func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Me
 	sessionStore = sessions.NewCookieStore([]byte(sessionSecret),
 		[]byte(sessionCrypt))
 	sessionStore.Options = &sessions.Options{
-		Domain: config.Get("session.domain", "localhost"),
-		Path:   "/",
+		Domain:   config.Get("session.domain", "localhost"),
+		Path:     "/",
+		Secure:   !config.GetFlag("auth.allow_insecure_cookie"),
+		HttpOnly: true,
 		// Do not set a max age by default.
 		// This confuses gorilla, which winds up setting two "user" cookies.
 		//MaxAge: 3600 * 24,
@@ -1167,11 +1206,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 			util.Fields{"error": err.Error()})
 		return
 	}
-	if self.config.GetFlag("debug.show_output") {
-		self.logger.Debug(self.logCat,
-			">>>output",
-			util.Fields{"output": string(output)})
-	}
+	self.logger.Debug(self.logCat,
+		"+++ New Register",
+		util.Fields{"output": string(output)})
 	resp.Write(output)
 	return
 }
@@ -1257,15 +1294,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			}
 			c := strings.ToLower(string(cmd))
 			cs := string(c[0])
-			/*
-				            // TODO : fix command filter
-							if !strings.Contains(devRec.Accepts, cs) {
-								self.logger.Warn(self.logCat, "Unacceptable Command",
-									util.Fields{"unacceptable": cs,
-										"acceptable": devRec.Accepts})
-								continue
-							}
-			*/
+			// TODO : fix command filter
 			self.metrics.Increment("cmd.received." + cs)
 			// Normalize the args.
 			switch args.(type) {
@@ -1382,9 +1411,8 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 					string(vs))
 			}
 			vr := []rune(vs)
-			vb := []byte(vs)
 			trimmed := vr[:minInt(100,
-				utf8.RuneCount(vb))]
+				len(vr))]
 			rargs["m"] = string(trimmed)
 		}
 	case "r", "t":
@@ -1476,6 +1504,19 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	store := self.store
+	if !self.checkToken(session, req) {
+		var stoken string
+		if v, ok := session.Values[SESSION_CSRFTOKEN]; !ok {
+			stoken = "None"
+		} else {
+			stoken = v.(string)
+		}
+		self.logger.Error(self.logCat, "Bad Token for request",
+			util.Fields{"url": req.URL.String(),
+				"expecting": stoken})
+		http.Error(resp, "Unauthorized", 401)
+		return
+	}
 
 	deviceId := getDevFromUrl(req.URL)
 	if deviceId == "" {
@@ -1557,7 +1598,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	self.logger.Info(self.logCat, "Handling cmd from UI",
 		util.Fields{
 			"cmd":    string(body),
-			"length": fmt.Sprintf("%d", lbody),
+			"length": strconv.FormatInt(int64(lbody), 10),
 		})
 	if lbody > 0 {
 		reply := make(replyType)
@@ -1609,19 +1650,12 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 		DeviceList []devList
 	}
 
-	session, err := sessionStore.Get(req, SESSION_NAME)
-	if err != nil {
-		self.logger.Error(self.logCat,
-			"Could not initialize session",
-			util.Fields{"error": err.Error()})
-		//TODO: return error, clear cookie?
-		return
-	}
 	store := self.store
-
-	sessionInfo, err := self.getSessionInfo(resp, req, session)
-	if err == nil && len(sessionInfo.UserId) > 0 {
-		data.UserId = sessionInfo.UserId
+	session, _ := sessionStore.Get(req, SESSION_NAME)
+	resp.Header().Set("Content-Type", "application/json")
+	userId, _, err := self.getUser(resp, req)
+	if err == nil && len(userId) > 0 {
+		data.UserId = userId
 	} else {
 		self.logger.Error(self.logCat,
 			"Could not get user id",
@@ -1642,7 +1676,7 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 	var reply []devList
 	verRoot := strings.SplitN(self.config.Get("VERSION", "0"), ".", 2)[0]
 	if _, ok := session.Values[SESSION_USERID]; !ok {
-		session.Values[SESSION_USERID] = data.UserId
+		session.Values[SESSION_USERID] = userId
 	}
 	for _, d := range deviceList {
 		session.Values[SESSION_DEVICEID] = d.ID
@@ -1672,7 +1706,6 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	resp.Header().Set("Content-Type", "application/json")
 	if self.config.GetFlag("debug.show_output") {
 		self.logger.Debug(self.logCat,
 			">>>output",
@@ -1723,6 +1756,8 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		session.Values[SESSION_USERID] = sessionInfo.UserId
 		session.Values[SESSION_EMAIL] = sessionInfo.Email
 		session.Values[SESSION_DEVICEID] = sessionInfo.DeviceId
+		session.Values[SESSION_CSRFTOKEN] = initData.Token
+		fmt.Printf("### Saving new session info %+v\n", session.Values)
 		if err = session.Save(req, resp); err != nil {
 			self.logger.Error(self.logCat,
 				"Could not save session",
@@ -1750,6 +1785,12 @@ func (self *Handler) InitDataJson(resp http.ResponseWriter, req *http.Request) {
 			"Could not initialize session",
 			util.Fields{"error": err.Error()})
 		http.Error(resp, "Server Error", 500)
+		return
+	}
+
+	if !self.checkToken(session, req) {
+		self.logger.Error(self.logCat, "bad csrftoken for request", nil)
+		http.Error(resp, "Not Authorized", 401)
 		return
 	}
 
@@ -1803,6 +1844,10 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 		self.logger.Error(self.logCat, "Could not get session info",
 			util.Fields{"error": err.Error()})
 		http.Error(resp, err.Error(), 500)
+	}
+	if !self.checkToken(session, req) {
+		self.logger.Error(self.logCat, "bad csrftoken for request", nil)
+		http.Error(resp, err.Error(), 401)
 	}
 	sessionInfo, err := self.getSessionInfo(resp, req, session)
 	if err != nil && err != ErrNoUser {
