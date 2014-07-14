@@ -1047,6 +1047,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 	self.logCat = "handler:Register"
 	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	// Do not set a session here. Use HAWK and URL to validate future
 	// calls from the device.
 
@@ -1220,6 +1221,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 
 	self.logCat = "handler:Cmd"
 	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	store := self.store
 
 	// fmt.Printf("### req.URL: %s", req.URL)
@@ -1493,6 +1495,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	var lbody int
 
 	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	rep := make(replyType)
 	self.logCat = "handler:Queue"
 
@@ -1653,6 +1656,7 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 	store := self.store
 	session, _ := sessionStore.Get(req, SESSION_NAME)
 	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	userId, _, err := self.getUser(resp, req)
 	if err == nil && len(userId) > 0 {
 		data.UserId = userId
@@ -1764,6 +1768,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 				util.Fields{"error": err.Error()})
 		}
 	}
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	if err = tmpl.Execute(resp, initData); err != nil {
 		self.logger.Error(self.logCat,
 			"Could not execute template",
@@ -1836,6 +1841,7 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:State"
 
 	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 
 	store := self.store
 
@@ -1950,6 +1956,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 	self.logCat = "oauth"
 
 	// Get the session so that we can save it.
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	session, _ := sessionStore.Get(req, SESSION_NAME)
 	loginSession, _ := sessionStore.Get(req, SESSION_LOGIN)
 
@@ -2180,6 +2187,7 @@ func (self *Handler) Validate(resp http.ResponseWriter, req *http.Request) {
 
 	self.logCat = "handler:Validate"
 	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 
 	// Looking for the body of the request to contain a JSON object with
 	// {assert: ... }
