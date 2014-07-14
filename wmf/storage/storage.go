@@ -170,7 +170,7 @@ func (self *Storage) Init() (err error) {
 	var tmp string
 
 	dbh := self.db
-	err = dbh.QueryRow("select val from meta where key = 'db.ver';").Scan(&tmp)
+	err = dbh.QueryRow("select value from meta where key = 'db.ver';").Scan(&tmp)
 	if err == nil && tmp == DB_VERSION {
 		self.logger.Info(self.logCat, "Database up to date",
 			util.Fields{"version": DB_VERSION})
@@ -645,7 +645,7 @@ func (self *Storage) getMeta(key string) (val string, err error) {
 	var row *sql.Row
 	dbh := self.db
 
-	statement := "select val from meta where key=$1;"
+	statement := "select value from meta where key=$1;"
 	if row = dbh.QueryRow(statement, key); row != nil {
 		row.Scan(&val)
 		return val, err
@@ -658,12 +658,12 @@ func (self *Storage) setMeta(key, val string) (err error) {
 	dbh := self.db
 
 	// try to update or insert.
-	statement = "update meta set val = $2 where key = $1;"
+	statement = "update meta set value = $2 where key = $1;"
 	if res, err := dbh.Exec(statement, key, val); err != nil {
 		return err
 	} else {
 		if cnt, _ := res.RowsAffected(); cnt == 0 {
-			statement = "insert into met (key, val) values ($1, $2);"
+			statement = "insert into met (key, value) values ($1, $2);"
 			if _, err = dbh.Exec(statement, key, val); err != nil {
 				return err
 			}
