@@ -3,16 +3,19 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 define([
+  'intern',
   'intern!bdd',
   'intern/chai!expect',
   'require'
-], function (bdd, expect, require) {
+], function (intern, bdd, expect, require) {
   'use strict';
+
+  var URL = intern.config.fmd.url;
 
   bdd.describe('lock', function () {
     bdd.it('should lock the device', function () {
       return this.remote
-        .get('http://localhost:8000/')
+        .get(URL)
         // Open lock dialog
         .findByCssSelector('.button.lost-mode a')
           .click()
@@ -52,7 +55,7 @@ define([
 
     bdd.it('should allow an optional notes field', function () {
       return this.remote
-        .get('http://localhost:8000/')
+        .get(URL)
         // Open lock dialog
         .findByCssSelector('.button.lost-mode a')
           .click()
@@ -76,7 +79,7 @@ define([
 
     bdd.it('should require passcodes', function () {
       return this.remote
-        .get('http://localhost:8000/')
+        .get(URL)
         // Open lock dialog
         .findByCssSelector('.button.lost-mode a')
           .click()
@@ -110,7 +113,7 @@ define([
 
     bdd.it('should require numeric passcodes', function () {
       return this.remote
-        .get('http://localhost:8000/')
+        .get(URL)
         // Open lock dialog
         .findByCssSelector('.button.lost-mode a')
           .click()
@@ -152,7 +155,7 @@ define([
 
     bdd.it('should require matching passcodes', function () {
       return this.remote
-        .get('http://localhost:8000/')
+        .get(URL)
         // Open lock dialog
         .findByCssSelector('.button.lost-mode a')
           .click()

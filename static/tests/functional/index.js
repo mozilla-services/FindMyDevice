@@ -3,16 +3,21 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 define([
+  'intern',
   'intern!bdd',
   'intern/chai!expect',
   'require'
-], function (bdd, expect, require) {
+], function (intern, bdd, expect, require) {
   'use strict';
+
+  var URL = intern.config.fmd.url;
+  var EMAIL = intern.config.fmd.email;
+  var PASSWORD = intern.config.fmd.password;
 
   bdd.describe('index', function () {
     bdd.it('should welcome unauthenticated users', function () {
       return this.remote
-        .get('http://localhost:8000/')
+        .get(URL)
         // Check heading text to see that we're signed out
         .findByCssSelector('h1')
           .text()
@@ -23,7 +28,7 @@ define([
 
     bdd.it('should allow sign in', function () {
       return this.remote
-        .get('http://localhost:8000/')
+        .get(URL)
         // Wait for up to 10 seconds for the FxA sign in step
         .setFindTimeout(10000)
         // Click sign in link
@@ -33,11 +38,11 @@ define([
         // -> Context: FxA sign in
         // Fill in the email address
         .findByCssSelector('input.email')
-          .type('fmd-functional-test-user@mailinator.com')
+          .type(EMAIL)
         .end()
         // Fill in the password
         .findByCssSelector('input.password')
-          .type('fmdfxa123')
+          .type(PASSWORD)
         .end()
         // Click the sign in button
         .findByCssSelector('#submit-btn')

@@ -3,16 +3,19 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 define([
+  'intern',
   'intern!bdd',
   'intern/chai!expect',
   'require'
-], function (bdd, expect, require) {
+], function (intern, bdd, expect, require) {
   'use strict';
+
+  var URL = intern.config.fmd.url;
 
   bdd.describe('ring', function () {
     bdd.it('should ring the device', function () {
       return this.remote
-        .get('http://localhost:8000/')
+        .get(URL)
         // Wait up to 10 seconds for the device to respond
         .setFindTimeout(10000)
         // Open play sound dialog

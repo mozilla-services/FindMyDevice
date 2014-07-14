@@ -14,7 +14,7 @@
   "scripts": {
     "postinstall": "bower install --silent",
     "start": "grunt",
-    "test": "grunt test",
+    "test": "intern-runner config=tests/intern",
     "contributors": "git shortlog -s | cut -c8- | sort -f > CONTRIBUTORS",
     "clean": "rm -rf {node_modules,app/bower_components} && npm install --silent"
   },
