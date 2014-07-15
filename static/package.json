@@ -6,10 +6,10 @@
   "keywords": [],
   "repository": {
     "type": "git",
-    "url": "git@github.com:jrconlin/wmf.git"
+    "url": "git@github.com:mozilla-services/FindMyDevice.git"
   },
-  "homepage": "https://github.com/jrconlin/wmf",
-  "bugs": "https://github.com/jrconlin/wmf/issues/",
+  "homepage": "https://github.com/mozilla-services/FindMyDevice",
+  "bugs": "https://github.com/mozilla-services/FindMyDevice/issues",
   "license": "MPL 2.0",
   "scripts": {
     "postinstall": "bower install --silent",
@@ -44,11 +44,11 @@
     "jshint-stylish": "0.2.0",
     "load-grunt-tasks": "0.4.0",
     "time-grunt": "0.3.1",
-    "intern": "~2.0.0",
-    "express": "~4.5.1",
-    "restler": "~3.2.2",
-    "pg.js": "~3.4.1",
-    "ini": "~1.2.1"
+    "intern": "2.0.0",
+    "express": "4.5.1",
+    "restler": "3.2.2",
+    "pg.js": "3.4.1",
+    "ini": "1.2.1"
   },
   "engines": {
     "node": ">=0.10.0"
