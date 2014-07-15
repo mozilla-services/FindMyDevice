@@ -5,7 +5,6 @@
  // Learn more about configuring this file at <https://github.com/theintern/intern/wiki/Configuring-Intern>.
 // These default settings work OK for most people. The options that *must* be changed below are the
 // packages, suites, excludeInstrumentation, and (if you want functional tests) functionalSuites.
-
 define(['intern/lib/args'], function (args) {
   'use strict';
 
@@ -14,7 +13,10 @@ define(['intern/lib/args'], function (args) {
     fmd: {
       url: args.fmdUrl || 'http://localhost:8000/',
       email: args.fmdEmail || 'fmd-functional-test-user@mailinator.com',
-      password: args.fmdPassword || 'fmdfxa123'
+      password: args.fmdPassword || 'fmdfxa123',
+      commandTimeout: args.fmdCommandTimeout ? parseInt(args.fmdCommandTimeout, 10) : 3000,
+      fxaTimeout: args.fmdFxaTimeout ? parseInt(args.fmdFxaTimeout, 10) : 10000,
+      notifierSleepTime: args.fmdNotifierSleepTime ? parseInt(args.fmdNotifierSleepTime, 10) : 100
     },
 
     // The port on which the instrumenting proxy will listen

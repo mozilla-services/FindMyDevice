@@ -11,11 +11,15 @@ define([
   'use strict';
 
   var URL = intern.config.fmd.url;
+  var COMMAND_TIMEOUT = intern.config.fmd.commandTimeout;
+  var NOTIFIER_SLEEP_TIME = intern.config.fmd.notifierSleepTime;
 
   bdd.describe('lock', function () {
     bdd.it('should lock the device', function () {
       return this.remote
         .get(URL)
+        // Wait up to COMMAND_TIMEOUT milliseconds for the device to respond
+        .setFindTimeout(COMMAND_TIMEOUT)
         // Open lock dialog
         .findByCssSelector('.button.lost-mode a')
           .click()
@@ -44,7 +48,7 @@ define([
           .end()
         .end()
         // Wait for confirmation
-        .sleep(250)
+        .sleep(NOTIFIER_SLEEP_TIME)
         .findByCssSelector('#notifier.active')
           .text()
           .then(function (text) {

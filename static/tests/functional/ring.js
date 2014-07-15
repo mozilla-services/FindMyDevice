@@ -11,13 +11,15 @@ define([
   'use strict';
 
   var URL = intern.config.fmd.url;
+  var COMMAND_TIMEOUT = intern.config.fmd.commandTimeout;
+  var NOTIFIER_SLEEP_TIME = intern.config.fmd.notifierSleepTime;
 
   bdd.describe('ring', function () {
     bdd.it('should ring the device', function () {
       return this.remote
         .get(URL)
-        // Wait up to 10 seconds for the device to respond
-        .setFindTimeout(10000)
+        // Wait up to COMMAND_TIMEOUT milliseconds for the device to respond
+        .setFindTimeout(COMMAND_TIMEOUT)
         // Open play sound dialog
         .findByCssSelector('.button.play-sound a')
           .click()
@@ -27,7 +29,7 @@ define([
           .click()
         .end()
         // Wait for confirmation
-        .sleep(100)
+        .sleep(NOTIFIER_SLEEP_TIME)
         .findByCssSelector('#notifier.active')
           .text()
           .then(function (text) {

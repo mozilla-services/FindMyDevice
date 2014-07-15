@@ -13,6 +13,7 @@ define([
   var URL = intern.config.fmd.url;
   var EMAIL = intern.config.fmd.email;
   var PASSWORD = intern.config.fmd.password;
+  var FXA_TIMEOUT = intern.config.fmd.fxaTimeout;
 
   bdd.describe('index', function () {
     bdd.it('should welcome unauthenticated users', function () {
@@ -29,8 +30,8 @@ define([
     bdd.it('should allow sign in', function () {
       return this.remote
         .get(URL)
-        // Wait for up to 10 seconds for the FxA sign in step
-        .setFindTimeout(10000)
+        // Wait for up to FXA_TIMEOUT milliseconds for the FxA sign in step
+        .setFindTimeout(FXA_TIMEOUT)
         // Click sign in link
         .findByCssSelector('#login a')
           .click()

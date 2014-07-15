@@ -191,8 +191,8 @@ process.on('SIGINT', function() {
 });
 
 // Let's start accepting some phony commands
-console.info('Phoney in the house.');
-console.info('Injecting phony into the database...');
+console.info('Phony in the house.');
+console.info('Injecting phony device into the database...');
 
 register(function () {
   server = app.listen(PORT, function() {
