@@ -581,7 +581,12 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		// error logged in verify
 		return "", "", ErrAuthorization
 	}
-	if userid == "" && email != "" {
+	if email == "" {
+		self.logger.Error(self.logCat, "No Email from assertion. Invalid?",
+			util.Fields{"assertion": auth})
+		return "", "", ErrAuthorization
+	}
+	if userid == "" {
 		userid = self.genHash(email)
 	}
 	self.logger.Info(self.logCat, "::Got User::",
@@ -777,7 +782,8 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 
 	if self.config.GetFlag("hawk.OKBlank") && devRec.Secret == "" {
 		self.logger.Info(self.logCat, "Allowing old device",
-			util.Fields{"deviceId": devRec.ID})
+			util.Fields{"deviceId": devRec.ID,
+				"userId": devRec.User})
 		return true
 	}
 
@@ -1246,7 +1252,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				"Cmd:Unhandled Error",
 				util.Fields{
 					"error":    err.Error(),
-					"deviceId": deviceId})
+					"deviceId": deviceId,
+					"userId":   devRec.User})
 			http.Error(resp, "Unauthorized", 401)
 		}
 		return
@@ -1270,7 +1277,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	// Do the command.
 	self.logger.Info(self.logCat, "### Handling cmd response from device",
 		util.Fields{
-			"deviceid": deviceId,
+			"deviceId": deviceId,
+			"userId":   devRec.User,
 			"cmd":      string(body),
 			"length":   fmt.Sprintf("%d", l),
 		})
@@ -1324,6 +1332,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 					util.Fields{"error": err.Error(),
 						"cmd":      string(cmd),
 						"deviceId": deviceId,
+						"userId":   devRec.User,
 						"args":     fmt.Sprintf("%v", args)})
 				http.Error(resp,
 					"\"Server Error\"",
@@ -1339,7 +1348,9 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	var output = []byte(cmd)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send commands",
-			util.Fields{"error": err.Error()})
+			util.Fields{"error": err.Error(),
+				"deviceId": devRec.ID,
+				"userId":   devRec.User})
 		http.Error(resp, "\"Server Error\"", http.StatusServiceUnavailable)
 	}
 	if output == nil || len(output) < 2 {
@@ -1366,7 +1377,6 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	status = http.StatusOK
 
 	self.logCat = "handler:Queue"
-	deviceId := devRec.ID
 	// sanitize values.
 	var v interface{}
 	var ok bool
@@ -1378,7 +1388,9 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		// skip unacceptable command
 		self.logger.Warn(self.logCat, "Agent does not accept command",
 			util.Fields{"unacceptable": c,
-				"acceptable": devRec.Accepts})
+				"acceptable": devRec.Accepts,
+				"deviceId":   devRec.ID,
+				"userId":     devRec.User})
 		(*rep)["error"] = 422
 		(*rep)["cmd"] = cmd
 		return
@@ -1443,7 +1455,8 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	default:
 		self.logger.Warn(self.logCat, "Invalid Command",
 			util.Fields{"cmd": string(cmd),
-				"deviceId": deviceId,
+				"deviceId": devRec.ID,
+				"userId":   devRec.User,
 				"args":     fmt.Sprintf("%v", rargs)})
 		return http.StatusBadRequest, errors.New("\"Invalid Command\"")
 	}
@@ -1453,20 +1466,22 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		self.logger.Error(self.logCat, "Error handling command",
 			util.Fields{"error": err.Error(),
 				"cmd":      string(cmd),
-				"deviceId": deviceId,
+				"deviceId": devRec.ID,
+				"UserId":   devRec.User,
 				"args":     fmt.Sprintf("%v", rargs)})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 
 	store := self.store
 
-	err = store.StoreCommand(deviceId, string(fixed), lcmd)
+	err = store.StoreCommand(devRec.ID, string(fixed), lcmd)
 	if err != nil {
 		// Log the error
 		self.logger.Error(self.logCat, "Error storing command",
 			util.Fields{"error": err.Error(),
 				"cmd":      string(cmd),
-				"deviceId": deviceId,
+				"deviceId": devRec.ID,
+				"userId":   devRec.User,
 				"args":     fmt.Sprintf("%v", args)})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
@@ -1475,13 +1490,16 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	self.metrics.Increment("push.send")
 	self.logger.Debug(self.logCat,
 		"Sending Push",
-		util.Fields{"deviceId": deviceId,
-			"cmd": c})
+		util.Fields{"deviceId": devRec.ID,
+			"userId": devRec.User,
+			"cmd":    c})
 	err = SendPush(devRec, self.config)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send Push",
 			util.Fields{"error": err.Error(),
-				"pushUrl": devRec.PushUrl})
+				"pushUrl":  devRec.PushUrl,
+				"deviceId": devRec.ID,
+				"userId":   devRec.User})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 	return
@@ -1583,7 +1601,8 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 				"Cmd:Unhandled Error",
 				util.Fields{
 					"error":    err.Error(),
-					"deviceId": deviceId})
+					"deviceId": deviceId,
+					"userId":   userId})
 			http.Error(resp, "Unauthorized", 401)
 		}
 		return
@@ -2094,6 +2113,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		self.logger.Error(self.logCat,
 			"Could not add WebUI client",
 			util.Fields{"deviceId": self.devId,
+				"userId":   devRec.User,
 				"instance": instance,
 				"error":    err.Error()})
 		socketError(ws, "Too Many Connections")
@@ -2106,6 +2126,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 			self.logger.Error(self.logCat,
 				"Could not clean up closed instance!",
 				util.Fields{"error": err.Error(),
+					"userId":   devRec.User,
 					"deviceId": self.devId})
 		} else {
 			if stopTrack {
