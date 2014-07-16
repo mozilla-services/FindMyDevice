@@ -5,6 +5,9 @@
 *.a
 *.so
 
+# binaries
+godep
+
 # Folders
 _obj
 _test
@@ -25,7 +28,6 @@ _testmain.go
 
 config.ini
 
-wmf
 src/code.google.com
 src/github.com
 /FindMyDevice

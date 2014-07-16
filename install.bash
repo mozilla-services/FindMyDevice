@@ -2,9 +2,7 @@
 
 set -e
 
-echo "Installing required go libraries..."
-export GOPATH="${PWD}/Godeps/_workspace"
-export GOBIN=$PWD
+. ./activate.sh
 
 go install github.com/mozilla-services/FindMyDevice
 

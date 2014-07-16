@@ -12,6 +12,7 @@ import (
 	"github.com/mozilla-services/FindMyDevice/util"
 	"github.com/mozilla-services/FindMyDevice/wmf"
 	"github.com/mozilla-services/FindMyDevice/wmf/storage"
+
 	// Only add the following for devel.
 	//	_ "net/http/pprof"
 
@@ -33,11 +34,14 @@ var opts struct {
 	Profile    string `long:"profile"`
 	MemProfile string `long:"memprofile"`
 	LogLevel   int    `short:"l" long:"loglevel"`
+
+	Ddlcreate    string `long:"ddlcreate" description:"Create a new version"`
+	Ddldowngrade string `long:"ddldowngrade" description:"Downgrade to a specific version"`
+	Ddlupgrade   bool   `long:"ddlupgrade" description:"Upgrade database to latest"`
 }
 
 var (
 	logger  *util.HekaLogger
-	store   *storage.Storage
 	metrics *util.Metrics
 )
 
@@ -75,17 +79,56 @@ func getCodeVersion() string {
 
 func main() {
 	flags.ParseArgs(&opts, os.Args)
+	if _, err := flags.ParseArgs(&opts, os.Args); err != nil {
+		log.Fatalf(err.Error())
+		return
+	}
 
 	// Configuration
+	// TODO: switch to regular go flag package
 	// defaults don't appear to work.
 	if opts.ConfigFile == "" {
 		opts.ConfigFile = "config.ini"
 	}
+
 	config, err := util.ReadMzConfig(opts.ConfigFile)
 	if err != nil {
 		log.Fatalf("Could not read config file %s: %s", opts.ConfigFile, err.Error())
 		return
 	}
+
+	if opts.Ddlcreate != "" || opts.Ddlupgrade || opts.Ddldowngrade != "" {
+		if opts.Ddlcreate != "" && opts.Ddlupgrade {
+			log.Fatalf("Invalid DDL options.  You can only create a new revision or upgrade. Not both you clown.")
+			return
+		}
+
+		rcs := new(storage.DBRcs)
+		rcs.Init(config)
+		if opts.Ddlcreate != "" {
+			if _, _, err := rcs.CreateNextRev("sql/patches", opts.Ddlcreate); err != nil {
+				log.Fatalf("Could not create a new revision: %s", err.Error())
+			}
+			return
+		}
+
+		if opts.Ddlupgrade {
+			err := rcs.Upgrade("sql/patches", true)
+			if err != nil {
+				log.Fatalf("Could not upgrade database: %s", err.Error())
+			}
+			return
+		}
+
+		if opts.Ddldowngrade != "" {
+			err := rcs.Downgrade("sql/patches", opts.Ddldowngrade)
+			if err != nil {
+				log.Fatalf("Could not downgrade database: %s", err.Error())
+			}
+			return
+		}
+	}
+
 	fullVers := fmt.Sprintf("%s-%s", config.Get("VERSION", VERSION),
 		getCodeVersion())
 	config.Override("VERSION", fullVers)
