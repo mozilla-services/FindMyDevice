@@ -90,6 +90,7 @@ var (
 	ErrOauth         = errors.New("OAuth Error")
 	ErrNoClient      = errors.New("No Client for Update")
 	ErrTooManyClient = errors.New("Too Many Clients for device")
+	ErrDeviceDeleted = errors.New("Device deleted")
 )
 
 // package globals
@@ -721,7 +722,6 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 
 	if ok {
 		js, _ := json.Marshal(location)
-		fmt.Printf("### Sending update to %d pages: %s\n", len(clients), js)
 		for _, i := range clients {
 			i.Socket.Write(js)
 		}
@@ -958,8 +958,6 @@ func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (r
 	var stoken, token string
 	result = false
 
-	fmt.Printf("### checking Token %+v\n", session.Values[SESSION_CSRFTOKEN])
-
 	if v, ok := session.Values[SESSION_CSRFTOKEN]; !ok {
 		self.logger.Debug(self.logCat, "token fail",
 			util.Fields{"error": "No token in session"})
@@ -978,7 +976,9 @@ func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (r
 	}
 
 	// check to see if the "tok" field matches
-	fmt.Printf("### Checking %s == %s\n", token, stoken)
+	self.logger.Debug(self.logCat, "### Checking",
+		util.Fields{"received": token,
+			"expected": stoken})
 	return token == stoken
 }
 
@@ -1374,12 +1374,14 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 
 // Queue the command from the Web Front End for the device.
 func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyType) (status int, err error) {
+	var v interface{}
+	var vs string
+	var ok bool
 	status = http.StatusOK
+	store := self.store
 
 	self.logCat = "handler:Queue"
 	// sanitize values.
-	var v interface{}
-	var ok bool
 	lcmd := strings.ToLower(cmd)
 	c := string(cmd[0])
 	self.logger.Debug(self.logCat, "Processing UI Command",
@@ -1396,7 +1398,6 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		return
 	}
 	rargs := *args
-	var vs string
 	switch c {
 	case "l":
 		if v, ok = rargs["c"]; ok {
@@ -1452,6 +1453,12 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		}
 	case "e":
 		rargs = replyType{}
+		// Delete the device
+		self.logger.Info(self.logCat, "Erasing",
+			util.Fields{"deviceId": devRec.ID})
+		store.DeleteDevice(devRec.ID)
+		return http.StatusOK, ErrDeviceDeleted
+
 	default:
 		self.logger.Warn(self.logCat, "Invalid Command",
 			util.Fields{"cmd": string(cmd),
@@ -1471,8 +1478,6 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				"args":     fmt.Sprintf("%v", rargs)})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
-
-	store := self.store
 
 	err = store.StoreCommand(devRec.ID, string(fixed), lcmd)
 	if err != nil {
@@ -1511,10 +1516,11 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	 */
 	var err error
 	var lbody int
+	store := self.store
+	rep := make(replyType)
 
 	resp.Header().Set("Content-Type", "application/json")
 	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
-	rep := make(replyType)
 	self.logCat = "handler:Queue"
 
 	session, err := sessionStore.Get(req, SESSION_NAME)
@@ -1524,7 +1530,6 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
-	store := self.store
 	if !self.checkToken(session, req) {
 		var stoken string
 		if v, ok := session.Values[SESSION_CSRFTOKEN]; !ok {
@@ -1638,7 +1643,22 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		for cmd, args := range reply {
 			rargs := replyType(args.(map[string]interface{}))
 			status, err := self.Queue(devRec, cmd, &rargs, &rep)
-			if err != nil {
+			switch err {
+			case nil:
+				break
+			case ErrDeviceDeleted:
+				// remove the deviceId
+				if err = store.DeleteDevice(devRec.ID); err != nil {
+					self.logger.Warn(self.logCat,
+						"Could not remove device",
+						util.Fields{"deviceId": devRec.ID,
+							"userId": devRec.User,
+							"error":  err.Error()})
+				}
+				// remove device from session
+				session.Values[SESSION_DEVICEID] = ""
+				session.Save(req, resp)
+			default:
 				self.logger.Error(self.logCat, "Error processing command",
 					util.Fields{
 						"error": err.Error(),
@@ -1780,7 +1800,6 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		session.Values[SESSION_EMAIL] = sessionInfo.Email
 		session.Values[SESSION_DEVICEID] = sessionInfo.DeviceId
 		session.Values[SESSION_CSRFTOKEN] = initData.Token
-		fmt.Printf("### Saving new session info %+v\n", session.Values)
 		if err = session.Save(req, resp); err != nil {
 			self.logger.Error(self.logCat,
 				"Could not save session",
