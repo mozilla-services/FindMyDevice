@@ -1,8 +1,10 @@
-# fmd
+# Find My Device (fmd)
 
 Find My Device (large server)
 
-This server is still under development.
+This server is still under development. Please note: The most stable version of this
+server is the *master* branch. "dev" is marked as default to prevent accidental pushes
+to the master branch. 
 
 https://wiki.mozilla.org/Services/WheresMyFox#Server_API_Reference.2FDocumentation
 

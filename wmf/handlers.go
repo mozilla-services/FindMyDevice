@@ -90,6 +90,7 @@ var (
 	ErrOauth         = errors.New("OAuth Error")
 	ErrNoClient      = errors.New("No Client for Update")
 	ErrTooManyClient = errors.New("Too Many Clients for device")
+	ErrDeviceDeleted = errors.New("Device deleted")
 )
 
 // package globals
@@ -581,7 +582,12 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		// error logged in verify
 		return "", "", ErrAuthorization
 	}
-	if userid == "" && email != "" {
+	if email == "" {
+		self.logger.Error(self.logCat, "No Email from assertion. Invalid?",
+			util.Fields{"assertion": auth})
+		return "", "", ErrAuthorization
+	}
+	if userid == "" {
 		userid = self.genHash(email)
 	}
 	self.logger.Info(self.logCat, "::Got User::",
@@ -716,7 +722,6 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 
 	if ok {
 		js, _ := json.Marshal(location)
-		fmt.Printf("### Sending update to %d pages: %s\n", len(clients), js)
 		for _, i := range clients {
 			i.Socket.Write(js)
 		}
@@ -777,7 +782,8 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 
 	if self.config.GetFlag("hawk.OKBlank") && devRec.Secret == "" {
 		self.logger.Info(self.logCat, "Allowing old device",
-			util.Fields{"deviceId": devRec.ID})
+			util.Fields{"deviceId": devRec.ID,
+				"userId": devRec.User})
 		return true
 	}
 
@@ -952,8 +958,6 @@ func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (r
 	var stoken, token string
 	result = false
 
-	fmt.Printf("### checking Token %+v\n", session.Values[SESSION_CSRFTOKEN])
-
 	if v, ok := session.Values[SESSION_CSRFTOKEN]; !ok {
 		self.logger.Debug(self.logCat, "token fail",
 			util.Fields{"error": "No token in session"})
@@ -972,7 +976,9 @@ func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (r
 	}
 
 	// check to see if the "tok" field matches
-	fmt.Printf("### Checking %s == %s\n", token, stoken)
+	self.logger.Debug(self.logCat, "### Checking",
+		util.Fields{"received": token,
+			"expected": stoken})
 	return token == stoken
 }
 
@@ -1047,6 +1053,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 	self.logCat = "handler:Register"
 	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	// Do not set a session here. Use HAWK and URL to validate future
 	// calls from the device.
 
@@ -1220,6 +1227,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 
 	self.logCat = "handler:Cmd"
 	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	store := self.store
 
 	// fmt.Printf("### req.URL: %s", req.URL)
@@ -1244,7 +1252,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				"Cmd:Unhandled Error",
 				util.Fields{
 					"error":    err.Error(),
-					"deviceId": deviceId})
+					"deviceId": deviceId,
+					"userId":   devRec.User})
 			http.Error(resp, "Unauthorized", 401)
 		}
 		return
@@ -1268,7 +1277,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	// Do the command.
 	self.logger.Info(self.logCat, "### Handling cmd response from device",
 		util.Fields{
-			"deviceid": deviceId,
+			"deviceId": deviceId,
+			"userId":   devRec.User,
 			"cmd":      string(body),
 			"length":   fmt.Sprintf("%d", l),
 		})
@@ -1322,6 +1332,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 					util.Fields{"error": err.Error(),
 						"cmd":      string(cmd),
 						"deviceId": deviceId,
+						"userId":   devRec.User,
 						"args":     fmt.Sprintf("%v", args)})
 				http.Error(resp,
 					"\"Server Error\"",
@@ -1337,7 +1348,9 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	var output = []byte(cmd)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send commands",
-			util.Fields{"error": err.Error()})
+			util.Fields{"error": err.Error(),
+				"deviceId": devRec.ID,
+				"userId":   devRec.User})
 		http.Error(resp, "\"Server Error\"", http.StatusServiceUnavailable)
 	}
 	if output == nil || len(output) < 2 {
@@ -1361,13 +1374,14 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 
 // Queue the command from the Web Front End for the device.
 func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyType) (status int, err error) {
+	var v interface{}
+	var vs string
+	var ok bool
 	status = http.StatusOK
+	store := self.store
 
 	self.logCat = "handler:Queue"
-	deviceId := devRec.ID
 	// sanitize values.
-	var v interface{}
-	var ok bool
 	lcmd := strings.ToLower(cmd)
 	c := string(cmd[0])
 	self.logger.Debug(self.logCat, "Processing UI Command",
@@ -1376,13 +1390,14 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		// skip unacceptable command
 		self.logger.Warn(self.logCat, "Agent does not accept command",
 			util.Fields{"unacceptable": c,
-				"acceptable": devRec.Accepts})
+				"acceptable": devRec.Accepts,
+				"deviceId":   devRec.ID,
+				"userId":     devRec.User})
 		(*rep)["error"] = 422
 		(*rep)["cmd"] = cmd
 		return
 	}
 	rargs := *args
-	var vs string
 	switch c {
 	case "l":
 		if v, ok = rargs["c"]; ok {
@@ -1438,10 +1453,17 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		}
 	case "e":
 		rargs = replyType{}
+		// Delete the device
+		self.logger.Info(self.logCat, "Erasing",
+			util.Fields{"deviceId": devRec.ID})
+		store.DeleteDevice(devRec.ID)
+		return http.StatusOK, ErrDeviceDeleted
+
 	default:
 		self.logger.Warn(self.logCat, "Invalid Command",
 			util.Fields{"cmd": string(cmd),
-				"deviceId": deviceId,
+				"deviceId": devRec.ID,
+				"userId":   devRec.User,
 				"args":     fmt.Sprintf("%v", rargs)})
 		return http.StatusBadRequest, errors.New("\"Invalid Command\"")
 	}
@@ -1451,20 +1473,20 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		self.logger.Error(self.logCat, "Error handling command",
 			util.Fields{"error": err.Error(),
 				"cmd":      string(cmd),
-				"deviceId": deviceId,
+				"deviceId": devRec.ID,
+				"UserId":   devRec.User,
 				"args":     fmt.Sprintf("%v", rargs)})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 
-	store := self.store
-
-	err = store.StoreCommand(deviceId, string(fixed), lcmd)
+	err = store.StoreCommand(devRec.ID, string(fixed), lcmd)
 	if err != nil {
 		// Log the error
 		self.logger.Error(self.logCat, "Error storing command",
 			util.Fields{"error": err.Error(),
 				"cmd":      string(cmd),
-				"deviceId": deviceId,
+				"deviceId": devRec.ID,
+				"userId":   devRec.User,
 				"args":     fmt.Sprintf("%v", args)})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
@@ -1473,13 +1495,16 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	self.metrics.Increment("push.send")
 	self.logger.Debug(self.logCat,
 		"Sending Push",
-		util.Fields{"deviceId": deviceId,
-			"cmd": c})
+		util.Fields{"deviceId": devRec.ID,
+			"userId": devRec.User,
+			"cmd":    c})
 	err = SendPush(devRec, self.config)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send Push",
 			util.Fields{"error": err.Error(),
-				"pushUrl": devRec.PushUrl})
+				"pushUrl":  devRec.PushUrl,
+				"deviceId": devRec.ID,
+				"userId":   devRec.User})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 	return
@@ -1491,9 +1516,11 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	 */
 	var err error
 	var lbody int
+	store := self.store
+	rep := make(replyType)
 
 	resp.Header().Set("Content-Type", "application/json")
-	rep := make(replyType)
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	self.logCat = "handler:Queue"
 
 	session, err := sessionStore.Get(req, SESSION_NAME)
@@ -1503,7 +1530,6 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "Unauthorized", 401)
 		return
 	}
-	store := self.store
 	if !self.checkToken(session, req) {
 		var stoken string
 		if v, ok := session.Values[SESSION_CSRFTOKEN]; !ok {
@@ -1580,7 +1606,8 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 				"Cmd:Unhandled Error",
 				util.Fields{
 					"error":    err.Error(),
-					"deviceId": deviceId})
+					"deviceId": deviceId,
+					"userId":   userId})
 			http.Error(resp, "Unauthorized", 401)
 		}
 		return
@@ -1616,7 +1643,22 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 		for cmd, args := range reply {
 			rargs := replyType(args.(map[string]interface{}))
 			status, err := self.Queue(devRec, cmd, &rargs, &rep)
-			if err != nil {
+			switch err {
+			case nil:
+				break
+			case ErrDeviceDeleted:
+				// remove the deviceId
+				if err = store.DeleteDevice(devRec.ID); err != nil {
+					self.logger.Warn(self.logCat,
+						"Could not remove device",
+						util.Fields{"deviceId": devRec.ID,
+							"userId": devRec.User,
+							"error":  err.Error()})
+				}
+				// remove device from session
+				session.Values[SESSION_DEVICEID] = ""
+				session.Save(req, resp)
+			default:
 				self.logger.Error(self.logCat, "Error processing command",
 					util.Fields{
 						"error": err.Error(),
@@ -1653,6 +1695,7 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 	store := self.store
 	session, _ := sessionStore.Get(req, SESSION_NAME)
 	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	userId, _, err := self.getUser(resp, req)
 	if err == nil && len(userId) > 0 {
 		data.UserId = userId
@@ -1757,13 +1800,13 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		session.Values[SESSION_EMAIL] = sessionInfo.Email
 		session.Values[SESSION_DEVICEID] = sessionInfo.DeviceId
 		session.Values[SESSION_CSRFTOKEN] = initData.Token
-		fmt.Printf("### Saving new session info %+v\n", session.Values)
 		if err = session.Save(req, resp); err != nil {
 			self.logger.Error(self.logCat,
 				"Could not save session",
 				util.Fields{"error": err.Error()})
 		}
 	}
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	if err = tmpl.Execute(resp, initData); err != nil {
 		self.logger.Error(self.logCat,
 			"Could not execute template",
@@ -1836,6 +1879,7 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:State"
 
 	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 
 	store := self.store
 
@@ -1950,6 +1994,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 	self.logCat = "oauth"
 
 	// Get the session so that we can save it.
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	session, _ := sessionStore.Get(req, SESSION_NAME)
 	loginSession, _ := sessionStore.Get(req, SESSION_LOGIN)
 
@@ -2087,6 +2132,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		self.logger.Error(self.logCat,
 			"Could not add WebUI client",
 			util.Fields{"deviceId": self.devId,
+				"userId":   devRec.User,
 				"instance": instance,
 				"error":    err.Error()})
 		socketError(ws, "Too Many Connections")
@@ -2099,6 +2145,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 			self.logger.Error(self.logCat,
 				"Could not clean up closed instance!",
 				util.Fields{"error": err.Error(),
+					"userId":   devRec.User,
 					"deviceId": self.devId})
 		} else {
 			if stopTrack {
@@ -2180,6 +2227,7 @@ func (self *Handler) Validate(resp http.ResponseWriter, req *http.Request) {
 
 	self.logCat = "handler:Validate"
 	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 
 	// Looking for the body of the request to contain a JSON object with
 	// {assert: ... }

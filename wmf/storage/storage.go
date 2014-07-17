@@ -622,13 +622,15 @@ func (self *Storage) Touch(devId string) (err error) {
 func (self *Storage) DeleteDevice(devId string) (err error) {
 	dbh := self.db
 
-	var tables = []string{"pendingcommands", "position", "usertodevice",
+	var tables = []string{"pendingcommands",
+		"position",
+		"usertodevicemap",
 		"deviceinfo"}
 
 	for t := range tables {
 		// BURN THE WITCH!
 		table := tables[t]
-		_, err = dbh.Exec("delete from $1 where deviceid=$2;", table, devId)
+		_, err = dbh.Exec("delete from "+table+" where deviceid=$1;", devId)
 		if err != nil {
 			self.logger.Error(self.logCat,
 				"Could not nuke data from table",

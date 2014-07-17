@@ -150,6 +150,9 @@ func main() {
 		return
 	}
 	handlers := wmf.NewHandler(config, logger, metrics)
+	if handlers == nil {
+		log.Fatalf("Could not start server. Please check config.ini")
+	}
 
 	// Signal handler
 	sigChan := make(chan os.Signal)
@@ -223,7 +226,7 @@ func main() {
 	select {
 	case err := <-errChan:
 		if err != nil {
-			panic("ListenAndServe: " + err.Error())
+			log.Fatalf("ListenAndServe: " + err.Error())
 		}
 	case <-sigChan:
 		logger.Info("main", "Shutting down...", nil)
