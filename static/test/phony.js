@@ -153,7 +153,7 @@ function parseCommand (command) {
     }
   // Erase command
   } else if (command.e) {
-    return createCommandResponse('e', true);
+    // Erase doesn't send back a confirmation
   }
 }
 

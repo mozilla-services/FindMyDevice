@@ -32,14 +32,7 @@ define([
         .findByCssSelector('#modal button.erase.danger')
           .click()
         .end()
-        // Wait for confirmation
-        .sleep(NOTIFIER_SLEEP_TIME)
-        .findByCssSelector('#notifier.active')
-          .text()
-          .then(function (text) {
-            expect(text).to.equal('Your device is erasing.');
-          })
-        .end();
+        // On erase there is no confirmation so we're done
     });
   });
 });
