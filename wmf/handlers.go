@@ -174,7 +174,8 @@ func (self *Handler) extractFromAssertion(assertion string) (userid, email strin
 	decoded, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not decode assertion",
-			util.Fields{"assertion frame": data})
+			util.Fields{"assertion frame": data,
+				"error": err.Error()})
 		return "", "", ErrInvalidAssertion
 	}
 	asrt := make(replyType)
@@ -191,10 +192,12 @@ func (self *Handler) extractFromAssertion(assertion string) (userid, email strin
 	// ******** DO NOT ENABLE auth.disabled FLAG IN PRODUCTION!! ******
 	if e, ok := asrt["fxa-verifiedEmail"]; ok {
 		email = e.(string)
+		// userid is the local portion of the "email"
+		userid = strings.Split(asrt["principal"].(map[string]interface{})["email"].(string), "@")[0]
 	} else {
 		email = asrt["principal"].(map[string]interface{})["email"].(string)
+		userid = self.genHash(email)
 	}
-	userid = self.genHash(email)
 	self.logger.Debug(self.logCat, "Extracted credentials",
 		util.Fields{"userId": userid, "email": email})
 	return userid, email, nil
@@ -409,6 +412,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	}
 	// the response has either been a redirect or a validated assertion.
 	// fun times, fun times...
+	fmt.Printf("=== buff %+v\n", buff)
 	if idp, ok := buff["idpClaims"]; ok {
 		if email, ok := idp.(map[string]interface{})["fxa-verifiedEmail"]; ok {
 			return self.genHash(email.(string)), email.(string), nil
@@ -416,7 +420,6 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	}
 	// get the "redirect" url. We're not going to redirect, just get the code.
 	if redir, ok := buff["redirect"]; !ok {
-		fmt.Printf("### Redirect: %s\n", raw)
 		self.logger.Error(self.logCat, "FxA verification did not return redirect",
 			nil)
 		return "", "", err
@@ -434,15 +437,23 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 			}
 			//Convert code to access token.
 			accessToken, err := self.getAccessToken(code)
+			fmt.Printf("### AccessToken: %s\n", accessToken)
+
 			if err != nil {
 				return "", "", ErrOauth
 			}
-			email, err := self.getUserEmail(accessToken)
+			// If we ever need more, probably want to use "profile".
+			// this will fetch a user's complete profile.
+			userid, err := self.getUserData(accessToken, "uid")
+			if err != nil {
+				return "", "", ErrOauth
+			}
+			email, err := self.getUserData(accessToken, "email")
 			if err != nil {
 				return "", "", ErrOauth
 			}
 			// fmt.Printf("### Verified FxA assertion: %s, %s\n", accessToken, email)
-			return self.genHash(email), email, nil
+			return userid, email, nil
 		}
 	}
 }
@@ -527,7 +538,14 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 
 	// because oauth may not always be present.
 	if em := self.config.Get("auth.force_user", ""); len(em) > 0 {
-		return self.genHash(em), em, nil
+		i := strings.Split(em, " ")
+		userid = i[0]
+		if len(i) > 1 {
+			email = i[1]
+		} else {
+			email = "Bad config"
+		}
+		return userid, email, nil
 	}
 
 	session, err = sessionStore.Get(req, SESSION_NAME)
@@ -910,15 +928,16 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 }
 
 // Get the user's Email from the profile server using the OAuth2 access token
-func (self *Handler) getUserEmail(accessToken string) (email string, err error) {
+func (self *Handler) getUserData(accessToken, data string) (email string, err error) {
 	client := http.DefaultClient
-	url := self.config.Get("fxa.content.endpoint", CONTENT_ENDPOINT) + "/email"
+	url := self.config.Get("fxa.content.endpoint", CONTENT_ENDPOINT) + "/" + data
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not POST to get email",
 			util.Fields{"error": err.Error()})
 		return "", err
 	}
+	fmt.Printf("### Token: %s\n", accessToken)
 	req.Header.Add("Authorization", "Bearer "+accessToken)
 	// fmt.Printf("### Sending email request to profile server\n%+v\n", req)
 	resp, err := client.Do(req)
@@ -933,13 +952,13 @@ func (self *Handler) getUserEmail(accessToken string) (email string, err error) 
 			util.Fields{"error": err.Error()})
 		return "", err
 	}
-	if _, ok := buffer["email"]; !ok {
+	if _, ok := buffer[data]; !ok {
 		self.logger.Error(self.logCat, "Response did not contain email",
 			util.Fields{"body": raw})
 		return "", ErrNoUser
 	}
 	// fmt.Printf("### Got email! %s\n", buffer["email"].(string))
-	return buffer["email"].(string), nil
+	return buffer[data].(string), nil
 }
 
 // Generate a hash from the string.
@@ -1344,7 +1363,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 
 	// reply with pending commands
 	//
-	cmd, err := store.GetPending(deviceId)
+	cmd, ctype, err := store.GetPending(deviceId)
 	var output = []byte(cmd)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send commands",
@@ -1360,9 +1379,12 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	authHeader := hawk.AsHeader(req, devRec.ID, string(output),
 		"", devRec.Secret)
 	resp.Header().Add("Authorization", authHeader)
-	// total cheat to get the command without parsing the cmd data.
-	if len(cmd) > 2 {
-		self.metrics.Increment("cmd.send." + string(cmd[2]))
+	self.metrics.Increment("cmd.send." + ctype)
+	if ctype == "e" {
+		self.logger.Debug(self.logCat,
+			"Deleting device",
+			util.Fields{"deviceId": devRec.ID})
+		err = store.DeleteDevice(devRec.ID)
 	}
 	if self.config.GetFlag("debug.show_output") {
 		self.logger.Debug(self.logCat,
@@ -1454,9 +1476,6 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	case "e":
 		rargs = replyType{}
 		// Delete the device
-		self.logger.Info(self.logCat, "Erasing",
-			util.Fields{"deviceId": devRec.ID})
-		store.DeleteDevice(devRec.ID)
 		return http.StatusOK, ErrDeviceDeleted
 
 	default:
@@ -2021,6 +2040,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 	// fmt.Printf("### oauth session: %+v, err: %s\n", session, err)
 	if _, ok := session.Values[SESSION_TOKEN]; !ok {
 		// get the "state", and "code"
+		fmt.Printf("//// Values %+v\n", req.Form)
 		state := req.FormValue("state")
 		code := req.FormValue("code")
 		// TODO: check "state" matches magic code thingy
@@ -2053,21 +2073,27 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 		delete(session.Values, SESSION_EMAIL)
 		session.Values[SESSION_TOKEN] = token
 	}
-	if _, ok := session.Values[SESSION_EMAIL]; !ok {
-		// fmt.Printf("### Getting user email from access token\n")
-		email, err := self.getUserEmail(session.Values[SESSION_TOKEN].(string))
-		if err != nil {
-			self.logger.Error(self.logCat, "Could not get email",
-				util.Fields{"error": err.Error()})
-			http.Redirect(resp, req, "/", http.StatusFound)
-			return
-		}
-		session.Values[SESSION_EMAIL] = email
-		// fmt.Printf("### Saving session %+v\n", session)
-		// awesome. So saving the session apparently doesn't mean it's
-		// readable by subsequent session get calls.
-		session.Save(req, resp)
+	// fmt.Printf("### Getting user email from access token\n")
+	val, err := self.getUserData(session.Values[SESSION_TOKEN].(string), "email")
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not get email",
+			util.Fields{"error": err.Error()})
+		http.Redirect(resp, req, "/", http.StatusFound)
+		return
 	}
+	session.Values[SESSION_EMAIL] = val
+	val, err = self.getUserData(session.Values[SESSION_TOKEN].(string),
+		"uid")
+	if err != nil {
+		self.logger.Error(self.logCat, "Could not get uid",
+			util.Fields{"error": err.Error()})
+		http.Redirect(resp, req, "/", http.StatusFound)
+		return
+	}
+	fmt.Printf("### Saving session %+v\n", session)
+	// awesome. So saving the session apparently doesn't mean it's
+	// readable by subsequent session get calls.
+	session.Save(req, resp)
 	self.metrics.Increment("page.signin.success")
 	http.Redirect(resp, req, "/", http.StatusFound)
 	return

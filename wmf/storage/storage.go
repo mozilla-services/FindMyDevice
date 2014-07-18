@@ -389,21 +389,21 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 }
 
 // Get pending commands.
-func (self *Storage) GetPending(devId string) (cmd string, err error) {
+func (self *Storage) GetPending(devId string) (cmd, ctype string, err error) {
 	dbh := self.db
 	var created = time.Time{}
 
-	statement := "select id, cmd, time from pendingCommands where deviceId = $1 order by time limit 1;"
+	statement := "select id, cmd, type, time from pendingCommands where deviceId = $1 order by time limit 1;"
 	rows, err := dbh.Query(statement, devId)
 	defer rows.Close()
 	if rows.Next() {
 		var id string
-		err = rows.Scan(&id, &cmd, &created)
+		err = rows.Scan(&id, &cmd, &ctype, &created)
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not read pending command",
 				util.Fields{"error": err.Error(),
 					"deviceId": devId})
-			return "", err
+			return "", "", err
 		}
 		// Convert the date string to an int64
 		lifespan := int64(time.Now().UTC().Sub(created).Seconds())
@@ -412,7 +412,7 @@ func (self *Storage) GetPending(devId string) (cmd string, err error) {
 		dbh.Exec(statement, id)
 	}
 	self.Touch(devId)
-	return cmd, nil
+	return cmd, ctype, nil
 }
 
 func (self *Storage) GetUserFromDevice(deviceId string) (userId, name string, err error) {
