@@ -8,20 +8,20 @@ When developing, it is recommended that you use `grunt watch` to transform `.scs
 
 ## Testing
 
-Right now the test suite consists of entirely functional tests that require Selenium. It is also required that you run Phony (`./test/phony.js`), our happy device simulator.
+Right now the test suite consists of entirely functional tests that require Selenium. It is also required that you run Phony (`./test/phony.js`), our happy device simulator. A `../config-tests.ini` file has been included as a starting point for getting the test environment working with the Find My Device server. See project [README](../README.md) for details about running the server.
 
 ### Prerequisites:
 
   * Java JDK or JRE (http://www.oracle.com/technetwork/java/javase/downloads/index.html)
   * Selenium Server (http://docs.seleniumhq.org/download/)
-  * Copy `../config-tests.ini` to `../config.ini`. Customize `db.*` settings as needed.
 
 ### Running the tests
 
 Start each of these in separate terminal windows (tabs):
 
-  * Selenium: `java -jar /path/to/download/selenium-server-standalone-2.38.0.jar`
+  * Find My Device server running from the project root: `cd .. && ./runserver.bash`
   * Phony: `node test/phony.js`
+  * Selenium: `java -jar /path/to/download/selenium-server-standalone-2.38.0.jar`
   * Start the tests: `npm test`
 
 ## Production
