@@ -18,13 +18,13 @@ define([
     notify: function (message) {
       clearTimeout(this.autoCloseTimer);
 
-      this.$notifier.html(message).fadeIn();
+      this.$notifier.html(message).addClass('active').fadeIn();
 
       this.autoCloseTimer = setTimeout(_.bind(this.close, this), this.AUTO_CLOSE_TIMEOUT);
     },
 
     close: function () {
-      this.$notifier.fadeOut();
+      this.$notifier.removeClass('active').fadeOut();
     }
   };
 
