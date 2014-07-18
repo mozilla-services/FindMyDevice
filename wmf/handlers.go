@@ -271,7 +271,9 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 		return "", "", ErrAuthorization
 	}
 	if self.config.GetFlag("auth.show_assertion") {
-		fmt.Printf("### Validating Assertion:\n %s\n", body)
+		self.logger.Debug(self.logCat,
+			"### Assertion:",
+			util.Fields{"assertion": string(body)})
 	}
 	req, err := http.NewRequest("POST", validatorURL, bytes.NewReader(body))
 	if err != nil {
@@ -376,7 +378,9 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 		return "", "", err
 	}
 	if self.config.GetFlag("auth.show_assertion") {
-		fmt.Printf("### Validating Assertion:\n %s\n", argsj)
+		self.logger.Debug(self.logCat,
+			"### Validating Assertion",
+			util.Fields{"assertion": string(argsj)})
 	}
 	// Send the assertion to the validator
 	req, err := http.NewRequest("POST", validatorUrl, bytes.NewReader(argsj))
@@ -412,10 +416,18 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	}
 	// the response has either been a redirect or a validated assertion.
 	// fun times, fun times...
-	fmt.Printf("=== buff %+v\n", buff)
+
 	if idp, ok := buff["idpClaims"]; ok {
+		if principal, ok := idp.(map[string]interface{})["principal"]; ok {
+			if uid, ok := principal.(map[string]interface{})["email"]; ok {
+				userid = strings.Split(uid.(string), "@")[0]
+			}
+		}
 		if email, ok := idp.(map[string]interface{})["fxa-verifiedEmail"]; ok {
-			return self.genHash(email.(string)), email.(string), nil
+			if userid == "" {
+				userid = self.genHash(email.(string))
+			}
+			return userid, email.(string), nil
 		}
 	}
 	// get the "redirect" url. We're not going to redirect, just get the code.
