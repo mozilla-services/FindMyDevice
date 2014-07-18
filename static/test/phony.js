@@ -154,6 +154,7 @@ function parseCommand (command) {
   // Erase command
   } else if (command.e) {
     // Erase doesn't send back a confirmation
+    return;
   }
 }
 

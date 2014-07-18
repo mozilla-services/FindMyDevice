@@ -12,7 +12,6 @@ define([
 
   var URL = intern.config.fmd.url;
   var COMMAND_TIMEOUT = intern.config.fmd.commandTimeout;
-  var NOTIFIER_SLEEP_TIME = intern.config.fmd.notifierSleepTime;
 
   bdd.describe('erase', function () {
     bdd.it('should erase the device', function () {
@@ -31,7 +30,7 @@ define([
         // Confirm erase
         .findByCssSelector('#modal button.erase.danger')
           .click()
-        .end()
+        .end();
         // On erase there is no confirmation so we're done
     });
   });
