@@ -52,13 +52,13 @@ define(['intern/lib/args'], function (args) {
 
     // Functional test suite(s) to run in each browser once non-functional tests are completed
     functionalSuites: [
-      'tests/functional/index',
-      'tests/functional/ring',
-      'tests/functional/lock',
-      'tests/functional/erase'
+      'test/functional/index',
+      'test/functional/ring',
+      'test/functional/lock',
+      'test/functional/erase'
     ],
 
     // A regular expression matching URLs to files that should not be included in code coverage analysis
-    excludeInstrumentation: /^(?:tests|node_modules)\//
+    excludeInstrumentation: /^(?:test|node_modules)\//
   };
 });

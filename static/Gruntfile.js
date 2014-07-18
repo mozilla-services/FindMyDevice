@@ -28,11 +28,14 @@ module.exports = function (grunt) {
   // load all grunt tasks
   require('load-grunt-tasks')(grunt);
 
+  // Load npm tasks
+  grunt.loadNpmTasks('intern');
+
   // configurable paths
   var yeomanConfig = {
     app: 'app',
     dist: 'dist',
-    test: 'tests',
+    test: 'test',
     tmp: '.tmp'
   };
 
@@ -217,6 +220,16 @@ module.exports = function (grunt) {
           src: '{,*/}*.{png,jpg,jpeg}',
           dest: '<%= yeoman.dist %>/images'
         }]
+      }
+    },
+
+    // INTERN TASK
+    intern: {
+      all: {
+        options: {
+          runType: 'runner',
+          config: 'test/intern'
+        }
       }
     },
 
@@ -435,18 +448,5 @@ module.exports = function (grunt) {
   });
 
   // TEST TASK
-  grunt.registerTask('test', function (isConnected) {
-    isConnected = Boolean(isConnected);
-    var testTasks = [
-      'clean:server'
-    ];
-
-    if (!isConnected) {
-      return grunt.task.run(testTasks);
-    } else {
-      // already connected so not going to connect again, remove the connect:test task
-      testTasks.splice(testTasks.indexOf('connect:test'), 1);
-      return grunt.task.run(testTasks);
-    }
-  });
+  grunt.registerTask('test', [ 'intern' ]);
 };

@@ -73,6 +73,7 @@ function register (callback) {
   );
 }
 
+// Remove fake device from the db
 function unregister (callback) {
   pg.connect(pgConfig,
     function(err, client, done) {
@@ -104,6 +105,7 @@ function unregister (callback) {
   );
 }
 
+// Send command response to the server
 function postCommand (postData) {
   console.info('Posting command...');
   console.info('Sending:', postData || '');
@@ -121,6 +123,7 @@ function postCommand (postData) {
   );
 }
 
+// Parse commands from the server
 function parseCommand (command) {
   /* jshint camelcase: false */
 
@@ -154,6 +157,7 @@ function parseCommand (command) {
   }
 }
 
+// Helper for creating command responses
 function createCommandResponse (commandName, ok, attrs) {
   var command = {};
 
