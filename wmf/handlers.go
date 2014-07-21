@@ -2058,7 +2058,6 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 	// fmt.Printf("### oauth session: %+v, err: %s\n", session, err)
 	if _, ok := session.Values[SESSION_TOKEN]; !ok {
 		// get the "state", and "code"
-		fmt.Printf("//// Values %+v\n", req.Form)
 		state := req.FormValue("state")
 		code := req.FormValue("code")
 		// TODO: check "state" matches magic code thingy
