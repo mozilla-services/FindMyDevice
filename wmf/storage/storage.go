@@ -438,11 +438,30 @@ func (self *Storage) GetUserFromDevice(deviceId string) (userId, name string, er
 }
 
 // Get all known devices for this user.
-func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err error) {
+func (self *Storage) GetDevicesForUser(userId, oldUserId string) (devices []DeviceList, err error) {
 	var data []DeviceList
 
 	dbh := self.db
 	limit := self.config.Get("db.max_devices_for_user", "1")
+	// Update from the old sha hash to the new FxA UID if need be.
+	if len(oldUserId) > 0 && userId != oldUserId {
+		upd := "update userToDeviceMap set userId = $1 where userId = $2;"
+		updr, err := dbh.Exec(upd, userId, oldUserId)
+		if err != nil {
+			self.logger.Error(self.logCat,
+				"Could not update UserID",
+				util.Fields{"userID": userId,
+					"oldUserId": oldUserId,
+					"error":     err.Error()})
+			// Crap, that didn't work. get the old userids
+			userId = oldUserId
+		} else {
+			hits, err := updr.RowsAffected()
+			if err == nil {
+				self.metrics.IncrementBy("db.UserID.Updated", int(hits))
+			}
+		}
+	}
 	statement := "select deviceId, coalesce(name,deviceId) from userToDeviceMap where userId = $1 order by date desc limit $2;"
 	rows, err := dbh.Query(statement, userId, limit)
 	defer rows.Close()

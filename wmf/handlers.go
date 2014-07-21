@@ -64,6 +64,7 @@ type replyType map[string]interface{}
 // Each session contains a UserID and a DeviceID
 type sessionInfoStruct struct {
 	UserId      string
+	OldUID      string
 	DeviceId    string
 	Email       string
 	AccessToken string
@@ -512,7 +513,7 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 			sessionInfo.DeviceId = getDevFromUrl(req.URL)
 		}
 		if sessionInfo.DeviceId == "" {
-			data.DeviceList, err = store.GetDevicesForUser(data.UserId)
+			data.DeviceList, err = store.GetDevicesForUser(data.UserId, sessionInfo.OldUID)
 			if err != nil {
 				self.logger.Error(self.logCat, "Could not get user devices",
 					util.Fields{"error": err.Error(),
@@ -630,6 +631,7 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 // set the user info into the session
 func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request, session *sessions.Session) (info *sessionInfoStruct, err error) {
 	var userid string
+	var oldUid string
 	var email string
 	var accessToken string
 	var csrfToken string
@@ -639,6 +641,7 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	if err != nil {
 		return nil, err
 	}
+	oldUid = self.genHash(email)
 	if userid == "" {
 		if email != "" {
 			userid = self.genHash(email)
@@ -655,6 +658,7 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	}
 	info = &sessionInfoStruct{
 		UserId:      userid,
+		OldUID:      oldUid,
 		Email:       email,
 		DeviceId:    dev,
 		AccessToken: accessToken,
@@ -1727,7 +1731,7 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 	session, _ := sessionStore.Get(req, SESSION_NAME)
 	resp.Header().Set("Content-Type", "application/json")
 	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
-	userId, _, err := self.getUser(resp, req)
+	userId, email, err := self.getUser(resp, req)
 	if err == nil && len(userId) > 0 {
 		data.UserId = userId
 	} else {
@@ -1738,7 +1742,7 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	deviceList, err := store.GetDevicesForUser(data.UserId)
+	deviceList, err := store.GetDevicesForUser(data.UserId, self.genHash(email))
 	if err != nil {
 		self.logger.Error(self.logCat,
 			"Could not get devices for user",
