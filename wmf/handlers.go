@@ -945,7 +945,7 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 	return token.(string), nil
 }
 
-// Get the user's Email from the profile server using the OAuth2 access token
+// Get the user's Data from the profile server using the OAuth2 access token
 func (self *Handler) getUserData(accessToken, data string) (email string, err error) {
 	client := http.DefaultClient
 	url := self.config.Get("fxa.content.endpoint", CONTENT_ENDPOINT) + "/" + data
@@ -1402,7 +1402,12 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		self.logger.Debug(self.logCat,
 			"Deleting device",
 			util.Fields{"deviceId": devRec.ID})
-		err = store.DeleteDevice(devRec.ID)
+		if err = store.DeleteDevice(devRec.ID); err != nil {
+			self.logger.Warn(self.logCat, "Could not delete device",
+				util.Fields{"error": err.Error(),
+					"deviceId": devRec.ID,
+					"userId":   devRec.User})
+		}
 	}
 	if self.config.GetFlag("debug.show_output") {
 		self.logger.Debug(self.logCat,
