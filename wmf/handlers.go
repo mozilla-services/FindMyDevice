@@ -865,36 +865,38 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 
 // A simple signature generator for WS connections
 // Unfortunately, remote IP is not reliable for WS.
-func (self *Handler) genSig(req *http.Request, session *sessions.Session) (ret string, err error) {
-	if session == nil {
-		session, _ = sessionStore.Get(req, SESSION_NAME)
-	}
-	if sess, ok := session.Values[SESSION_DEVICEID]; !ok {
+func (self *Handler) genSig(userId, deviceId string) (ret string, err error) {
+	if userId == "" || deviceId == "" {
 		return "", errors.New("Invalid")
-	} else {
-		sig := self.genHash(sess.(string) +
-			session.Values[SESSION_USERID].(string))
-		/*
-		   fmt.Printf("@@@ Remote Addr: %s, %s, %s\n",
-		       req.RemoteAddr,
-		       req.Header.Get("X-Real-IP"),
-		       req.Header.Get("X-Forwarded-For"))
-		*/
-		return sig, nil
 	}
+	sig := self.genHash(userId + deviceId)
+	/*
+		        Other things we may want to add in...
+			   fmt.Printf("@@@ Remote Addr: %s, %s, %s\n",
+			       req.RemoteAddr,
+			       req.Header.Get("X-Real-IP"),
+			       req.Header.Get("X-Forwarded-For"))
+	*/
+	return sig, nil
 }
 
 // Check the simple WS signature against the second to last item
-func (self *Handler) checkSig(req *http.Request, devId string) (ok bool) {
-
-	return true
+func (self *Handler) checkSig(req *http.Request, userId, devId string) (ok bool) {
 
 	bits := strings.Split(req.URL.Path, "/")
 	// remember, leading "/" counts.
 	gotsig := bits[len(bits)-2]
-	testsig, err := self.genSig(req, nil)
+	testsig, err := self.genSig(userId, devId)
 	if err != nil {
 		return false
+	}
+	self.logger.Debug(self.logCat,
+		"Testing WS Signature",
+		util.Fields{"testSig": testsig,
+			"gotSig": gotsig})
+
+	if self.config.GetFlag("auth.disable_ws_check") {
+		return true
 	}
 	return testsig == gotsig
 }
@@ -1728,7 +1730,6 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	store := self.store
-	session, _ := sessionStore.Get(req, SESSION_NAME)
 	resp.Header().Set("Content-Type", "application/json")
 	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	userId, email, err := self.getUser(resp, req)
@@ -1753,12 +1754,8 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 
 	var reply []devList
 	verRoot := strings.SplitN(self.config.Get("VERSION", "0"), ".", 2)[0]
-	if _, ok := session.Values[SESSION_USERID]; !ok {
-		session.Values[SESSION_USERID] = userId
-	}
 	for _, d := range deviceList {
-		session.Values[SESSION_DEVICEID] = d.ID
-		sig, err := self.genSig(req, session)
+		sig, err := self.genSig(userId, d.ID)
 		if err != nil {
 			continue
 		}
@@ -2106,6 +2103,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 		http.Redirect(resp, req, "/", http.StatusFound)
 		return
 	}
+	session.Values[SESSION_USERID] = val
 	fmt.Printf("### Saving session %+v\n", session)
 	// awesome. So saving the session apparently doesn't mean it's
 	// readable by subsequent session get calls.
@@ -2119,6 +2117,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	self.logCat = "handler:Socket"
 	store := self.store
+	session, _ := sessionStore.Get(ws.Request(), SESSION_NAME)
 
 	// generate small token ID for this instance. UUID4 probably overkill.
 	// covert to int?
@@ -2126,7 +2125,8 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	rand.Read(ib)
 	instance := hex.EncodeToString(ib)
 	self.devId = getDevFromUrl(ws.Request().URL)
-	if !self.checkSig(ws.Request(), self.devId) {
+	userid, ok := session.Values[SESSION_USERID]
+	if !ok || !self.checkSig(ws.Request(), userid.(string), self.devId) {
 		self.logger.Error(self.logCat, "Unauthorized access.",
 			nil)
 		return

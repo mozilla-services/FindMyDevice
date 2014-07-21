@@ -141,7 +141,6 @@ func Open(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics)
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		panic("Storage is unavailable: " + err.Error() + "\n")
-		return nil, err
 	}
 	db.SetMaxIdleConns(100)
 	if err = db.Ping(); err != nil {
@@ -212,8 +211,6 @@ func (self *Storage) createDb() (err error) {
 	//TODO get lastDbUpdate from meta, if there's a file in sql older
 	// than that, run it. (allows for db patching.)
 	// self.dbUpdated()
-
-	return err
 }
 
 func (self *Storage) markDb(date string) (err error) {
