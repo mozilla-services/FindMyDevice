@@ -179,8 +179,6 @@ func main() {
 			handlers.Static)
 		RESTMux.HandleFunc("/images/",
 			handlers.Static)
-		RESTMux.HandleFunc("/fonts/",
-			handlers.Static)
 		RESTMux.HandleFunc("/scripts/",
 			handlers.Static)
 		RESTMux.HandleFunc("/styles/",
