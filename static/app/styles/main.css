@@ -4,7 +4,7 @@
 /* TypoPRO Fira Sans */
 @font-face {
   font-family: 'TypoPRO Fira Sans';
-  src: url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Regular.eot?#iefix') format('embedded-opentype'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Regular.woff') format('woff'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Regular.ttf') format('truetype');
+  src: url('/fonts/FiraSans/FiraSans-Regular.eot?#iefix') format('embedded-opentype'), url('/fonts/FiraSans/FiraSans-Regular.woff') format('woff'), url('/fonts/FiraSans/FiraSans-Regular.ttf') format('truetype');
   font-style: normal;
   font-weight: normal;
   font-stretch: normal;
@@ -13,7 +13,7 @@
 /* TypoPRO Fira Sans Bold */
 @font-face {
   font-family: 'TypoPRO Fira Sans';
-  src: url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Bold.eot?#iefix') format('embedded-opentype'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Bold.woff') format('woff'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-Bold.ttf') format('truetype');
+  src: url('/fonts/FiraSans/FiraSans-Bold.eot?#iefix') format('embedded-opentype'), url('/fonts/FiraSans/FiraSans-Bold.woff') format('woff'), url('/fonts/FiraSans/FiraSans-Bold.ttf') format('truetype');
   font-style: normal;
   font-weight: bold;
   font-stretch: normal;
@@ -22,7 +22,7 @@
 /* TypoPRO Fira Sans Italic */
 @font-face {
   font-family: 'TypoPRO Fira Sans';
-  src: url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BookItalic.eot?#iefix') format('embedded-opentype'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BookItalic.woff') format('woff'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BookItalic.ttf') format('truetype');
+  src: url('/fonts/FiraSans/FiraSans-BookItalic.eot?#iefix') format('embedded-opentype'), url('/fonts/FiraSans/FiraSans-BookItalic.woff') format('woff'), url('/fonts/FiraSans/FiraSans-BookItalic.ttf') format('truetype');
   font-style: italic;
   font-weight: normal;
   font-stretch: normal;
@@ -31,7 +31,7 @@
 /* TypoPRO Fira Sans Bold Italic */
 @font-face {
   font-family: 'TypoPRO Fira Sans';
-  src: url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BoldItalic.eot?#iefix') format('embedded-opentype'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BoldItalic.woff') format('woff'), url('/bower_components/typopro/web/TypoPRO-FiraSans/TypoPRO-FiraSans-BoldItalic.ttf') format('truetype');
+  src: url('/fonts/FiraSans/FiraSans-BoldItalic.eot?#iefix') format('embedded-opentype'), url('/fonts/FiraSans/FiraSans-BoldItalic.woff') format('woff'), url('/fonts/FiraSans/FiraSans-BoldItalic.ttf') format('truetype');
   font-style: italic;
   font-weight: bold;
   font-stretch: normal;

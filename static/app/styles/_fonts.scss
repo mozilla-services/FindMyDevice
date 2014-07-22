@@ -1,29 +1,29 @@
-$font-base: '/bower_components/typopro/web/TypoPRO-FiraSans/';
+$font-base: '/fonts/FiraSans/';
 
 /* TypoPRO Fira Sans */
 @include font-face(
   $font-family: $default-font-family,
-  $path: '#{$font-base}TypoPRO-FiraSans-Regular'
+  $path: '#{$font-base}FiraSans-Regular'
 );
 
 /* TypoPRO Fira Sans Bold */
 @include font-face(
   $font-family: $default-font-family,
-  $path: '#{$font-base}TypoPRO-FiraSans-Bold',
+  $path: '#{$font-base}FiraSans-Bold',
   $font-weight: bold
 );
 
 /* TypoPRO Fira Sans Italic */
 @include font-face(
   $font-family: $default-font-family,
-  $path: '#{$font-base}TypoPRO-FiraSans-BookItalic',
+  $path: '#{$font-base}FiraSans-BookItalic',
   $font-style: italic
 );
 
 /* TypoPRO Fira Sans Bold Italic */
 @include font-face(
   $font-family: $default-font-family,
-  $path: '#{$font-base}TypoPRO-FiraSans-BoldItalic',
+  $path: '#{$font-base}FiraSans-BoldItalic',
   $font-style: italic,
   $font-weight: bold
 );
