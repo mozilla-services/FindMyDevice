@@ -255,6 +255,22 @@ module.exports = function (grunt) {
       ]
     },
 
+    // JSONLINT TASK
+    jsonlint: {
+      all: [
+        '{,app/**,test/**}*.json',
+        '!app/bower_components/*'
+      ],
+      configs: [
+        '.bowerrc',
+        '.csslintrc',
+        '.jscsrc',
+        '.jshintrc',
+        '.yo-rc.json',
+        'test/.bowerrc'
+      ]
+    },
+
     // OPEN TASK
     open: {
       server: {
@@ -405,14 +421,16 @@ module.exports = function (grunt) {
   // DEFAULT TASK
   grunt.registerTask('default', [
     'lint',
+    'validate-package',
     'build',
     'test'
   ]);
 
   // LINT TASK
   grunt.registerTask('lint', [
-    'jscs',
     'jshint',
+    'jscs',
+    'jsonlint',
     'copyright'
   ]);
 
