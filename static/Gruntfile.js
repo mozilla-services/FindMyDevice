@@ -134,9 +134,8 @@ module.exports = function (grunt) {
           src: [
             '*.{ico,txt}',
             '.htaccess',
-            'images/{,*/}*.{webp,gif}',
-            'styles/fonts/{,*/}*.*',
-            'bower_components/typopro/web/TypoPRO-FiraSans/{,*/}*.*'
+            'images/{,*/}*.{png,jpg,jpeg,webp,gif}',
+            'fonts/{,*/}*.*'
           ]
         },
         // Copy these files into tmp so that concat can find them
@@ -207,18 +206,6 @@ module.exports = function (grunt) {
           cwd: '<%= yeoman.app %>',
           src: '*.html',
           dest: '<%= yeoman.dist %>'
-        }]
-      }
-    },
-
-    // IMAGEMIN TASK
-    imagemin: {
-      dist: {
-        files: [{
-          expand: true,
-          cwd: '<%= yeoman.app %>/images',
-          src: '{,*/}*.{png,jpg,jpeg}',
-          dest: '<%= yeoman.dist %>/images'
         }]
       }
     },
@@ -310,8 +297,7 @@ module.exports = function (grunt) {
           src: [
             '<%= yeoman.dist %>/scripts/{,*/}*.js',
             '<%= yeoman.dist %>/styles/{,*/}*.css',
-            '<%= yeoman.dist %>/images/{,*/}*.{png,jpg,jpeg,gif,webp}',
-            '/styles/fonts/{,*/}*.*'
+            '<%= yeoman.dist %>/images/{,*/}*.{png,jpg,jpeg,gif,webp}'
           ]
         }
       }
@@ -401,7 +387,6 @@ module.exports = function (grunt) {
     'clean:dist',
     'css',
     'useminPrepare',
-    'imagemin',
     'htmlmin',
     'copy',
     'concat',
