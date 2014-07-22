@@ -13,7 +13,7 @@
   "license": "MPL 2.0",
   "scripts": {
     "postinstall": "bower install --silent",
-    "test": "grunt test",
+    "test": "grunt",
     "contributors": "git shortlog -s | cut -c8- | sort -f > CONTRIBUTORS",
     "clean": "rm -rf {node_modules,app/bower_components} && npm install --silent"
   },

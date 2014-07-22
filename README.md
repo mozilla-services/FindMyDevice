@@ -1,5 +1,7 @@
 # Find My Device (fmd)
 
+[![Build Status: Travis](https://travis-ci.org/mozilla-services/FindMyDevice.svg?branch=dev)](https://travis-ci.org/mozilla-services/FindMyDevice)
+
 This server is still under development.
 
 **Note:** The most stable version of this server is the *master* branch. "dev"

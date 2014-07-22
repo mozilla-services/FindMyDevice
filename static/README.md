@@ -8,7 +8,7 @@ When developing, it is recommended that you use `grunt watch` to transform `.scs
 
 ## Testing
 
-Right now the test suite consists of entirely functional tests that require Selenium. It is also required that you run Phony (`./test/phony.js`), our happy device simulator. A `../config-tests.ini` file has been included as a starting point for getting the test environment working with the Find My Device server. See project [README](../README.md) for details about running the server.
+Right now the test suite consists of entirely functional tests that require Selenium. It is also required that you run Phony (`./test/phony.js`), our happy device simulator. Use `../config-travis.ini` as a starting point for getting the test environment working with the Find My Device server. See project [README](../README.md) for details about running the server.
 
 ### Prerequisites:
 

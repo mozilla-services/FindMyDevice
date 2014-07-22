@@ -5,13 +5,15 @@
 'use strict';
 
 var fs = require('fs');
+var path = require('path');
 var express = require('express');
 var rest = require('restler');
 var ini = require('ini');
 var pg = require('pg.js');
 
 var app = express();
-var config = ini.parse(fs.readFileSync('../config.ini', 'utf-8'));
+var config = ini.parse(fs.readFileSync(path.join(__dirname, '../../config.ini'), 'utf-8'));
+
 var pgConfig = {
   database: config['db.db'],
   host: config['db.host'],
