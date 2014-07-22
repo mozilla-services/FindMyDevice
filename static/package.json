@@ -31,7 +31,6 @@
     "grunt-contrib-csslint": "0.2.0",
     "grunt-contrib-cssmin": "0.10.0",
     "grunt-contrib-htmlmin": "0.3.0",
-    "grunt-contrib-imagemin": "0.7.1",
     "grunt-contrib-jshint": "0.10.0",
     "grunt-contrib-watch": "0.6.1",
     "grunt-copyright": "0.1.0",
