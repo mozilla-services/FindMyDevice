@@ -135,7 +135,7 @@ module.exports = function (grunt) {
             '*.{ico,txt}',
             '.htaccess',
             'images/{,*/}*.{png,jpg,jpeg,webp,gif}',
-            'fonts/{,*/}*.*'
+            'styles/fonts/{,*/}*.*'
           ]
         },
         // Copy these files into tmp so that concat can find them
@@ -297,6 +297,7 @@ module.exports = function (grunt) {
           src: [
             '<%= yeoman.dist %>/scripts/{,*/}*.js',
             '<%= yeoman.dist %>/styles/{,*/}*.css',
+            '<%= yeoman.dist %>/styles/fonts/{,*/}*.*',
             '<%= yeoman.dist %>/images/{,*/}*.{png,jpg,jpeg,gif,webp}'
           ]
         }

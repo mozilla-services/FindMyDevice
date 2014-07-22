@@ -11,7 +11,6 @@
     "requirejs-mustache": "967960075a5735a986ef6063efa9477df59f9cd5",
     "requirejs-text": "~2.0.12",
     "underscore": "~1.6.0",
-    "typopro": "~2.0.3",
     "reconnectingWebsocket": "6d43d26a75009a161404ac7f88beddb2ae32e057",
     "parsleyjs": "~2.0.2"
   },
