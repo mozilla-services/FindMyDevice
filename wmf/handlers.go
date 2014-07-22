@@ -1341,12 +1341,15 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			}
 			c := strings.ToLower(string(cmd))
 			cs := string(c[0])
+			if c == "enabled" {
+				cs = "x"
+			}
 			// TODO : fix command filter
-			self.metrics.Increment("cmd.received." + cs)
+			self.metrics.Increment("cmd.received." + c)
 			// Normalize the args.
 			switch args.(type) {
 			case bool:
-				margs = replyType{string(cmd): isTrue(args.(bool))}
+				margs = replyType{c: isTrue(args.(bool))}
 			default:
 				margs = args.(map[string]interface{})
 			}
@@ -1355,6 +1358,15 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			switch cs {
 			case "t":
 				err = self.updatePage(deviceId, c, margs, true)
+			case "x":
+				fmt.Printf("xxx %+v\n", margs[c])
+				if margs[c].(bool) == false {
+					self.logger.Debug(self.logCat,
+						"FMD Disabled on device, clearing commands",
+						util.Fields{"deviceId": deviceId})
+					store.PurgeCommands(deviceId)
+				}
+				err = self.updatePage(deviceId, c, margs, false)
 			case "q":
 				// User has quit, nuke what we know.
 				if self.config.GetFlag("cmd.q.allow") {
@@ -1430,7 +1442,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	lcmd := strings.ToLower(cmd)
 	c := string(cmd[0])
 	self.logger.Debug(self.logCat, "Processing UI Command",
-		util.Fields{"cmd": cmd})
+		util.Fields{"cmd": lcmd})
 	if !strings.Contains(devRec.Accepts, c) {
 		// skip unacceptable command
 		self.logger.Warn(self.logCat, "Agent does not accept command",
@@ -1443,8 +1455,8 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		return
 	}
 	rargs := *args
-	switch c {
-	case "l":
+	switch lcmd {
+	case "l": // lock
 		if v, ok = rargs["c"]; ok {
 			max, err := strconv.ParseInt(self.config.Get("cmd.c.max", "9999"),
 				10, 64)
@@ -1475,7 +1487,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				len(vr))]
 			rargs["m"] = string(trimmed)
 		}
-	case "r", "t":
+	case "r", "t": // ring, track
 		if v, ok = rargs["d"]; ok {
 			max, err := strconv.ParseInt(
 				self.config.Get("cmd."+c+".max",
@@ -1496,7 +1508,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				0,
 				max)
 		}
-	case "e":
+	case "e": // erase
 		rargs = replyType{}
 		// Delete the device
 		return http.StatusOK, ErrDeviceDeleted
@@ -1533,13 +1545,13 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 	// trigger the push
-	self.metrics.Increment("cmd.store." + c)
+	self.metrics.Increment("cmd.store." + lcmd)
 	self.metrics.Increment("push.send")
 	self.logger.Debug(self.logCat,
 		"Sending Push",
 		util.Fields{"deviceId": devRec.ID,
 			"userId": devRec.User,
-			"cmd":    c})
+			"cmd":    lcmd})
 	err = SendPush(devRec, self.config)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send Push",

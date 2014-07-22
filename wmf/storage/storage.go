@@ -649,14 +649,27 @@ func (self *Storage) DeleteDevice(devId string) (err error) {
 		_, err = dbh.Exec("delete from "+table+" where deviceid=$1;", devId)
 		if err != nil {
 			self.logger.Error(self.logCat,
-				"Could not nuke data from table",
+				"Could not purge data from table",
 				util.Fields{"error": err.Error(),
-					"device": devId,
-					"table":  table})
+					"deviceId": devId,
+					"table":    table})
 			return err
 		}
 	}
 	return nil
+}
+
+func (self *Storage) PurgeCommands(devId string) (err error) {
+	dbh := self.db
+
+	_, err = dbh.Exec("delete from pendingcommands where deviceid=$1;", devId)
+	if err != nil {
+		self.logger.Error(self.logCat,
+			"Could not purge data from pendinccommands",
+			util.Fields{"error": err.Error(),
+				"deviceId": devId})
+	}
+	return err
 }
 
 func (self *Storage) getMeta(key string) (val string, err error) {

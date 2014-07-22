@@ -306,6 +306,7 @@ def main(argv):
         cred = json.loads(creds)
     # register a new device
     print "Registering client... \n"
+    # Send a fake statement saying that the client has no passcode.
     cmd, cred = registerNew(config, cred)
     #while cmd is not None:
     while True:
@@ -318,10 +319,6 @@ def main(argv):
         cmd = sendCmd(config, cred, newLocation())
         #cmd, cred = registerNew(config, cred)
 
-    # Send a fake statement saying that the client has no passcode.
-    response = sendCmd(config, cred, {'has_passcode': False})
-    if response is not None:
-        print(response.text)
     print "done"
 
 
