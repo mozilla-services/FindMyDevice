@@ -2231,7 +2231,7 @@ func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 		prefix = "persona"
 	}
 	redirUrlTemplate := self.config.Get(prefix+".login_url",
-		"{{.Host}}?client_id={{.ClientId}}&scope=profile:email&state={{.State}}&action=signin")
+		"{{.Host}}?client_id={{.ClientId}}&scope=profile:email%20profile:uid&state={{.State}}&action=signin")
 	tmpl, err := template.New("Login").Parse(redirUrlTemplate)
 	if err != nil {
 		self.logger.Error(self.logCat,
