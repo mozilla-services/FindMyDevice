@@ -141,7 +141,6 @@ func Open(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics)
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		panic("Storage is unavailable: " + err.Error() + "\n")
-		return nil, err
 	}
 	db.SetMaxIdleConns(100)
 	if err = db.Ping(); err != nil {
@@ -212,8 +211,6 @@ func (self *Storage) createDb() (err error) {
 	//TODO get lastDbUpdate from meta, if there's a file in sql older
 	// than that, run it. (allows for db patching.)
 	// self.dbUpdated()
-
-	return err
 }
 
 func (self *Storage) markDb(date string) (err error) {
@@ -389,21 +386,21 @@ func (self *Storage) GetPositions(devId string) (positions []Position, err error
 }
 
 // Get pending commands.
-func (self *Storage) GetPending(devId string) (cmd string, err error) {
+func (self *Storage) GetPending(devId string) (cmd, ctype string, err error) {
 	dbh := self.db
 	var created = time.Time{}
 
-	statement := "select id, cmd, time from pendingCommands where deviceId = $1 order by time limit 1;"
+	statement := "select id, cmd, type, time from pendingCommands where deviceId = $1 order by time limit 1;"
 	rows, err := dbh.Query(statement, devId)
 	defer rows.Close()
 	if rows.Next() {
 		var id string
-		err = rows.Scan(&id, &cmd, &created)
+		err = rows.Scan(&id, &cmd, &ctype, &created)
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not read pending command",
 				util.Fields{"error": err.Error(),
 					"deviceId": devId})
-			return "", err
+			return "", "", err
 		}
 		// Convert the date string to an int64
 		lifespan := int64(time.Now().UTC().Sub(created).Seconds())
@@ -412,7 +409,7 @@ func (self *Storage) GetPending(devId string) (cmd string, err error) {
 		dbh.Exec(statement, id)
 	}
 	self.Touch(devId)
-	return cmd, nil
+	return cmd, ctype, nil
 }
 
 func (self *Storage) GetUserFromDevice(deviceId string) (userId, name string, err error) {
@@ -438,11 +435,30 @@ func (self *Storage) GetUserFromDevice(deviceId string) (userId, name string, er
 }
 
 // Get all known devices for this user.
-func (self *Storage) GetDevicesForUser(userId string) (devices []DeviceList, err error) {
+func (self *Storage) GetDevicesForUser(userId, oldUserId string) (devices []DeviceList, err error) {
 	var data []DeviceList
 
 	dbh := self.db
 	limit := self.config.Get("db.max_devices_for_user", "1")
+	// Update from the old sha hash to the new FxA UID if need be.
+	if len(oldUserId) > 0 && userId != oldUserId {
+		upd := "update userToDeviceMap set userId = $1 where userId = $2;"
+		updr, err := dbh.Exec(upd, userId, oldUserId)
+		if err != nil {
+			self.logger.Error(self.logCat,
+				"Could not update UserID",
+				util.Fields{"userID": userId,
+					"oldUserId": oldUserId,
+					"error":     err.Error()})
+			// Crap, that didn't work. get the old userids
+			userId = oldUserId
+		} else {
+			hits, err := updr.RowsAffected()
+			if err == nil {
+				self.metrics.IncrementBy("db.UserID.Updated", int(hits))
+			}
+		}
+	}
 	statement := "select deviceId, coalesce(name,deviceId) from userToDeviceMap where userId = $1 order by date desc limit $2;"
 	rows, err := dbh.Query(statement, userId, limit)
 	defer rows.Close()
