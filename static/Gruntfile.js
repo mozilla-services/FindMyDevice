@@ -421,9 +421,9 @@ module.exports = function (grunt) {
   // DEFAULT TASK
   grunt.registerTask('default', [
     'lint',
+    'validate-package',
     'build',
-    'test',
-    'validate-package'
+    'test'
   ]);
 
   // LINT TASK
