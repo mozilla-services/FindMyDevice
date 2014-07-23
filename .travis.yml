@@ -1,0 +1,50 @@
+language:
+  # go for the server
+  - go
+  # node for the front-end + tests
+  - node_js
+go:
+  # Minimum supported version of go
+  - 1.3
+node_js:
+  # Minimum supported version of node
+  - 0.10.0
+addons:
+  # Minimum supported version of PostgreSQL
+  postgresql: "9.3"
+  # Always use the latest version of Firefox
+  firefox: "31.0"
+before_install:
+  # Download Selenium
+  - wget http://selenium-release.storage.googleapis.com/2.41/selenium-server-standalone-2.41.0.jar
+  # Download Bower and npm dependencies from the Freight server
+  - export FREIGHT_URL=https://freight.dev.lcip.org
+  - cd static && npm install -g vladikoff/freight#v0.4.0 && freight && cd ..
+  # Install grunt globally
+  - npm install -g grunt-cli
+install:
+  # Install go dependencies and npm install
+  - ./install.bash
+before_script:
+  # Copy configuration
+  - cp config-travis.ini config.ini
+  # Setup database
+  - psql -c 'create database fmd;' -U postgres
+  - psql -c "CREATE USER fmd WITH PASSWORD 'fmd';" -U postgres
+  - psql -c 'GRANT ALL PRIVILEGES ON DATABASE fmd to fmd;' -U postgres
+  - psql -U fmd fmd < sql/create_db.sql
+  # Configure and start xvfb
+  - export DISPLAY=:99.0
+  - sh -e /etc/init.d/xvfb start
+  # Start selenium and ignore the output
+  - java -jar selenium-server-standalone-2.41.0.jar &> /dev/null &
+  # Start go server
+  - ./runserver.bash &
+  # Start phony
+  - node static/test/phony.js &
+  # Let the servers settle
+  - sleep 2
+  # All the script action happens in static
+  - cd static
+script:
+  - npm test

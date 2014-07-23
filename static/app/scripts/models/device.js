@@ -70,7 +70,7 @@ define([
     },
 
     parseHasPasscodeCommand: function (command) {
-       /* jshint camelcase: false */
+      /* jshint camelcase: false */
 
       var hasPasscodeCommand = command.has_passcode;
 

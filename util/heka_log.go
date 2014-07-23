@@ -148,7 +148,7 @@ func (self HekaLogger) Log(level int32, mtype, payload string, fields Fields) (e
 			dump += " {" + strings.Join(fld, ", ") + "}"
 		}
 		if len(caller) > 0 {
-			dump += fmt.Sprintf(" [%s:%d %s]", caller["file"],
+			dump += fmt.Sprintf(" [%s:%s %s]", caller["file"],
 				caller["line"], caller["name"])
 		}
 		log.Printf(dump)
@@ -181,12 +181,12 @@ func (self HekaLogger) Log(level int32, mtype, payload string, fields Fields) (e
 		}
 		err = self.encoder.EncodeMessageStream(msg, &stream)
 		if err != nil {
-			log.Fatal("ERROR: Could not encode log message (%s)", err)
+			log.Fatal("ERROR: Could not encode log message: " + err.Error())
 			return err
 		}
 		err = self.sender.SendMessage(stream)
 		if err != nil {
-			log.Fatal("ERROR: Could not send message (%s)", err)
+			log.Fatal("ERROR: Could not send message: ", err.Error())
 			return err
 		}
 	}

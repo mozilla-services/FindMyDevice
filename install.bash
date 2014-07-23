@@ -16,7 +16,7 @@ fi
 
 echo "Installing static content"
 pushd static
-    npm install
+    npm install --silent
 popd
 #if [ ! -z "$HOST" ]; then
 #    echo "Setting local shard host name"

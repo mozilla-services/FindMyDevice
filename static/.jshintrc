@@ -16,6 +16,8 @@
     "alert": false,
     "currentDevice": false,
     "define": false,
+    "desc": false,
+    "it": false,
     "L": false,
     "require": false
   },
