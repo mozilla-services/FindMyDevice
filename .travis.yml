@@ -17,6 +17,9 @@ addons:
 before_install:
   # Download Selenium
   - wget http://selenium-release.storage.googleapis.com/2.41/selenium-server-standalone-2.41.0.jar
+  # Download Bower and npm dependencies from the Freight server
+  - export FREIGHT_URL=https://freight.dev.lcip.org
+  - cd static && npm install -g vladikoff/freight#v0.4.0 && freight && cd ..
   # Install grunt globally
   - npm install -g grunt-cli
 install:
