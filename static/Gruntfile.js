@@ -28,6 +28,9 @@ module.exports = function (grunt) {
   // load all grunt tasks
   require('load-grunt-tasks')(grunt);
 
+  // Load npm tasks
+  grunt.loadNpmTasks('intern');
+
   // configurable paths
   var yeomanConfig = {
     app: 'app',
@@ -131,9 +134,8 @@ module.exports = function (grunt) {
           src: [
             '*.{ico,txt}',
             '.htaccess',
-            'images/{,*/}*.{webp,gif}',
-            'styles/fonts/{,*/}*.*',
-            'bower_components/typopro/web/TypoPRO-FiraSans/{,*/}*.*'
+            'images/{,*/}*.{png,jpg,jpeg,webp,gif}',
+            'styles/fonts/{,*/}*.*'
           ]
         },
         // Copy these files into tmp so that concat can find them
@@ -208,15 +210,13 @@ module.exports = function (grunt) {
       }
     },
 
-    // IMAGEMIN TASK
-    imagemin: {
-      dist: {
-        files: [{
-          expand: true,
-          cwd: '<%= yeoman.app %>/images',
-          src: '{,*/}*.{png,jpg,jpeg}',
-          dest: '<%= yeoman.dist %>/images'
-        }]
+    // INTERN TASK
+    intern: {
+      all: {
+        options: {
+          runType: 'runner',
+          config: 'test/intern'
+        }
       }
     },
 
@@ -238,7 +238,23 @@ module.exports = function (grunt) {
         'Gruntfile.js',
         '<%= yeoman.app %>/scripts/{,*/}*.js',
         '!<%= yeoman.app %>/scripts/vendor/*',
-        '<%= yeoman.test %>/spec/{,*/}*.js'
+        '<%= yeoman.test %>/{,*/}*.js'
+      ]
+    },
+
+    // JSONLINT TASK
+    jsonlint: {
+      all: [
+        '{,app/**,test/**}*.json',
+        '!app/bower_components/*'
+      ],
+      configs: [
+        '.bowerrc',
+        '.csslintrc',
+        '.jscsrc',
+        '.jshintrc',
+        '.yo-rc.json',
+        'test/.bowerrc'
       ]
     },
 
@@ -281,8 +297,8 @@ module.exports = function (grunt) {
           src: [
             '<%= yeoman.dist %>/scripts/{,*/}*.js',
             '<%= yeoman.dist %>/styles/{,*/}*.css',
-            '<%= yeoman.dist %>/images/{,*/}*.{png,jpg,jpeg,gif,webp}',
-            '/styles/fonts/{,*/}*.*'
+            '<%= yeoman.dist %>/styles/fonts/{,*/}*.*',
+            '<%= yeoman.dist %>/images/{,*/}*.{png,jpg,jpeg,gif,webp}'
           ]
         }
       }
@@ -372,7 +388,6 @@ module.exports = function (grunt) {
     'clean:dist',
     'css',
     'useminPrepare',
-    'imagemin',
     'htmlmin',
     'copy',
     'concat',
@@ -392,14 +407,16 @@ module.exports = function (grunt) {
   // DEFAULT TASK
   grunt.registerTask('default', [
     'lint',
-    'test',
-    'build'
+    'validate-package',
+    'build',
+    'test'
   ]);
 
   // LINT TASK
   grunt.registerTask('lint', [
-    'jscs',
     'jshint',
+    'jscs',
+    'jsonlint',
     'copyright'
   ]);
 
@@ -435,18 +452,5 @@ module.exports = function (grunt) {
   });
 
   // TEST TASK
-  grunt.registerTask('test', function (isConnected) {
-    isConnected = Boolean(isConnected);
-    var testTasks = [
-      'clean:server'
-    ];
-
-    if (!isConnected) {
-      return grunt.task.run(testTasks);
-    } else {
-      // already connected so not going to connect again, remove the connect:test task
-      testTasks.splice(testTasks.indexOf('connect:test'), 1);
-      return grunt.task.run(testTasks);
-    }
-  });
+  grunt.registerTask('test', [ 'intern' ]);
 };
