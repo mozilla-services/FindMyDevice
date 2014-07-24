@@ -144,12 +144,14 @@ define([
 
     sendCommand: function (command) {
       var commandJSON = command.toJSON();
+      var csrfToken = $('meta[name=token]').attr('content');
 
       this.trigger('command:sent', commandJSON);
 
       return $.ajax({
         data: commandJSON,
         dataType: 'json',
+        headers: { 'X-CSRFTOKEN': csrfToken },
         type: 'PUT',
         url: '/1/queue/' + this.get('id')
       });
