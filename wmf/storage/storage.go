@@ -665,7 +665,7 @@ func (self *Storage) PurgeCommands(devId string) (err error) {
 	_, err = dbh.Exec("delete from pendingcommands where deviceid=$1;", devId)
 	if err != nil {
 		self.logger.Error(self.logCat,
-			"Could not purge data from pendinccommands",
+			"Could not purge data from pendingcommands",
 			util.Fields{"error": err.Error(),
 				"deviceId": devId})
 	}
