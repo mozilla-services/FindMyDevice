@@ -34,6 +34,7 @@
     "grunt-contrib-jshint": "0.10.0",
     "grunt-contrib-watch": "0.6.1",
     "grunt-copyright": "0.1.0",
+    "grunt-html": "1.4.0",
     "grunt-jscs-checker": "0.6.1",
     "grunt-jsonlint": "1.0.4",
     "grunt-nsp-package": "0.0.5",
