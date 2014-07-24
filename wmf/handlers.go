@@ -992,7 +992,7 @@ func socketError(socket *websocket.Conn, msg string) {
 }
 
 func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (result bool) {
-	var stoken, token string
+	var xtoken, token string
 	result = false
 
 	if v, ok := session.Values[SESSION_CSRFTOKEN]; !ok {
@@ -1000,23 +1000,23 @@ func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (r
 			util.Fields{"error": "No token in session"})
 		return false
 	} else {
-		stoken = v.(string)
+		xtoken = v.(string)
 	}
 
 	// get the URL args
-	if tokens, ok := req.Header["X-CSRFTOKEN"]; !ok {
+	// because Go normalizes headers. Because golang.
+	// Use req.Header.Get or your life will be filled with sorrow.
+	if token = req.Header.Get("X-CSRFTOKEN"); len(token) == 0 {
 		self.logger.Warn(self.logCat, "token fail",
 			util.Fields{"error": "No token in Request"})
 		return self.config.GetFlag("auth.allow_tokenless")
-	} else {
-		token = tokens[0]
 	}
 
 	// check to see if the "tok" field matches
 	self.logger.Debug(self.logCat, "### Checking",
 		util.Fields{"received": token,
-			"expected": stoken})
-	return token == stoken
+			"expected": xtoken})
+	return token == xtoken
 }
 
 //Handler Public Functions
