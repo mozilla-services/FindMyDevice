@@ -434,6 +434,7 @@ module.exports = function (grunt) {
     'jshint',
     'jscs',
     'jsonlint',
+    'htmllint',
     'copyright'
   ]);
 
