@@ -308,10 +308,10 @@ func RcsSpec(c gospec.Context) {
 
 func initDB() (rcs *DBRcs, err error) {
 	db_config := `#Database credentials
-db.user=postgres
-db.password=test
+db.user=fmd
+db.password=fmd
 db.host=localhost
-db.db=findmydevice_test
+db.db=fmd
 `
 	simplewrite("config.test.ini", db_config)
 	defer func() {
