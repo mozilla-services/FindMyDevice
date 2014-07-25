@@ -94,11 +94,12 @@ func (self *DBRcs) Upgrade(patch_root string, verbose bool) (err error) {
 	// 4. Update version code in schema
 	// 5. Rollback on failure, commit if no errors
 
-	var node *versionNode
+	var curr_db_ver string
 	var curr_patch_dir string
+	var node *versionNode
+	var sql_cmd string
 	var txn *sql.Tx
 	var upgrade_bytes []byte
-	var curr_db_ver string
 
 	if err = self.ComputeHistory(patch_root); err != nil {
 		return err
@@ -121,11 +122,11 @@ func (self *DBRcs) Upgrade(patch_root string, verbose bool) (err error) {
 			fmt.Printf("Reading from :[%v]\n", upgrade_sql)
 			upgrade_bytes, err = ioutil.ReadFile(upgrade_sql)
 
-			sql := string(upgrade_bytes)
-			fmt.Printf("Attempting SQL is: [%v]\n", sql)
+			sql_cmd = string(upgrade_bytes)
+			fmt.Printf("Attempting SQL is: [%v]\n", sql_cmd)
 			txn, err = self.Db.Begin()
-			if _, err = txn.Exec(sql); err != nil {
-				fmt.Printf("Failed to execute: [%s]\n", sql)
+			if _, err = txn.Exec(sql_cmd); err != nil {
+				fmt.Printf("Failed to execute: [%s]\n", sql_cmd)
 				txn.Rollback()
 				return err
 			}
@@ -140,7 +141,7 @@ func (self *DBRcs) Upgrade(patch_root string, verbose bool) (err error) {
 			curr_db_ver = node.version
 			fmt.Printf("Version switched to   : [%v]\n", curr_db_ver)
 			txn.Commit()
-			fmt.Printf("Success!  Executed [%v]\n", sql)
+			fmt.Printf("Success!  Executed [%v]\n", sql_cmd)
 		}
 	}
 	return err
@@ -176,20 +177,13 @@ func (self *DBRcs) InitVersioning() (err error) {
 }
 
 func (self *DBRcs) Downgrade(patch_root, version string) (err error) {
-	// 1. Read the version file passed in.
-	// 2. Verify the previous version exists and matches the *current*
-	//    version of the database.
-	// 3. Start transactional schema upgrade
-	// 4. Update version code in schema
-	// 5. Rollback on failure, commit if no errors
-
-	var curr_patch_dir string
-	var txn *sql.Tx
-	var downgrade_bytes []byte
 	var curr_db_ver string
-
-	var valid_version bool
+	var curr_patch_dir string
+	var downgrade_bytes []byte
 	var found_head_version bool
+	var sql_cmd string
+	var txn *sql.Tx
+	var valid_version bool
 
 	if err = self.ComputeHistory(patch_root); err != nil {
 		return err
@@ -239,19 +233,24 @@ func (self *DBRcs) Downgrade(patch_root, version string) (err error) {
 		curr_patch_dir, err = GetPatchDirectory(patch_root, node.version)
 		if node.version == curr_db_ver {
 			downgrade_sql := filepath.Join(curr_patch_dir, "downgrade.sql")
-			fmt.Printf("Reading from :[%v]\n", downgrade_sql)
-			downgrade_bytes, err = ioutil.ReadFile(downgrade_sql)
 
-			sql := string(downgrade_bytes)
-			fmt.Printf("Attempting SQL is: [%v]\n", sql)
-			txn, err = self.Db.Begin()
-			if _, err = txn.Exec(sql); err != nil {
-				fmt.Printf("Failed to execute: [%s]\n", sql)
-				txn.Rollback()
-				return err
+			if file_exists(downgrade_sql) {
+				fmt.Printf("Reading from :[%v]\n", downgrade_sql)
+				downgrade_bytes, err = ioutil.ReadFile(downgrade_sql)
+
+				sql_cmd = string(downgrade_bytes)
+				fmt.Printf("Attempting SQL is: [%v]\n", sql_cmd)
+				txn, err = self.Db.Begin()
+				if _, err = txn.Exec(sql_cmd); err != nil {
+					fmt.Printf("Failed to execute: [%s]\n", sql_cmd)
+					txn.Rollback()
+					return err
+				}
+			} else {
+				fmt.Printf("No downgrade script from [%v] to [%v]\n", node.version, node.prev)
 			}
 
-			// Roll the version forward
+			// Roll the version back
 			_, err = txn.Exec("update meta set value = $1 where key = 'db.hash';", node.prev)
 			if err != nil {
 				txn.Rollback()
@@ -261,7 +260,7 @@ func (self *DBRcs) Downgrade(patch_root, version string) (err error) {
 			curr_db_ver = node.prev
 			fmt.Printf("Version switched to   : [%v]\n", node.prev)
 			txn.Commit()
-			fmt.Printf("Success!  Executed [%v]\n", sql)
+			fmt.Printf("Success!  Executed [%v]\n", sql_cmd)
 		}
 
 		if curr_db_ver == version {
@@ -279,6 +278,8 @@ func (self *DBRcs) FindLastVersion(patch_root string) (result string, err error)
 
 		If no versions exist yet, then return "" as the latest version
 		and nil as the error.
+
+		If multiple
 	*/
 	prev_set := make(map[string]bool)
 	curr_set := make(map[string]bool)
@@ -316,12 +317,14 @@ func (self *DBRcs) FindLastVersion(patch_root string) (result string, err error)
 	found_head := false
 	head_rev := ""
 	for rev := range curr_set {
-		if !prev_set[rev] && !found_head {
-			found_head = true
-			head_rev = rev
-		} else if !prev_set[rev] && found_head {
-			// There are multiple heads
-			return "", fmt.Errorf("Found multiple heads: [%v] and [%v]", head_rev, rev)
+		if _, ok := prev_set[rev]; !ok {
+			if !found_head {
+				found_head = true
+				head_rev = rev
+			} else if found_head {
+				// There are multiple heads
+				return "", fmt.Errorf("Found multiple heads: [%v] and [%v]", head_rev, rev)
+			}
 		}
 	}
 

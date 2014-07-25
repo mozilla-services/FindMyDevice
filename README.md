@@ -33,3 +33,30 @@ You will need:
 ```sh
 ./runserver.bash
 ```
+
+
+## Managing your database
+
+The FindMyDevice binary exposes 3 arguments to manage your schema
+changes.
+
+--ddlcreate "change description"
+--ddlupgrade
+--ddldowngrade "SHA revision"
+
+All DDL changes are kept in subdirectories under `sql/patches` with a SHA1 hash and the change description in the directory name.
+
+Each patch directory contains :
+    - upgrade.sql 
+    - downgrade.sql (optional)
+    - prev.txt
+
+Any other files are ignored.
+
+The upgrade.sql script is used for processing version upgrades of the
+DDL.  Downgrades similarly use the downgrade.sql script if one exists.
+
+prev.txt keeps track of the previous version that this patch is a
+child of.  This prevents merging of multiple branches where
+simultaneous branches may cause multiple head database versions.  In
+the case of multiple heads, an upgrade will abort.
