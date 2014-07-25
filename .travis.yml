@@ -48,5 +48,5 @@ before_script:
   # All the script action happens in static
   - cd static
 script:
-  - npm test
   - "./run-tests.sh"
+  - npm test
