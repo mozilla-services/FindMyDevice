@@ -198,7 +198,7 @@ module.exports = function (grunt) {
           'XHTML element “head” is missing a required instance of child element “title”.'
         ]
       },
-      all: [
+      dist: [
         '<%= yeoman.dist %>/*.html',
         '<%= yeoman.dist %>/scripts/templates/*.html'
       ]
@@ -423,25 +423,38 @@ module.exports = function (grunt) {
 
   // DEFAULT TASK
   grunt.registerTask('default', [
-    'lint',
+    'lint:prebuild',
     'validate-package',
     'build',
+    'lint:postbuild',
     'test'
   ]);
 
   // LINT TASK
-  grunt.registerTask('lint', [
-    'jshint',
-    'jscs',
-    'jsonlint',
-    'htmllint',
-    'copyright'
-  ]);
+  grunt.registerTask('lint', function (target) {
+    switch (target) {
+      case 'prebuild':
+        return grunt.task.run([
+          'jshint',
+          'jscs',
+          'jsonlint',
+          'copyright'
+        ]);
+      case 'postbuild':
+        return grunt.task.run([
+          'htmllint'
+        ]);
+    }
+  });
 
   // SERVE TASK
   grunt.registerTask('serve', function (target) {
     if (target === 'dist') {
-      return grunt.task.run(['build', 'open:server', 'connect:dist:keepalive']);
+      return grunt.task.run([
+        'build',
+        'open:server',
+        'connect:dist:keepalive'
+      ]);
     }
 
     if (target === 'test') {
