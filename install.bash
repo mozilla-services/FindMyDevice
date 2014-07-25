@@ -4,7 +4,7 @@ set -e
 
 . ./activate.sh
 
-go install github.com/mozilla-services/FindMyDevice
+make build
 
 echo "Libraries installed"
 if [ ! -e config.ini ]; then

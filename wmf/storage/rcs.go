@@ -5,13 +5,12 @@
 /*
 This file manages schema modification.
 
-There are N pieces to this:
+There are a couple pieces to this:
 
 1  Each schema modification is in a self contained directory with the a directory name
-2. Each schema modification is added to a journal in sql/schema_changelog.txt
-3. Each modification must contain an 'uprade.sql'
-4. Each modification *may* contain a 'downgrade.sql' script
-5. Failure to include a downgrade script means we cannot downgrade past a particular version.
+2. Each modification must contain an 'upgrade.sql'
+3. Each modification *may* contain a 'downgrade.sql' script
+4. Failure to include a downgrade script means we cannot downgrade past a particular version.
 
 Every revision is stored in a directory named:
 
@@ -26,7 +25,6 @@ Every revision is stored in a directory named:
 package storage
 
 import (
-	"bufio"
 	"crypto/sha1"
 	"database/sql"
 	"fmt"
@@ -38,6 +36,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mozilla-services/FindMyDevice/util"
 )
@@ -51,6 +50,11 @@ type DBRcs struct {
 type versionNode struct {
 	version string
 	prev    string
+}
+
+func simplewrite(fpath, content string) (err error) {
+	intPerm, _ := strconv.ParseInt("777", 8, 32)
+	return ioutil.WriteFile(fpath, []byte(content), os.FileMode(intPerm))
 }
 
 func (self *DBRcs) Close() (err error) {
@@ -247,7 +251,7 @@ func (self *DBRcs) Downgrade(patch_root, version string) (err error) {
 					return err
 				}
 			} else {
-				fmt.Printf("No downgrade script from [%v] to [%v]\n", node.version, node.prev)
+				return fmt.Errorf("No downgrade is possible from [%v] to [%v]\n", node.version, node.prev)
 			}
 
 			// Roll the version back
@@ -272,6 +276,31 @@ func (self *DBRcs) Downgrade(patch_root, version string) (err error) {
 	return err
 }
 
+func (self *DBRcs) Changelog(patch_root string) (err error) {
+	var desc_bytes []byte
+
+	if err = self.ComputeHistory(patch_root); err != nil {
+		return err
+	}
+
+	fmt.Printf("Most recent version is at the top:\n==========================\n")
+	for _, node := range self.revisions {
+		patch_dir, err := GetPatchDirectory(patch_root, node.version)
+
+		desc_filename := filepath.Join(patch_dir, "description.txt")
+		if desc_bytes, err = ioutil.ReadFile(desc_filename); err != nil {
+			return err
+		}
+
+		if node.prev != "" {
+			fmt.Printf("[%v] -> [%v] : %v\n", node.prev, node.version, string(desc_bytes))
+		} else {
+			fmt.Printf("[%v] : %v\n", node.version, string(desc_bytes))
+		}
+	}
+	return nil
+}
+
 func (self *DBRcs) FindLastVersion(patch_root string) (result string, err error) {
 	/*
 		Find all schema patches and find the latest version.
@@ -279,7 +308,7 @@ func (self *DBRcs) FindLastVersion(patch_root string) (result string, err error)
 		If no versions exist yet, then return "" as the latest version
 		and nil as the error.
 
-		If multiple
+		If multiple heads exist, return an error.
 	*/
 	prev_set := make(map[string]bool)
 	curr_set := make(map[string]bool)
@@ -455,8 +484,6 @@ func (self *DBRcs) CreateNextRev(patch_root string, description string) (prev st
 	var patch_dir string
 	var intPerm int64
 
-	clean_desc := clean_description(description)
-
 	prev, err = self.FindLastVersion(patch_root)
 	if err != nil {
 		return "", "", err
@@ -467,7 +494,7 @@ func (self *DBRcs) CreateNextRev(patch_root string, description string) (prev st
 	if prev != "" {
 		io.WriteString(h, prev)
 	}
-	io.WriteString(h, clean_desc)
+	io.WriteString(h, clean_description(description))
 	rev = fmt.Sprintf("%x", h.Sum(nil))
 
 	// Use at least 12 characters, possibly more for uniqueness
@@ -485,53 +512,39 @@ func (self *DBRcs) CreateNextRev(patch_root string, description string) (prev st
 	}
 
 	// create the directory
-	short_patch_dir := fmt.Sprintf("%s.%s", rev, clean_desc)
+	short_patch_dir := fmt.Sprintf("%s.%s", rev, time.Now().UTC().Format("20060102"))
 	patch_dir = filepath.Join(patch_root, short_patch_dir)
 
 	intPerm, _ = strconv.ParseInt("700", 8, 32)
+
 	err = os.MkdirAll(patch_dir, os.FileMode(intPerm))
 	if err != nil {
 		return "", "", err
 	}
 
+	err = simplewrite(filepath.Join(patch_dir, "description.txt"), description)
+	if err != nil {
+		return "", "", err
+	}
+
 	// write prev revision
-	err = WriteFile(filepath.Join(patch_dir, "prev.txt"), prev)
+	err = simplewrite(filepath.Join(patch_dir, "prev.txt"), prev)
 	if err != nil {
 		return "", "", err
 	}
 
 	// write upgrade.sql
-	WriteFile(filepath.Join(patch_dir, "upgrade.sql"),
+	err = simplewrite(filepath.Join(patch_dir, "upgrade.sql"),
 		"-- create table foo (first_col integer, second_col integer);\n")
 	if err != nil {
 		return "", "", err
 	}
 
-	err = WriteFile(filepath.Join(patch_dir, "downgrade.sql.orig"),
+	err = simplewrite(filepath.Join(patch_dir, "downgrade.sql.orig"),
 		"-- drop table foo;\n")
 	if err != nil {
 		return "", "", err
 	}
 
 	return prev, rev, nil
-}
-
-func WriteFile(filename, content string) (err error) {
-	var w *bufio.Writer
-	var f *os.File
-
-	f, err = os.Create(filename)
-	if err != nil {
-		return err
-	}
-
-	defer f.Close()
-	w = bufio.NewWriter(f)
-	_, err = w.WriteString(content)
-	if err != nil {
-		return err
-	}
-	w.Flush()
-	f.Sync()
-	return nil
 }

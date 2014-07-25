@@ -43,20 +43,28 @@ changes.
 --ddlcreate "change description"
 --ddlupgrade
 --ddldowngrade "SHA revision"
+--ddllog
 
 All DDL changes are kept in subdirectories under `sql/patches` with a SHA1 hash and the change description in the directory name.
 
 Each patch directory contains :
     - upgrade.sql 
-    - downgrade.sql (optional)
+    - downgrade.sql.orig (optional)
     - prev.txt
+    - description.txt
 
 Any other files are ignored.
 
 The upgrade.sql script is used for processing version upgrades of the
-DDL.  Downgrades similarly use the downgrade.sql script if one exists.
+DDL.
+
+A downgrade.sql.orig file is added to the patch directory, if you do
+not rename it to downgrade.sql, no downgrade is defined downgrades
+will halt at this version.
 
 prev.txt keeps track of the previous version that this patch is a
 child of.  This prevents merging of multiple branches where
 simultaneous branches may cause multiple head database versions.  In
 the case of multiple heads, an upgrade will abort.
+
+description.txt includes the comment which is passed to --ddlcreate

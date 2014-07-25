@@ -115,7 +115,7 @@ func RcsSpec(c gospec.Context) {
 		_, rev, _ = rcs.CreateNextRev(patch_root, "initial commit")
 		patch_dir, _ = GetPatchDirectory(patch_root, rev)
 		upgrade_sql = filepath.Join(patch_dir, "upgrade.sql")
-		WriteFile(upgrade_sql, "create table public.foo (col_a integer);\n")
+		simplewrite(upgrade_sql, "create table public.foo (col_a integer);\n")
 
 		// alter the table now
 		var prev string
@@ -131,7 +131,7 @@ func RcsSpec(c gospec.Context) {
 				-- more comments
 				create table public.bar (col_a varchar(20));
 						`
-		WriteFile(upgrade_sql, sql_txt)
+		simplewrite(upgrade_sql, sql_txt)
 
 		// Run upgrade script
 		err = rcs.Upgrade(patch_root, true)
@@ -173,10 +173,10 @@ func RcsSpec(c gospec.Context) {
 
 		_, rev, _ = rcs.CreateNextRev(patch_root, "initial commit")
 		patch_dir, _ = GetPatchDirectory(patch_root, rev)
-		WriteFile(filepath.Join(patch_dir, "upgrade.sql"), "create table public.foo (col_a integer);\n")
+		simplewrite(filepath.Join(patch_dir, "upgrade.sql"), "create table public.foo (col_a integer);\n")
 		_, rev, _ = rcs.CreateNextRev(patch_root, "new commit")
 		patch_dir, _ = GetPatchDirectory(patch_root, rev)
-		WriteFile(filepath.Join(patch_dir, "upgrade.sql"), "create table public.bar (col_a integer);\n")
+		simplewrite(filepath.Join(patch_dir, "upgrade.sql"), "create table public.bar (col_a integer);\n")
 		err = rcs.Upgrade(patch_root, true)
 		c.Expect(err, IsNil)
 
@@ -210,7 +210,7 @@ func RcsSpec(c gospec.Context) {
 		init_rev = rev
 		patch_dir, _ = GetPatchDirectory(patch_root, rev)
 		upgrade_sql = filepath.Join(patch_dir, "upgrade.sql")
-		WriteFile(upgrade_sql, "create table public.foo (col_a integer);\n")
+		simplewrite(upgrade_sql, "create table public.foo (col_a integer);\n")
 
 		// alter the table now
 		var prev string
@@ -226,12 +226,12 @@ func RcsSpec(c gospec.Context) {
 				-- more comments
 				create table public.bar (col_a varchar(20));
 						`
-		WriteFile(upgrade_sql, sql_txt)
+		simplewrite(upgrade_sql, sql_txt)
 
 		sql_txt = `
 				alter table foo drop column col_b;
 						`
-		WriteFile(filepath.Join(patch_dir, "downgrade.sql"), sql_txt)
+		simplewrite(filepath.Join(patch_dir, "downgrade.sql"), sql_txt)
 
 		// Run upgrade script
 		err = rcs.Upgrade(patch_root, true)
@@ -272,7 +272,7 @@ func RcsSpec(c gospec.Context) {
 		_, init_rev, _ = rcs.CreateNextRev(patch_root, "initial commit")
 		patch_dir, _ = GetPatchDirectory(patch_root, init_rev)
 		upgrade_sql = filepath.Join(patch_dir, "upgrade.sql")
-		WriteFile(upgrade_sql, "create table public.foo (col_a integer);\n")
+		simplewrite(upgrade_sql, "create table public.foo (col_a integer);\n")
 
 		// alter the table now
 		var prev string
@@ -286,7 +286,7 @@ func RcsSpec(c gospec.Context) {
 			alter table foo add column col_b integer;
 			alter table foo blarh add column col_c varchar(40);
 					`
-		WriteFile(upgrade_sql, sql_txt)
+		simplewrite(upgrade_sql, sql_txt)
 
 		// Run upgrade script
 		err = rcs.Upgrade(patch_root, true)
@@ -313,7 +313,7 @@ db.password=test
 db.host=localhost
 db.db=findmydevice_test
 `
-	WriteFile("config.test.ini", db_config)
+	simplewrite("config.test.ini", db_config)
 	defer func() {
 		os.Remove("config.test.ini")
 	}()

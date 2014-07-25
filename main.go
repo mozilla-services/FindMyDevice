@@ -38,6 +38,7 @@ var opts struct {
 	Ddlcreate    string `long:"ddlcreate" description:"Create a new version"`
 	Ddldowngrade string `long:"ddldowngrade" description:"Downgrade to a specific version"`
 	Ddlupgrade   bool   `long:"ddlupgrade" description:"Upgrade database to latest"`
+	Ddllog       bool   `long:"ddllog" description:"Show a revision history of the database"`
 }
 
 var (
@@ -78,7 +79,6 @@ func getCodeVersion() string {
 }
 
 func main() {
-	flags.ParseArgs(&opts, os.Args)
 	if _, err := flags.ParseArgs(&opts, os.Args); err != nil {
 		log.Fatalf(err.Error())
 		return
@@ -97,9 +97,9 @@ func main() {
 		return
 	}
 
-	if opts.Ddlcreate != "" || opts.Ddlupgrade || opts.Ddldowngrade != "" {
+	if opts.Ddlcreate != "" || opts.Ddlupgrade || opts.Ddldowngrade != "" || opts.Ddllog {
 		if opts.Ddlcreate != "" && opts.Ddlupgrade {
-			log.Fatalf("Invalid DDL options.  You can only create a new revision or upgrade. Not both you clown.")
+			log.Fatalf("Invalid DDL options.  You can only specify one DDL command at a time you clown.")
 			return
 		}
 
@@ -124,6 +124,14 @@ func main() {
 			err := rcs.Downgrade("sql/patches", opts.Ddldowngrade)
 			if err != nil {
 				log.Fatalf("Could not downgrade database: %s", err.Error())
+			}
+			return
+		}
+
+		if opts.Ddllog {
+			err := rcs.Changelog("sql/patches")
+			if err != nil {
+				log.Fatalf("Could not get changelog: %s", err.Error())
 			}
 			return
 		}
