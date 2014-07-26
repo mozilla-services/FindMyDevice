@@ -12,11 +12,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	_ "github.com/lib/pq"
 	"io"
 	"strconv"
 	"strings"
 	"time"
+
+	_ "github.com/lib/pq"
 )
 
 var ErrDatabase = errors.New("Database Error")
@@ -193,6 +194,7 @@ func (self *Storage) createDb() (err error) {
 	// TODO: create a versioned db update system that contains commands
 	// to execute.
 	// read the create_db.sql file and build the database
+
 	panic("Please run the commands in sql/create_db.sql")
 	/*
 		        // note: indexes may return an error if they already exist.
