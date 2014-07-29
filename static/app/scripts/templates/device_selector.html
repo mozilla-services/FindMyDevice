@@ -1,14 +1,12 @@
 <section>
   <ul>
     {{#devices}}
-      <li {{#isCurrentDevice}}class="selected"{{/isCurrentDevice}}>
-        {{#isCurrentDevice}}
-          <span>{{name}}</span>
-        {{/isCurrentDevice}}
-        {{^isCurrentDevice}}
-          <a href="#devices/{{id}}">{{name}}</a>
-        {{/isCurrentDevice}}
-      </li>
+      {{#isCurrentDevice}}
+        <li class="selected"><span>{{name}}</span></li>
+      {{/isCurrentDevice}}
+      {{^isCurrentDevice}}
+        <li><a href="#devices/{{id}}">{{name}}</a></li>
+      {{/isCurrentDevice}}
     {{/devices}}
   </ul>
 </section>
