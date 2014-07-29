@@ -1,25 +1,25 @@
 <form>
   <header>
-    <a class="back">Back</a>
-    <h2>Lock Device</h2>
+    <a class="back">{{#l}}Back{{/l}}</a>
+    <h2>{{#l}}Lock Device{{/l}}</h2>
   </header>
   <ul class="stepper">
-    <li class="complete">Step 1</li>
-    <li class="active">Step 2</li>
+    <li class="complete">{{#l}}Step 1{{/l}}</li>
+    <li class="active">{{#l}}Step 2{{/l}}</li>
   </ul>
   <section>
-    <p>Lock your device by entering a passcode:</p>
+    <p>{{#l}}Lock your device by entering a passcode:{{/l}}</p>
 
-    <input type="text" name="passcode-1" class="passcode passcode-1" required pattern="\d{4}" maxlength="4" data-parsley-required-message="Passcode is required." data-parsley-pattern-message="Passcode must be 4 digits." >
+    <input type="text" name="passcode-1" class="passcode passcode-1" required pattern="\d{4}" maxlength="4" data-parsley-required-message="{{#l}}Passcode is required.{{/l}}" data-parsley-pattern-message="{{#l}}Passcode must be 4 digits.{{/l}}" >
 
-    <p>Enter passcode again:</p>
+    <p>{{#l}}Enter passcode again:{{/l}}</p>
 
-    <input type="text" name="passcode-2" class="passcode passcode-2" required pattern="\d{4}" maxlength="4" data-parsley-equalto="input[name=passcode-1]" data-parsley-required-message="Passcode is required." data-parsley-pattern-message="Passcode must be 4 digits." data-parsley-equalto-message="Passcodes must match.">
+    <input type="text" name="passcode-2" class="passcode passcode-2" required pattern="\d{4}" maxlength="4" data-parsley-equalto="input[name=passcode-1]" data-parsley-required-message="{{#l}}Passcode is required.{{/l}}" data-parsley-pattern-message="{{#l}}Passcode must be 4 digits.{{/l}}" data-parsley-equalto-message="{{#l}}Passcodes must match.{{/l}}">
 
-    <p>Once your device is locked, you will not be able to change this code again.</p>
+    <p>{{#l}}Once your device is locked, you will not be able to change this code again.{{/l}}</p>
 
     <div class="buttons">
-      <button class="activate primary">Lock Device</button>
+      <button class="activate primary">{{#l}}Lock Device{{/l}}</button>
     </div>
   </section>
 </form>

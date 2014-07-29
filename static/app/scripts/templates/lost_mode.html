@@ -1,25 +1,25 @@
 <form>
   <header>
-    <a class="close">Close</a>
-    <h2>Lock Device</h2>
+    <a class="close">{{#l}}Close{{/l}}</a>
+    <h2>{{#l}}Lock Device{{/l}}</h2>
   </header>
   {{^hasPasscode}}
     <ul class="stepper">
-      <li class="active">Step 1</li>
-      <li>Step 2</li>
+      <li class="active">{{#l}}Step 1{{/l}}</li>
+      <li>{{#l}}Step 2{{/l}}</li>
     </ul>
   {{/hasPasscode}}
   <section>
-    <p>Enter a note that will be shown on the device.</p>
+    <p>{{#l}}Enter a note that will be shown on the device.{{/l}}</p>
 
     <textarea class="note" maxlength="100" placeholder="Note (optional)">{{ note }}</textarea>
 
     <div class="buttons">
       {{#hasPasscode}}
-        <button class="activate primary">Lock Device</button>
+        <button class="activate primary">{{#l}}Lock Device{{/l}}</button>
       {{/hasPasscode}}
       {{^hasPasscode}}
-        <button class="next primary">Next</button>
+        <button class="next primary">{{#l}}Next{{/l}}</button>
       {{/hasPasscode}}
     </div>
   </section>

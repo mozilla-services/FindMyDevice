@@ -57,6 +57,13 @@ define(
 
         var context = this.getContext();
 
+        context.l = function (text) {
+          return function (text, render) {
+            // This is a placeholder for now
+            return render(text);
+          };
+        };
+
         this.$el.html(this.template(context));
 
         this.afterRender();
