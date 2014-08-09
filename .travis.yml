@@ -55,5 +55,5 @@ before_script:
 
 script:
   - npm run outdated
-  - grunt validate-package
+  - grunt validate-package --force
   - npm test
