@@ -417,8 +417,7 @@ module.exports = function (grunt) {
   // CSS TASK
   grunt.registerTask('css', [
     'sass',
-    'autoprefixer',
-    'csslint'
+    'autoprefixer'
   ]);
 
   // DEFAULT TASK

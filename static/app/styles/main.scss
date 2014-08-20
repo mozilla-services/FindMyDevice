@@ -109,7 +109,6 @@ a {
 
   #map {
     background: transparent no-repeat 50% 50%, linear-gradient(180deg, $header-background-color, #fff);
-    @include hidpi-background-image(bg, 2000px 950px);
     position: relative;
 
     .locating {
