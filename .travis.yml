@@ -44,7 +44,7 @@ before_script:
   # Start phony
   - node static/test/phony.js &
   # Let the servers settle
-  - sleep 2
+  - sleep 5
   # All the script action happens in static
   - cd static
 script:
