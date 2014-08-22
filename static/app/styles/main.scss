@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-@import "variables";
-@import "mixins";
-@import "fonts";
-@import "keyframes";
+@import 'variables';
+@import 'mixins';
+@import 'fonts';
+@import 'keyframes';
 
 /* Border box all the things */
 *,
@@ -128,11 +128,11 @@ a {
         position: relative;
 
         &::before {
-          animation-name: spin;
+          @include hidpi-background-image(spinner, 150px 150px);
           animation-duration: 1500ms;
           animation-iteration-count: infinite;
+          animation-name: spin;
           animation-timing-function: linear;
-          @include hidpi-background-image(spinner, 150px 150px);
           background-repeat: no-repeat;
           content: '';
           display: block;
@@ -143,8 +143,8 @@ a {
 
         &::after {
           @include hidpi-background-image(spinner-binoculars, 90px 90px);
-          background-repeat: no-repeat;
           background-position: 50% 50%;
+          background-repeat: no-repeat;
           content: '';
           display: block;
           height: 150px;
@@ -173,8 +173,8 @@ a {
       @include hidpi-background-image(spinner-small-animated, 39px 39px, gif);
       background-repeat: no-repeat;
       height: 39px;
-      margin-top: -162px;
       margin-left: 10px;
+      margin-top: -162px;
       position: absolute;
       width: 39px;
       z-index: 500;
@@ -260,7 +260,8 @@ a {
       }
     }
 
-    .close, .back {
+    .close,
+    .back {
       display: block;
       height: 24px;
       left: 17px;
@@ -283,13 +284,13 @@ a {
   }
 
   .stepper {
-    background: #fff;
+    background: $stepper-background-color;
     height: 5px;
     margin: 0;
     padding: 0 5px 0 0;
 
     li {
-      border-top: 5px solid #fff;
+      border-top: 5px solid $stepper-background-color;
       display: block;
       float: left;
       height: 0;
@@ -297,9 +298,10 @@ a {
       overflow: hidden;
       width: 50%;
 
-      &.active, &.complete {
-        border-color: #65aeef;
-        border-right: 5px solid #fff;
+      &.active,
+      &.complete {
+        border-color: $stepper-complete-border-color;
+        border-right: 5px solid $stepper-background-color;
       }
 
       &.complete {
@@ -315,11 +317,14 @@ a {
       margin-top: 0;
     }
 
-    button, input, textarea {
+    button,
+    input,
+    textarea {
       width: 100%;
     }
 
-    input, textarea {
+    input,
+    textarea {
       border: 1px solid #ccc;
       padding: 8px;
     }
@@ -376,30 +381,30 @@ a {
 
     button {
       background: $modal-button-background-color;
-      border: none;
+      border: 0;
       border-radius: 22px;
-      color: #fff;
+      color: $button-text-color;
       font-style: italic;
       outline: 0;
       padding: 10px;
 
       &:hover {
-        background: lighten($modal-button-background-color, 3%);
+        background: lighten($modal-button-background-color, $button-hover-pct);
       }
 
       &:active {
-        background: darken($modal-button-background-color, 5%);
+        background: darken($modal-button-background-color, $button-hover-pct);
       }
 
       &.danger {
         background: $modal-button-danger-background-color;
 
         &:hover {
-          background: lighten($modal-button-danger-background-color, 5%);
+          background: lighten($modal-button-danger-background-color, $button-hover-pct);
         }
 
         &:active {
-          background: darken($modal-button-danger-background-color, 5%);
+          background: darken($modal-button-danger-background-color, $button-hover-pct);
         }
       }
 
@@ -407,18 +412,18 @@ a {
         background: $modal-button-primary-background-color;
 
         &:hover {
-          background: lighten($modal-button-primary-background-color, 5%);
+          background: lighten($modal-button-primary-background-color, $button-hover-pct);
         }
 
         &:active {
-          background: darken($modal-button-primary-background-color, 5%);
+          background: darken($modal-button-primary-background-color, $button-hover-pct);
         }
       }
     }
   }
 
   &.drawer {
-    background: #fff;
+    background: $footer-background-color;
 
     section {
       padding: 0;
@@ -437,7 +442,8 @@ a {
             background: transparent no-repeat left 16px top 50%;
             @include hidpi-background-image(icon-device-active, 32px 32px);
 
-            a, span {
+            a,
+            span {
               background: transparent no-repeat right 16px top 50%;
               @include hidpi-background-image(icon-check, 24px 24px);
             }
@@ -447,7 +453,8 @@ a {
             border-bottom: 0;
           }
 
-          a, span {
+          a,
+          span {
             background: transparent no-repeat right 16px top 50%;
             @include hidpi-background-image(nav-forward, 24px 24px);
             color: inherit;
@@ -461,9 +468,9 @@ a {
 }
 
 #notifier {
-  background: #f8e979;
+  background: $notification-background-color;
   bottom: 0;
-  color: #554f25;
+  color: $notification-text-color;
   display: none;
   left: 0;
   padding: 28px;
@@ -473,5 +480,5 @@ a {
   z-index: 1001;
 }
 
-@import "desktop";
-@import "mobile_overrides";
+@import 'desktop';
+@import 'mobile_overrides';

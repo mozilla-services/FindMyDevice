@@ -15,7 +15,8 @@
     "postinstall": "bower install --silent",
     "test": "grunt",
     "contributors": "git shortlog -s | cut -c8- | sort -f > CONTRIBUTORS",
-    "clean": "rm -rf {node_modules,app/bower_components} && npm install --silent"
+    "clean": "rm -rf {node_modules,app/bower_components} && npm install --silent",
+    "scss-lint": "scss-lint app/styles/*.scss"
   },
   "dependencies": {},
   "devDependencies": {
