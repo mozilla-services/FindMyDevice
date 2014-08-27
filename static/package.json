@@ -15,7 +15,8 @@
     "postinstall": "bower install --silent",
     "test": "grunt",
     "contributors": "git shortlog -s | cut -c8- | sort -f > CONTRIBUTORS",
-    "clean": "rm -rf {node_modules,app/bower_components} && npm install --silent"
+    "clean": "rm -rf {node_modules,app/bower_components} && npm install --silent",
+    "scss-lint": "scss-lint app/styles/*.scss"
   },
   "dependencies": {},
   "devDependencies": {
@@ -34,6 +35,7 @@
     "grunt-contrib-jshint": "0.10.0",
     "grunt-contrib-watch": "0.6.1",
     "grunt-copyright": "0.1.0",
+    "grunt-html": "1.4.0",
     "grunt-jscs-checker": "0.6.1",
     "grunt-jsonlint": "1.0.4",
     "grunt-nsp-package": "0.0.5",

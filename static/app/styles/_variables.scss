@@ -3,6 +3,8 @@ $default-font-family: 'TypoPRO Fira Sans';
 
 // COLORS
 $anchor-color: #79c8ee;
+$button-hover-pct: 5%;
+$button-text-color: #fff;
 $drawer-border-color: #e0e0e0;
 $drawer-box-shadow-color: rgba(#000, 0.2);
 $footer-background-color--desktop: #fff;
@@ -27,5 +29,9 @@ $modal-button-background-color: #bbb;
 $modal-button-danger-background-color: #f00;
 $modal-button-primary-background-color: #79c8ee;
 $modal-text-color: #686868;
+$notification-background-color: #f8e979;
+$notification-text-color: #554f25;
 $parsley-error-background-color: #f5dd70;
 $parsley-error-text-color: #81795e;
+$stepper-background-color: #fff;
+$stepper-complete-border-color: #65aeef;

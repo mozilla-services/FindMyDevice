@@ -32,6 +32,7 @@ before_script:
   - psql -c 'create database fmd;' -U postgres
   - psql -c "CREATE USER fmd WITH PASSWORD 'fmd';" -U postgres
   - psql -c 'GRANT ALL PRIVILEGES ON DATABASE fmd to fmd;' -U postgres
+  - psql -c 'ALTER SCHEMA public OWNER to fmd;' -U postgres
   - psql -U fmd fmd < sql/create_db.sql
   # Configure and start xvfb
   - export DISPLAY=:99.0
@@ -43,7 +44,7 @@ before_script:
   # Start phony
   - node static/test/phony.js &
   # Let the servers settle
-  - sleep 2
+  - sleep 5
   # All the script action happens in static
   - cd static
 script:

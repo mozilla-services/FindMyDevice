@@ -12,11 +12,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	_ "github.com/lib/pq"
 	"io"
 	"strconv"
 	"strings"
 	"time"
+
+	_ "github.com/lib/pq"
 )
 
 var ErrDatabase = errors.New("Database Error")
@@ -193,6 +194,7 @@ func (self *Storage) createDb() (err error) {
 	// TODO: create a versioned db update system that contains commands
 	// to execute.
 	// read the create_db.sql file and build the database
+
 	panic("Please run the commands in sql/create_db.sql")
 	/*
 		        // note: indexes may return an error if they already exist.
@@ -241,7 +243,7 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 	err = dbh.QueryRow("select deviceid from userToDeviceMap where userId = $1 and deviceid=$2;", userid, dev.ID).Scan(&deviceId)
 	if err == nil && deviceId == dev.ID {
 		self.logger.Debug(self.logCat, "Updating db",
-			util.Fields{"userId": userid, "deviceid": dev.ID})
+			util.Fields{"userId": userid, "deviceId": dev.ID})
 		rows, err := dbh.Query("update deviceinfo set lockable=$1, loggedin=$2, lastExchange=$3, hawkSecret=$4, accepts=$5, pushUrl=$6 where deviceid=$7;",
 			dev.HasPasscode,
 			dev.LoggedIn,
@@ -649,14 +651,27 @@ func (self *Storage) DeleteDevice(devId string) (err error) {
 		_, err = dbh.Exec("delete from "+table+" where deviceid=$1;", devId)
 		if err != nil {
 			self.logger.Error(self.logCat,
-				"Could not nuke data from table",
+				"Could not purge data from table",
 				util.Fields{"error": err.Error(),
-					"device": devId,
-					"table":  table})
+					"deviceId": devId,
+					"table":    table})
 			return err
 		}
 	}
 	return nil
+}
+
+func (self *Storage) PurgeCommands(devId string) (err error) {
+	dbh := self.db
+
+	_, err = dbh.Exec("delete from pendingcommands where deviceid=$1;", devId)
+	if err != nil {
+		self.logger.Error(self.logCat,
+			"Could not purge data from pendingcommands",
+			util.Fields{"error": err.Error(),
+				"deviceId": devId})
+	}
+	return err
 }
 
 func (self *Storage) getMeta(key string) (val string, err error) {

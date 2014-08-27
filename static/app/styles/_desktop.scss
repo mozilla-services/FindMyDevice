@@ -3,6 +3,10 @@
     padding-bottom: 0; // remove padding on the bottom for footer
     padding-top: $header-height + $footer-height--desktop;
 
+    #map {
+      @include hidpi-background-image(bg, 2000px 950px);
+    }
+
     footer {
       background: $footer-background-color--desktop;
       bottom: auto;
@@ -35,8 +39,8 @@
 
   #modal {
     background-clip: padding-box;
-    border-radius: 6px;
     border: 1px solid $modal-border-color;
+    border-radius: 6px;
     box-shadow: 0 5px 8px $modal-box-shadow-color;
     margin-top: 12px;
     width: 300px;

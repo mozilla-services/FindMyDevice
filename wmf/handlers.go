@@ -992,7 +992,7 @@ func socketError(socket *websocket.Conn, msg string) {
 }
 
 func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (result bool) {
-	var stoken, token string
+	var xtoken, token string
 	result = false
 
 	if v, ok := session.Values[SESSION_CSRFTOKEN]; !ok {
@@ -1000,23 +1000,23 @@ func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (r
 			util.Fields{"error": "No token in session"})
 		return false
 	} else {
-		stoken = v.(string)
+		xtoken = v.(string)
 	}
 
 	// get the URL args
-	if tokens, ok := req.Header["X-CSRFTOKEN"]; !ok {
+	// because Go normalizes headers. Because golang.
+	// Use req.Header.Get or your life will be filled with sorrow.
+	if token = req.Header.Get("X-CSRFTOKEN"); len(token) == 0 {
 		self.logger.Warn(self.logCat, "token fail",
 			util.Fields{"error": "No token in Request"})
 		return self.config.GetFlag("auth.allow_tokenless")
-	} else {
-		token = tokens[0]
 	}
 
 	// check to see if the "tok" field matches
 	self.logger.Debug(self.logCat, "### Checking",
 		util.Fields{"received": token,
-			"expected": stoken})
-	return token == stoken
+			"expected": xtoken})
+	return token == xtoken
 }
 
 //Handler Public Functions
@@ -1341,12 +1341,15 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			}
 			c := strings.ToLower(string(cmd))
 			cs := string(c[0])
+			if c == "enabled" {
+				cs = "x"
+			}
 			// TODO : fix command filter
-			self.metrics.Increment("cmd.received." + cs)
+			self.metrics.Increment("cmd.received." + c)
 			// Normalize the args.
 			switch args.(type) {
 			case bool:
-				margs = replyType{string(cmd): isTrue(args.(bool))}
+				margs = replyType{c: isTrue(args.(bool))}
 			default:
 				margs = args.(map[string]interface{})
 			}
@@ -1355,6 +1358,15 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			switch cs {
 			case "t":
 				err = self.updatePage(deviceId, c, margs, true)
+			case "x":
+				fmt.Printf("xxx %+v\n", margs[c])
+				if margs[c].(bool) == false {
+					self.logger.Debug(self.logCat,
+						"FMD Disabled on device, clearing commands",
+						util.Fields{"deviceId": deviceId})
+					store.PurgeCommands(deviceId)
+				}
+				err = self.updatePage(deviceId, c, margs, false)
 			case "q":
 				// User has quit, nuke what we know.
 				if self.config.GetFlag("cmd.q.allow") {
@@ -1430,7 +1442,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	lcmd := strings.ToLower(cmd)
 	c := string(cmd[0])
 	self.logger.Debug(self.logCat, "Processing UI Command",
-		util.Fields{"cmd": cmd})
+		util.Fields{"cmd": lcmd})
 	if !strings.Contains(devRec.Accepts, c) {
 		// skip unacceptable command
 		self.logger.Warn(self.logCat, "Agent does not accept command",
@@ -1443,8 +1455,8 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		return
 	}
 	rargs := *args
-	switch c {
-	case "l":
+	switch lcmd {
+	case "l": // lock
 		if v, ok = rargs["c"]; ok {
 			max, err := strconv.ParseInt(self.config.Get("cmd.c.max", "9999"),
 				10, 64)
@@ -1475,7 +1487,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				len(vr))]
 			rargs["m"] = string(trimmed)
 		}
-	case "r", "t":
+	case "r", "t": // ring, track
 		if v, ok = rargs["d"]; ok {
 			max, err := strconv.ParseInt(
 				self.config.Get("cmd."+c+".max",
@@ -1496,7 +1508,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				0,
 				max)
 		}
-	case "e":
+	case "e": // erase
 		rargs = replyType{}
 		// Delete the device
 		return http.StatusOK, ErrDeviceDeleted
@@ -1533,13 +1545,13 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
 	// trigger the push
-	self.metrics.Increment("cmd.store." + c)
+	self.metrics.Increment("cmd.store." + lcmd)
 	self.metrics.Increment("push.send")
 	self.logger.Debug(self.logCat,
 		"Sending Push",
 		util.Fields{"deviceId": devRec.ID,
 			"userId": devRec.User,
-			"cmd":    c})
+			"cmd":    lcmd})
 	err = SendPush(devRec, self.config)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not send Push",
@@ -2219,7 +2231,7 @@ func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 		prefix = "persona"
 	}
 	redirUrlTemplate := self.config.Get(prefix+".login_url",
-		"{{.Host}}?client_id={{.ClientId}}&scope=profile:email&state={{.State}}&action=signin")
+		"{{.Host}}?client_id={{.ClientId}}&scope=profile:email%20profile:uid&state={{.State}}&action=signin")
 	tmpl, err := template.New("Login").Parse(redirUrlTemplate)
 	if err != nil {
 		self.logger.Error(self.logCat,

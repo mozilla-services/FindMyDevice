@@ -38,10 +38,10 @@ func SendPush(devRec *storage.Device, config *util.MzConfig) error {
 	cli := http.Client{Transport: tr}
 	resp, err := cli.Do(req)
 	// Close the body, otherwise Memory leak!
-	defer resp.Body.Close()
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		return errors.New("Push Server Error")
 	}
