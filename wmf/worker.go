@@ -29,7 +29,7 @@ type WWS struct {
 	Born    time.Time
 	Quit    bool
 	input   chan []byte
-	quitter chan bool
+	quitter chan struct{}
 	output  chan []byte
 }
 
@@ -65,7 +65,7 @@ func (self *WWS) sniffer() {
 					"Unhandled error in reader",
 					util.Fields{"error": err.Error()})
 			}
-			self.quitter <- true
+			close(self.quitter)
 			return
 		}
 		if len(raw) <= 0 {
@@ -81,7 +81,7 @@ func (self *WWS) sniffer() {
 // Workhorse function.
 func (self *WWS) Run() {
 	self.input = make(chan []byte)
-	self.quitter = make(chan bool)
+	self.quitter = make(chan struct{})
 	self.output = make(chan []byte)
 
 	defer func(sock *WWS) {

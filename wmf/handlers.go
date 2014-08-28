@@ -99,18 +99,17 @@ var (
 	// using a map of maps here because it's less hassle than iterating
 	// over a list. Need to investigate if there's significant memory loss
 	sessionStore *sessions.CookieStore
-    Clients *ClientBox
+	Clients      *ClientBox
 )
 
-type ClientBox struct{
-    sync.RWMutex
+type ClientBox struct {
+	sync.RWMutex
 	clients map[string]map[string]*WWS
 }
 
 // Client Mapping functions
 // Add a new trackable client.
 func (c *ClientBox) Add(id, instance string, sock *WWS, maxInstances int64) error {
-	fmt.Printf("+++ Adding client for %s:%s\n", id, instance)
 	defer c.Unlock()
 	c.Lock()
 	if clients, ok := c.clients[id]; ok {
@@ -121,7 +120,6 @@ func (c *ClientBox) Add(id, instance string, sock *WWS, maxInstances int64) erro
 			c.clients[id][instance] = sock
 			return nil
 		} else {
-			fmt.Printf("+++ !!! Instance clash %s::%s\n", id, instance)
 			return ErrTooManyClient
 		}
 	} else {
@@ -138,14 +136,12 @@ func (c *ClientBox) Del(id, instance string) (bool, error) {
 	if clients, ok := c.clients[id]; ok {
 		// remove the instance
 		if cli, ok := clients[instance]; ok {
-			fmt.Printf("--- removing instance %s::%s\n", id, instance)
 			// Forcing client connection closed
 			if cli.Socket.IsClientConn() {
 				cli.Socket.Close()
 			}
 			delete(clients, instance)
 			if len(clients) == 0 {
-				fmt.Printf("--- Purging instances for %s\n", id)
 				delete(c.clients, id)
 				return true, nil
 			} else {
@@ -153,25 +149,22 @@ func (c *ClientBox) Del(id, instance string) (bool, error) {
 			}
 			return false, nil
 		}
-		fmt.Printf("--- !!! No instance of %s::%s\n", id, instance)
 		return true, ErrNoClient
 	}
-	fmt.Printf("--- !!! No clients for %s!\n", id)
 	return true, ErrNoClient
 }
 
 func (c *ClientBox) Clients(id string) (map[string]*WWS, bool) {
-    defer c.Unlock()
-    c.Lock()
-    clients, ok := c.clients[id]
-    return clients, ok
+	defer c.Unlock()
+	c.Lock()
+	clients, ok := c.clients[id]
+	return clients, ok
 }
 
 func init() {
-    Clients = new(ClientBox)
-    Clients.clients = make(map[string]map[string]*WWS)
+	Clients = new(ClientBox)
+	Clients.clients = make(map[string]map[string]*WWS)
 }
-
 
 //Handler private functions
 
@@ -290,7 +283,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 	}
 	if self.config.GetFlag("auth.show_assertion") {
 		self.logger.Debug(self.logCat,
-			"### Assertion:",
+			"Assertion:",
 			util.Fields{"assertion": string(body)})
 	}
 	req, err := http.NewRequest("POST", validatorURL, bytes.NewReader(body))
@@ -360,7 +353,6 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	cli := http.Client{}
 	validatorUrl := self.config.Get("fxa.verifier",
 		"https://oauth.accounts.firefox.com/authorization")
-	// fmt.Printf("### Sending to %s\n", validatorUrl)
 	args := make(map[string]string)
 	args["client_id"] = self.config.Get("fxa.client_id", "invalid")
 	args["assertion"] = assertion
@@ -397,7 +389,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	}
 	if self.config.GetFlag("auth.show_assertion") {
 		self.logger.Debug(self.logCat,
-			"### Validating Assertion",
+			"Validating Assertion",
 			util.Fields{"assertion": string(argsj)})
 	}
 	// Send the assertion to the validator
@@ -467,7 +459,6 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 			}
 			//Convert code to access token.
 			accessToken, err := self.getAccessToken(code)
-			fmt.Printf("### AccessToken: %s\n", accessToken)
 
 			if err != nil {
 				return "", "", ErrOauth
@@ -482,7 +473,6 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 			if err != nil {
 				return "", "", ErrOauth
 			}
-			// fmt.Printf("### Verified FxA assertion: %s, %s\n", accessToken, email)
 			return userid, email, nil
 		}
 	}
@@ -579,7 +569,6 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 	}
 
 	session, err = sessionStore.Get(req, SESSION_NAME)
-	// fmt.Printf("### Your session is: %+v\n", session.Values)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not open session",
 			util.Fields{"error": err.Error()})
@@ -587,7 +576,6 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 		return "", "", err
 	}
 	if session != nil {
-		// fmt.Printf("### Got session: %+v\n", session)
 		var ret = false
 		if ru, ok := session.Values[SESSION_EMAIL]; ok {
 			switch ru.(type) {
@@ -929,7 +917,6 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 			util.Fields{"error": err.Error()})
 		return "", err
 	}
-	// fmt.Printf("### sending to %s\n %s\n", token_url, vd)
 	req, err := http.NewRequest("POST", token_url, bytes.NewBuffer(vd))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not get oauth token",
@@ -970,9 +957,7 @@ func (self *Handler) getUserData(accessToken, data string) (email string, err er
 			util.Fields{"error": err.Error()})
 		return "", err
 	}
-	fmt.Printf("### Token: %s\n", accessToken)
 	req.Header.Add("Authorization", "Bearer "+accessToken)
-	// fmt.Printf("### Sending email request to profile server\n%+v\n", req)
 	resp, err := client.Do(req)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not get user email",
@@ -990,7 +975,6 @@ func (self *Handler) getUserData(accessToken, data string) (email string, err er
 			util.Fields{"body": raw})
 		return "", ErrNoUser
 	}
-	// fmt.Printf("### Got email! %s\n", buffer["email"].(string))
 	return buffer[data].(string), nil
 }
 
@@ -1028,7 +1012,7 @@ func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (r
 	}
 
 	// check to see if the "tok" field matches
-	self.logger.Debug(self.logCat, "### Checking",
+	self.logger.Debug(self.logCat, "Checking",
 		util.Fields{"received": token,
 			"expected": xtoken})
 	return token == xtoken
@@ -1037,13 +1021,13 @@ func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (r
 //Handler Public Functions
 
 func NewHandler(config *util.MzConfig, logger util.Logger, metrics util.Metrics) *Handler {
-    stype := config.Get("db.store", "postgres")
-    storeType, ok := storage.AvailableStores[stype]
-    if !ok {
-        logger.Critical("Handler", "Unknown storage type specified",
-            util.Fields{"type": stype})
-        return nil
-    }
+	stype := config.Get("db.store", "postgres")
+	storeType, ok := storage.AvailableStores[stype]
+	if !ok {
+		logger.Critical("Handler", "Unknown storage type specified",
+			util.Fields{"type": stype})
+		return nil
+	}
 
 	store, err := storeType(config, logger, metrics)
 	if err != nil {
@@ -1290,7 +1274,6 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	store := self.store
 
-	// fmt.Printf("### req.URL: %s", req.URL)
 	deviceId := getDevFromUrl(req.URL)
 	if deviceId == "" {
 		self.logger.Error(self.logCat, "Invalid call (No device id)", nil)
@@ -1335,7 +1318,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		}
 	}
 	// Do the command.
-	self.logger.Info(self.logCat, "### Handling cmd response from device",
+	self.logger.Info(self.logCat, "Handling cmd response from device",
 		util.Fields{
 			"deviceId": deviceId,
 			"userId":   devRec.User,
@@ -1638,7 +1621,6 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	devRec, err := store.GetDeviceInfo(deviceId)
-	// fmt.Printf("### devices: %+v\n", devRec)
 	if err != nil || devRec == nil {
 		fields := util.Fields{"deviceId": deviceId}
 		if err != nil {
@@ -1849,7 +1831,6 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 			"Could not initialize session",
 			util.Fields{"error": err.Error()})
 	}
-	// fmt.Printf("### Index:: session %+v\n", session)
 	sessionInfo, err := self.getSessionInfo(resp, req, session)
 	initData, err := self.initData(resp, req, sessionInfo)
 	if err != nil {
@@ -2090,7 +2071,6 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 	loginSession.Options.MaxAge = -1
 	loginSession.Save(req, resp)
 
-	// fmt.Printf("### oauth session: %+v, err: %s\n", session, err)
 	if _, ok := session.Values[SESSION_TOKEN]; !ok {
 		// get the "state", and "code"
 		state := req.FormValue("state")
@@ -2113,7 +2093,6 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 		}
 
 		// fetch the token:
-		// fmt.Printf("### Getting access token\n")
 		token, err := self.getAccessToken(code)
 		if err != nil {
 			self.logger.Error(self.logCat, "Could not get access token",
@@ -2121,11 +2100,9 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 			http.Redirect(resp, req, "/", http.StatusFound)
 			return
 		}
-		// fmt.Printf("### store user token %s\n", token)
 		delete(session.Values, SESSION_EMAIL)
 		session.Values[SESSION_TOKEN] = token
 	}
-	// fmt.Printf("### Getting user email from access token\n")
 	val, err := self.getUserData(session.Values[SESSION_TOKEN].(string), "email")
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not get email",
@@ -2143,7 +2120,6 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 		return
 	}
 	session.Values[SESSION_USERID] = val
-	fmt.Printf("### Saving session %+v\n", session)
 	// awesome. So saving the session apparently doesn't mean it's
 	// readable by subsequent session get calls.
 	session.Save(req, resp)
@@ -2219,6 +2195,11 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		socketError(ws, "Too Many Connections")
 		return
 	}
+	self.logger.Debug(self.logCat,
+		"Added client",
+		util.Fields{"deviceId": self.devId,
+			"userId":   devRec.User,
+			"instance": instance})
 	defer func(self *Handler, sock *WWS, instance string) {
 		self.metrics.Decrement("page.socket")
 		self.metrics.Timer("page.socket", int64(time.Since(sock.Born).Seconds()))
@@ -2229,6 +2210,11 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 					"userId":   devRec.User,
 					"deviceId": self.devId})
 		} else {
+			self.logger.Debug(self.logCat,
+				"Removed client",
+				util.Fields{"deviceId": self.devId,
+					"userId":   devRec.User,
+					"instance": instance})
 			if stopTrack {
 				self.stopTracking(self.devId, store)
 			}
