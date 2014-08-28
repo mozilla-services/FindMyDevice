@@ -216,7 +216,6 @@ func (self *Storage) createDb() (err error) {
 }
 
 func (self *Storage) markDb(date string) (err error) {
-	fmt.Printf("### marking db\n")
 	dbh := self.db
 	result, err := dbh.Exec("update meta set val=$2 where key=$1;",
 		"db.ver", date)
