@@ -24,7 +24,7 @@ var ErrInvalidSignature = errors.New("Header does not match signature")
 
 // minimal HAWK for now (e.g. no bewit because IAGNI)
 type Hawk struct {
-	logger    *util.HekaLogger
+	logger    util.Logger
 	config    *util.MzConfig
 	header    string
 	Id        string
@@ -193,7 +193,7 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 }
 
 // Initialize self from the AuthHeader
-func (self *Hawk) ParseAuthHeader(req *http.Request, logger *util.HekaLogger) (err error) {
+func (self *Hawk) ParseAuthHeader(req *http.Request, logger util.Logger) (err error) {
 
 	auth := req.Header.Get("Authorization")
 	if auth == "" {

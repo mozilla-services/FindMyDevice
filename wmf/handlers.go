@@ -36,13 +36,13 @@ import (
 // base handler for REST and Socket calls.
 type Handler struct {
 	config  *util.MzConfig
-	logger  *util.HekaLogger
-	metrics *util.Metrics
+	logger  util.Logger
+	metrics util.Metrics
 	devId   string
 	logCat  string
 	accepts []string
 	hawk    *Hawk
-	store   *storage.Storage
+	store   storage.Storage
 	maxCli  int64
 }
 
@@ -96,42 +96,46 @@ var (
 
 // package globals
 var (
-	muClient sync.RWMutex
 	// using a map of maps here because it's less hassle than iterating
 	// over a list. Need to investigate if there's significant memory loss
-	Clients      = make(map[string]map[string]*WWS)
 	sessionStore *sessions.CookieStore
+    Clients *ClientBox
 )
+
+type ClientBox struct{
+    sync.RWMutex
+	clients map[string]map[string]*WWS
+}
 
 // Client Mapping functions
 // Add a new trackable client.
-func addClient(id, instance string, sock *WWS, maxInstances int64) error {
+func (c *ClientBox) Add(id, instance string, sock *WWS, maxInstances int64) error {
 	fmt.Printf("+++ Adding client for %s:%s\n", id, instance)
-	defer muClient.Unlock()
-	muClient.Lock()
-	if clients, ok := Clients[id]; ok {
+	defer c.Unlock()
+	c.Lock()
+	if clients, ok := c.clients[id]; ok {
 		if maxInstances > 0 && len(clients) > int(maxInstances) {
 			return ErrTooManyClient
 		}
 		if _, ok := clients[instance]; !ok {
-			Clients[id][instance] = sock
+			c.clients[id][instance] = sock
 			return nil
 		} else {
 			fmt.Printf("+++ !!! Instance clash %s::%s\n", id, instance)
 			return ErrTooManyClient
 		}
 	} else {
-		Clients[id] = make(map[string]*WWS)
-		Clients[id][instance] = sock
+		c.clients[id] = make(map[string]*WWS)
+		c.clients[id][instance] = sock
 	}
 	return nil
 }
 
 // remove a trackable client, returns if tracking should stop
-func rmClient(id, instance string) (bool, error) {
-	defer muClient.Unlock()
-	muClient.Lock()
-	if clients, ok := Clients[id]; ok {
+func (c *ClientBox) Del(id, instance string) (bool, error) {
+	defer c.Unlock()
+	c.Lock()
+	if clients, ok := c.clients[id]; ok {
 		// remove the instance
 		if cli, ok := clients[instance]; ok {
 			fmt.Printf("--- removing instance %s::%s\n", id, instance)
@@ -142,10 +146,10 @@ func rmClient(id, instance string) (bool, error) {
 			delete(clients, instance)
 			if len(clients) == 0 {
 				fmt.Printf("--- Purging instances for %s\n", id)
-				delete(Clients, id)
+				delete(c.clients, id)
 				return true, nil
 			} else {
-				Clients[id] = clients
+				c.clients[id] = clients
 			}
 			return false, nil
 		}
@@ -155,6 +159,19 @@ func rmClient(id, instance string) (bool, error) {
 	fmt.Printf("--- !!! No clients for %s!\n", id)
 	return true, ErrNoClient
 }
+
+func (c *ClientBox) Clients(id string) (map[string]*WWS, bool) {
+    defer c.Unlock()
+    c.Lock()
+    clients, ok := c.clients[id]
+    return clients, ok
+}
+
+func init() {
+    Clients = new(ClientBox)
+    Clients.clients = make(map[string]map[string]*WWS)
+}
+
 
 //Handler private functions
 
@@ -666,7 +683,7 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	return info, nil
 }
 
-func (self *Handler) stopTracking(devId string, store *storage.Storage) (err error) {
+func (self *Handler) stopTracking(devId string, store storage.Storage) (err error) {
 	noTrack := storage.Unstructured{"t": replyType{"d": 0}}
 	jnt, err := json.Marshal(noTrack)
 	if err != nil {
@@ -690,7 +707,7 @@ func (self *Handler) stopTracking(devId string, store *storage.Storage) (err err
 
 // log the device's position reply
 func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, logPosition bool) (err error) {
-	var location storage.Position
+	var location = new(storage.Position)
 	var hasPasscode bool
 
 	store := self.store
@@ -740,7 +757,7 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 	location.Cmd = storage.Unstructured{cmd: args}
 
 	// this defer also catches and logs panics from the i.Socket.Write()
-	defer func(logger *util.HekaLogger, logCat, devId string) {
+	defer func(logger util.Logger, logCat, devId string) {
 		if r := recover(); r != nil {
 			err := r.(error)
 			logger.Error(logCat,
@@ -750,9 +767,7 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 		}
 	}(self.logger, self.logCat, devId)
 
-	muClient.RLock()
-	clients, ok := Clients[devId]
-	muClient.RUnlock()
+	clients, ok := Clients.Clients(devId)
 
 	if ok {
 		js, _ := json.Marshal(location)
@@ -1021,8 +1036,16 @@ func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (r
 
 //Handler Public Functions
 
-func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics) *Handler {
-	store, err := storage.Open(config, logger, metrics)
+func NewHandler(config *util.MzConfig, logger util.Logger, metrics util.Metrics) *Handler {
+    stype := config.Get("db.store", "postgres")
+    storeType, ok := storage.AvailableStores[stype]
+    if !ok {
+        logger.Critical("Handler", "Unknown storage type specified",
+            util.Fields{"type": stype})
+        return nil
+    }
+
+	store, err := storeType(config, logger, metrics)
 	if err != nil {
 		logger.Error("Handler", "Could not open storage",
 			util.Fields{"error": err.Error()})
@@ -1217,7 +1240,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 		}
 		if devId, err = store.RegisterDevice(
 			userid,
-			storage.Device{
+			&storage.Device{
 				ID:          deviceid,
 				Name:        user,
 				Secret:      secret,
@@ -2164,7 +2187,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		Born:    time.Now(),
 		Quit:    false}
 
-	defer func(logger *util.HekaLogger) {
+	defer func(logger util.Logger) {
 		if r := recover(); r != nil {
 			debug.PrintStack()
 			if logger != nil {
@@ -2186,7 +2209,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	}
 
 	self.metrics.Increment("page.socket")
-	if err := addClient(self.devId, instance, sock, self.maxCli); err != nil {
+	if err := Clients.Add(self.devId, instance, sock, self.maxCli); err != nil {
 		self.logger.Error(self.logCat,
 			"Could not add WebUI client",
 			util.Fields{"deviceId": self.devId,
@@ -2199,7 +2222,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	defer func(self *Handler, sock *WWS, instance string) {
 		self.metrics.Decrement("page.socket")
 		self.metrics.Timer("page.socket", int64(time.Since(sock.Born).Seconds()))
-		if stopTrack, err := rmClient(self.devId, instance); err != nil {
+		if stopTrack, err := Clients.Del(self.devId, instance); err != nil {
 			self.logger.Error(self.logCat,
 				"Could not clean up closed instance!",
 				util.Fields{"error": err.Error(),

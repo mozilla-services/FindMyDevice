@@ -16,10 +16,14 @@ import (
 	"time"
 )
 
+type Worker interface {
+    Run()
+}
+
 // Websocket Handler function.
 type WWS struct {
 	Socket  *websocket.Conn
-	Logger  *util.HekaLogger
+	Logger  util.Logger
 	Handler *Handler
 	Device  *storage.Device
 	Born    time.Time

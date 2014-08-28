@@ -23,16 +23,25 @@ type trec struct {
 
 type timer map[string]trec
 
-type Metrics struct {
+type Metrics interface {
+    Increment(string)
+    IncrementBy(string, int)
+    Decrement(string)
+    Timer(string, int64)
+    Snapshot() map[string]interface{}
+}
+
+
+type Metric struct {
 	dict   map[string]int64 // counters
 	timer  timer            // timers
 	prefix string           // prefix for
-	logger *HekaLogger
+	logger Logger
 	statsd *statsd.Client
 	born   time.Time
 }
 
-func NewMetrics(prefix string, logger *HekaLogger, config *MzConfig) (self *Metrics) {
+func NewMetrics(prefix string, logger Logger, config *MzConfig) (*Metric) {
 
 	var statsdc *statsd.Client
 	if server := config.Get("statsd.server", ""); server != "" {
@@ -46,7 +55,7 @@ func NewMetrics(prefix string, logger *HekaLogger, config *MzConfig) (self *Metr
 		}
 	}
 
-	self = &Metrics{
+	return &Metric{
 		dict:   make(map[string]int64),
 		timer:  make(timer),
 		prefix: prefix,
@@ -54,36 +63,35 @@ func NewMetrics(prefix string, logger *HekaLogger, config *MzConfig) (self *Metr
 		statsd: statsdc,
 		born:   time.Now(),
 	}
-	return self
 }
 
-func (self *Metrics) Prefix(newPrefix string) {
+func (self *Metric) Prefix(newPrefix string) {
 	self.prefix = strings.TrimRight(newPrefix, ".")
 	if self.statsd != nil {
 		self.statsd.SetPrefix(newPrefix)
 	}
 }
 
-func (self *Metrics) Snapshot() map[string]interface{} {
-	defer metrex.Unlock()
-	metrex.Lock()
+func (self *Metric) Snapshot() map[string]interface{} {
 	var pfx string
 	if len(self.prefix) > 0 {
 		pfx = self.prefix + "."
 	}
 	oldMetrics := make(map[string]interface{})
+	oldMetrics[pfx+"server.age"] = time.Now().Unix() - self.born.Unix()
 	// copy the old metrics
+	defer metrex.Unlock()
+	metrex.Lock()
 	for k, v := range self.dict {
 		oldMetrics[pfx+"counter."+k] = v
 	}
 	for k, v := range self.timer {
 		oldMetrics[pfx+"avg."+k] = v.Avg
 	}
-	oldMetrics[pfx+"server.age"] = time.Now().Unix() - self.born.Unix()
 	return oldMetrics
 }
 
-func (self *Metrics) IncrementBy(metric string, count int) {
+func (self *Metric) IncrementBy(metric string, count int) {
 	defer metrex.Unlock()
 	metrex.Lock()
 	m, ok := self.dict[metric]
@@ -107,15 +115,15 @@ func (self *Metrics) IncrementBy(metric string, count int) {
 	}
 }
 
-func (self *Metrics) Increment(metric string) {
+func (self *Metric) Increment(metric string) {
 	self.IncrementBy(metric, 1)
 }
 
-func (self *Metrics) Decrement(metric string) {
+func (self *Metric) Decrement(metric string) {
 	self.IncrementBy(metric, -1)
 }
 
-func (self *Metrics) Timer(metric string, value int64) {
+func (self *Metric) Timer(metric string, value int64) {
 	defer metrex.Unlock()
 	metrex.Lock()
 	if t, ok := self.timer[metric]; !ok {

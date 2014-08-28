@@ -11,7 +11,6 @@ import (
 	flags "github.com/jessevdk/go-flags"
 	"github.com/mozilla-services/FindMyDevice/util"
 	"github.com/mozilla-services/FindMyDevice/wmf"
-	"github.com/mozilla-services/FindMyDevice/wmf/storage"
 
 	// Only add the following for devel.
 	//	_ "net/http/pprof"
@@ -40,11 +39,6 @@ var opts struct {
 	Ddlupgrade   bool   `long:"ddlupgrade" description:"Upgrade database to latest"`
 	Ddllog       bool   `long:"ddllog" description:"Show a revision history of the database"`
 }
-
-var (
-	logger  *util.HekaLogger
-	metrics *util.Metrics
-)
 
 const (
 	// VERSION is the version number for system.
@@ -97,49 +91,17 @@ func main() {
 		return
 	}
 
-	if opts.Ddlcreate != "" || opts.Ddlupgrade || opts.Ddldowngrade != "" || opts.Ddllog {
-		if opts.Ddlcreate != "" && opts.Ddlupgrade {
-			log.Fatalf("Invalid DDL options.  You can only specify one DDL command at a time you clown.")
-			return
-		}
-
-		rcs := new(storage.DBRcs)
-		rcs.Init(config)
-		if opts.Ddlcreate != "" {
-			if _, _, err := rcs.CreateNextRev("sql/patches", opts.Ddlcreate); err != nil {
-				log.Fatalf("Could not create a new revision: %s", err.Error())
-			}
-			return
-		}
-
-		if opts.Ddlupgrade {
-			err := rcs.Upgrade("sql/patches", true)
-			if err != nil {
-				log.Fatalf("Could not upgrade database: %s", err.Error())
-			}
-			return
-		}
-
-		if opts.Ddldowngrade != "" {
-			err := rcs.Downgrade("sql/patches", opts.Ddldowngrade)
-			if err != nil {
-				log.Fatalf("Could not downgrade database: %s", err.Error())
-			}
-			return
-		}
-
-		if opts.Ddllog {
-			err := rcs.Changelog("sql/patches")
-			if err != nil {
-				log.Fatalf("Could not get changelog: %s", err.Error())
-			}
-			return
-		}
-	}
-
 	fullVers := fmt.Sprintf("%s-%s", config.Get("VERSION", VERSION),
 		getCodeVersion())
 	config.Override("VERSION", fullVers)
+    config.Override("ddl.create", opts.Ddlcreate)
+    config.Override("ddl.downgrade", opts.Ddldowngrade)
+    if opts.Ddlupgrade {
+        config.SetDefaultFlag("ddl.upgrade",true)
+    }
+    if opts.Ddllog {
+        config.SetDefaultFlag("ddl.log", true)
+    }
 	sock_secret, _ := util.GenUUID4()
 	config.SetDefault("ws.socket_secret", sock_secret)
 
@@ -192,7 +154,7 @@ func main() {
 	}
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	logger := util.NewHekaLogger(config)
+	logger := util.NewLogger(config)
 	metrics := util.NewMetrics(config.Get(
 		"metrics.prefix",
 		"wmf"), logger, config)
