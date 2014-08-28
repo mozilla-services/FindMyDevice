@@ -68,7 +68,7 @@ func (self *WWS) sniffer() {
 			continue
 		}
 		self.Logger.Debug("worker",
-			"#### Recv'd",
+			"Recv'd",
 			util.Fields{"raw": string(raw)})
 		self.input <- raw
 	}
