@@ -55,6 +55,6 @@ before_script:
   - cd static
 
 script:
+  - grunt validate-shrinkwrap --force
   - npm run outdated
-  - grunt validate-package --force
   - npm test
