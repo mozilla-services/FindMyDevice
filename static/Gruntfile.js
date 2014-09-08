@@ -423,7 +423,6 @@ module.exports = function (grunt) {
   // DEFAULT TASK
   grunt.registerTask('default', [
     'lint:prebuild',
-    'validate-package',
     'build',
     'lint:postbuild',
     'test'
