@@ -27,7 +27,6 @@ type WWS struct {
 	Handler *Handler
 	Device  *storage.Device
 	Born    time.Time
-	Quit    bool
 	input   chan []byte
 	quitter chan struct{}
 	output  chan []byte
@@ -46,13 +45,11 @@ func (self *WWS) sniffer() {
 		self.Logger.Debug("worker",
 			"Closing Sniffer",
 			util.Fields{"seconds_lived": strconv.FormatInt(lived, 10)})
+        // tell the receiver to close.
+        close(self.quitter)
 	}()
 
 	for {
-		if self.Quit {
-			socket.Close()
-			return
-		}
 		err = websocket.Message.Receive(socket, &raw)
 		if err != nil {
 			switch {
@@ -65,7 +62,6 @@ func (self *WWS) sniffer() {
 					"Unhandled error in reader",
 					util.Fields{"error": err.Error()})
 			}
-			close(self.quitter)
 			return
 		}
 		if len(raw) <= 0 {
@@ -76,6 +72,10 @@ func (self *WWS) sniffer() {
 			util.Fields{"raw": string(raw)})
 		self.input <- raw
 	}
+}
+
+func (self *WWS) Close() {
+    close(self.quitter)
 }
 
 // Workhorse function.
@@ -98,8 +98,8 @@ func (self *WWS) Run() {
 					util.Fields{"error": r.(error).Error()})
 			}
 		}
-		sock.Logger.Debug("worker", "Cleaning up...", nil)
-		sock.Socket.Close()
+		sock.Logger.Debug("worker", "#### Cleaning up...", nil)
+		if self.quitter != nil { close(self.quitter) }
 		return
 	}(self)
 
@@ -107,11 +107,14 @@ func (self *WWS) Run() {
 
 	for {
 		select {
-		case <-self.quitter:
-			self.Quit = true
+        case <-self.quitter:
 			self.Logger.Debug("worker",
 				"Killing client",
 				util.Fields{"deviceId": self.Device.ID})
+            self.Socket.Close()
+            close(self.input)
+            // don't reclose this channel.
+            self.quitter = nil
 			return
 		case input := <-self.input:
 			msg := make(replyType)

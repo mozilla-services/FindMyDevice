@@ -317,6 +317,7 @@ def main(argv):
         #print "!!! Sending reregister... \n"
         #time.sleep(1)
         cmd = sendCmd(config, cred, newLocation())
+        break
         #cmd, cred = registerNew(config, cred)
 
     print "done"

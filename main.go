@@ -42,7 +42,7 @@ var opts struct {
 
 const (
 	// VERSION is the version number for system.
-	VERSION = "1.3"
+	VERSION = "1.4"
 )
 
 // get the latest version from the file, "GITREF"

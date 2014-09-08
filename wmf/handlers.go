@@ -44,6 +44,7 @@ type Handler struct {
 	hawk    *Hawk
 	store   storage.Storage
 	maxCli  int64
+	verify  func(string) (string, string, error)
 }
 
 const (
@@ -107,21 +108,27 @@ type ClientBox struct {
 	clients map[string]map[string]*WWS
 }
 
+// apply bin64 padd
+func pad(in string) string {
+	return in + "===="[:len(in)%4]
+}
+
 // Client Mapping functions
 // Add a new trackable client.
 func (c *ClientBox) Add(id, instance string, sock *WWS, maxInstances int64) error {
 	defer c.Unlock()
 	c.Lock()
 	if clients, ok := c.clients[id]; ok {
+		// if we know the ID, check to see if we have the instance.
 		if maxInstances > 0 && len(clients) > int(maxInstances) {
 			return ErrTooManyClient
 		}
-		if _, ok := clients[instance]; !ok {
-			c.clients[id][instance] = sock
-			return nil
-		} else {
+		if _, ok := clients[instance]; ok {
 			return ErrTooManyClient
 		}
+
+		c.clients[id][instance] = sock
+		return nil
 	} else {
 		c.clients[id] = make(map[string]*WWS)
 		c.clients[id][instance] = sock
@@ -144,9 +151,8 @@ func (c *ClientBox) Del(id, instance string) (bool, error) {
 			if len(clients) == 0 {
 				delete(c.clients, id)
 				return true, nil
-			} else {
-				c.clients[id] = clients
 			}
+			c.clients[id] = clients
 			return false, nil
 		}
 		return true, ErrNoClient
@@ -157,8 +163,9 @@ func (c *ClientBox) Del(id, instance string) (bool, error) {
 func (c *ClientBox) Clients(id string) (map[string]*WWS, bool) {
 	defer c.Unlock()
 	c.Lock()
-	clients, ok := c.clients[id]
-	return clients, ok
+	// must call separately to get bool
+	r, ok := c.clients[id]
+	return r, ok
 }
 
 func init() {
@@ -181,8 +188,7 @@ func (self *Handler) extractFromAssertion(assertion string) (userid, email strin
 	}
 	data := bits[1]
 	// pad to byte boundry
-	data = data + "===="[:len(data)%4]
-	decoded, err := base64.StdEncoding.DecodeString(data)
+	decoded, err := base64.StdEncoding.DecodeString(pad(data))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not decode assertion",
 			util.Fields{"assertion frame": data,
@@ -221,13 +227,14 @@ func (self *Handler) extractAudience(assertion string) (audience string) {
 	bits := strings.Split(assertion, ".")
 	// Classic? persona has 3 chunks, modified has 5.
 	if len(bits) == 5 {
-		if data, err := base64.StdEncoding.DecodeString(bits[3] + "===="[:len(bits[3])%4]); err == nil {
+		if data, err := base64.StdEncoding.DecodeString(pad(bits[3])); err == nil {
 			dj := make(replyType)
 			if err = json.Unmarshal(data, &dj); err == nil {
 				if v, ok := dj["audience"]; ok {
 					// fxa
 					return v.(string)
-				} else if v, ok := dj["aud"]; ok {
+				}
+				if v, ok := dj["aud"]; ok {
 					// persona
 					return v.(string)
 				}
@@ -251,7 +258,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 
 	// ******** DO NOT ENABLE auth.disabled FLAG IN PRODUCTION!! ******
 	if self.config.GetFlag("auth.disabled") {
-		self.logger.Warn(self.logCat, "!!! Skipping validation...", nil)
+		self.logger.Warn(self.logCat, "!!! Skipping persona validation...", nil)
 		if len(assertion) == 0 {
 			return "user1", "user@example.com", nil
 		}
@@ -304,7 +311,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 	// Handle the verifier response
 	buffer, raw, err := parseBody(res.Body)
 	if isOk, ok := buffer["status"]; !ok || isOk != "okay" {
-		var errStr string
+		var errStr = "Unknown reason"
 		if err != nil {
 			errStr = err.Error()
 		} else if _, ok = buffer["reason"]; ok {
@@ -338,7 +345,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 }
 
 func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string, err error) {
-	if assLen := len(assertion); assLen != len(strings.Map(assertionFilter, assertion)) {
+	if len(assertion) != len(strings.Map(assertionFilter, assertion)) {
 		self.logger.Error(self.logCat, "Assertion contains invalid characters.",
 			util.Fields{"assertion": assertion})
 		return "", "", ErrAuthorization
@@ -346,7 +353,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 
 	// ******** DO NOT ENABLE auth.disabled FLAG IN PRODUCTION!! ******
 	if self.config.GetFlag("auth.disabled") {
-		self.logger.Warn(self.logCat, "!!! Skipping validation...", nil)
+		self.logger.Warn(self.logCat, "!!! Skipping fxa validation...", nil)
 		return self.extractFromAssertion(assertion)
 
 	}
@@ -441,41 +448,41 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 		}
 	}
 	// get the "redirect" url. We're not going to redirect, just get the code.
-	if redir, ok := buff["redirect"]; !ok {
+	redir, ok := buff["redirect"]
+	if !ok {
 		self.logger.Error(self.logCat, "FxA verification did not return redirect",
 			nil)
 		return "", "", err
-	} else {
-		if vurl, err := url.Parse(redir.(string)); err != nil {
-			self.logger.Error(self.logCat, "FxA redirect url invalid",
-				util.Fields{"error": err.Error(), "url": redir.(string)})
-			return "", "", err
-		} else {
-			code := vurl.Query().Get("code")
-			if len(code) == 0 {
-				self.logger.Error(self.logCat, "FxA code not present",
-					util.Fields{"url": redir.(string)})
-				return "", "", ErrOauth
-			}
-			//Convert code to access token.
-			accessToken, err := self.getAccessToken(code)
-
-			if err != nil {
-				return "", "", ErrOauth
-			}
-			// If we ever need more, probably want to use "profile".
-			// this will fetch a user's complete profile.
-			userid, err := self.getUserData(accessToken, "uid")
-			if err != nil {
-				return "", "", ErrOauth
-			}
-			email, err := self.getUserData(accessToken, "email")
-			if err != nil {
-				return "", "", ErrOauth
-			}
-			return userid, email, nil
-		}
 	}
+	vurl, err := url.Parse(redir.(string))
+	if err != nil {
+		self.logger.Error(self.logCat, "FxA redirect url invalid",
+			util.Fields{"error": err.Error(), "url": redir.(string)})
+		return "", "", err
+	}
+	code := vurl.Query().Get("code")
+	if len(code) == 0 {
+		self.logger.Error(self.logCat, "FxA code not present",
+			util.Fields{"url": redir.(string)})
+		return "", "", ErrOauth
+	}
+	//Convert code to access token.
+	accessToken, err := self.getAccessToken(code)
+
+	if err != nil {
+		return "", "", ErrOauth
+	}
+	// If we ever need more, probably want to use "profile".
+	// this will fetch a user's complete profile.
+	userid, err = self.getUserData(accessToken, "uid")
+	if err != nil {
+		return "", "", ErrOauth
+	}
+	email, err = self.getUserData(accessToken, "email")
+	if err != nil {
+		return "", "", ErrOauth
+	}
+	return userid, email, nil
 }
 
 func (self *Handler) clearSession(sess *sessions.Session) (err error) {
@@ -527,25 +534,24 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 						"user": data.UserId})
 				return nil, err
 			}
+			return data, nil
 		}
-		if sessionInfo.DeviceId != "" {
-			data.Device, err = store.GetDeviceInfo(sessionInfo.DeviceId)
-			if err != nil {
-				self.logger.Error(self.logCat, "Could not get device info",
-					util.Fields{"error": err.Error(),
-						"deviceid": sessionInfo.DeviceId})
-				return nil, err
-			}
-			data.Device.PreviousPositions, err = store.GetPositions(sessionInfo.DeviceId)
-			if err != nil {
-				self.logger.Error(self.logCat,
-					"Could not get device's position information",
-					util.Fields{"error": err.Error(),
-						"userId":   data.UserId,
-						"email":    sessionInfo.Email,
-						"deviceId": sessionInfo.DeviceId})
-				return nil, err
-			}
+		data.Device, err = store.GetDeviceInfo(sessionInfo.DeviceId)
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not get device info",
+				util.Fields{"error": err.Error(),
+					"deviceid": sessionInfo.DeviceId})
+			return nil, err
+		}
+		data.Device.PreviousPositions, err = store.GetPositions(sessionInfo.DeviceId)
+		if err != nil {
+			self.logger.Error(self.logCat,
+				"Could not get device's position information",
+				util.Fields{"error": err.Error(),
+					"userId":   data.UserId,
+					"email":    sessionInfo.Email,
+					"deviceId": sessionInfo.DeviceId})
+			return nil, err
 		}
 	}
 	return data, nil
@@ -608,11 +614,7 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 	// Nothing in the session,
 	var auth string
 	if auth = req.FormValue("assertion"); auth != "" {
-		if self.config.GetFlag("auth.persona") {
-			userid, email, err = self.verifyPersonaAssertion(auth)
-		} else {
-			userid, email, err = self.verifyFxAAssertion(auth)
-		}
+		userid, email, err = self.verify(auth)
 	}
 	if err != nil {
 		// error logged in verify
@@ -885,7 +887,6 @@ func (self *Handler) genSig(userId, deviceId string) (ret string, err error) {
 
 // Check the simple WS signature against the second to last item
 func (self *Handler) checkSig(req *http.Request, userId, devId string) (ok bool) {
-
 	bits := strings.Split(req.URL.Path, "/")
 	// remember, leading "/" counts.
 	gotsig := bits[len(bits)-2]
@@ -898,7 +899,7 @@ func (self *Handler) checkSig(req *http.Request, userId, devId string) (ok bool)
 		util.Fields{"testSig": testsig,
 			"gotSig": gotsig})
 
-	if self.config.GetFlag("auth.disable_ws_check") {
+	if self.config.GetFlag("auth.no_ws_check") {
 		return true
 	}
 	return testsig == gotsig
@@ -1008,7 +1009,7 @@ func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (r
 	if token = req.Header.Get("X-CSRFTOKEN"); len(token) == 0 {
 		self.logger.Warn(self.logCat, "token fail",
 			util.Fields{"error": "No token in Request"})
-		return self.config.GetFlag("auth.allow_tokenless")
+		return self.config.GetFlag("auth.no_csrftoken")
 	}
 
 	// check to see if the "tok" field matches
@@ -1057,7 +1058,7 @@ func NewHandler(config *util.MzConfig, logger util.Logger, metrics util.Metrics)
 	sessionStore.Options = &sessions.Options{
 		Domain:   config.Get("session.domain", "localhost"),
 		Path:     "/",
-		Secure:   !config.GetFlag("auth.allow_insecure_cookie"),
+		Secure:   !config.GetFlag("auth.no_secure_cookie"),
 		HttpOnly: true,
 		// Do not set a max age by default.
 		// This confuses gorilla, which winds up setting two "user" cookies.
@@ -1069,13 +1070,22 @@ func NewHandler(config *util.MzConfig, logger util.Logger, metrics util.Metrics)
 	// applies required changes.
 	store.Init()
 
-	return &Handler{config: config,
+	h := &Handler{config: config,
 		logger:  logger,
 		logCat:  "handler",
 		metrics: metrics,
 		store:   store,
 		maxCli:  maxCli,
 	}
+
+	// oh, go...
+	if config.GetFlag("auth.persona") {
+		h.verify = h.verifyPersonaAssertion
+	} else {
+		h.verify = h.verifyFxAAssertion
+	}
+
+	return h
 }
 
 // Register a new device
@@ -1106,145 +1116,140 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	buffer, raw, err = parseBody(req.Body)
 	if err != nil {
 		http.Error(resp, "No body", http.StatusBadRequest)
-	} else {
-		loggedIn = false
+		return
+	}
+	loggedIn = false
 
-		if val, ok := buffer["deviceid"]; !ok || len(val.(string)) == 0 {
-			deviceid, _ = util.GenUUID4()
-		} else {
-			// User provided a deviceid in the PATH, screen and see if we
-			// have any info about it.
-			deviceid = strings.Map(deviceIdFilter, val.(string))
-			if len(deviceid) > 32 {
-				deviceid = deviceid[:32]
-			}
-			devRec, err = store.GetDeviceInfo(deviceid)
-			if err != nil {
-				self.logger.Warn(self.logCat, "Could not get info for deviceid",
-					util.Fields{"deviceid": deviceid,
-						"error": err.Error()})
-			}
+	if val, ok := buffer["deviceid"]; !ok || len(val.(string)) == 0 {
+		deviceid, _ = util.GenUUID4()
+	} else {
+		// User provided a deviceid in the PATH, screen and see if we
+		// have any info about it.
+		deviceid = strings.Map(deviceIdFilter, val.(string))
+		if len(deviceid) > 32 {
+			deviceid = deviceid[:32]
 		}
-		// If there's an assertion, validate it and pull user info.
-		if assertion, ok := buffer["assert"]; ok {
-			if self.config.GetFlag("auth.persona") {
-				userid, email, err = self.verifyPersonaAssertion(assertion.(string))
-			} else {
-				userid, email, err = self.verifyFxAAssertion(assertion.(string))
-			}
-			if err != nil || userid == "" {
-				http.Error(resp, "Unauthorized", 401)
-				return
-			}
-			self.logger.Debug(self.logCat, "Got user "+email, nil)
-			loggedIn = true
-		} else {
-			// Huh, no assertion. Check the HAWK header to see if the
-			// user is valid or not. If so, get the user registered for
-			// this device.
-			self.logger.Warn(self.logCat, "Missing 'assert' value",
-				util.Fields{"body": raw})
-			// Use HAWK + deviceid to determine if this is a re-registration.
-			if hv := self.verifyHawkHeader(req,
-				[]byte(raw),
-				devRec); devRec != nil && hv {
-				self.logger.Info(self.logCat,
-					"Hawk Verified, getting user info ...\n",
-					nil)
-				if userid, user, err = store.GetUserFromDevice(deviceid); err == nil {
-					self.logger.Debug(self.logCat,
-						"Got user info ",
-						util.Fields{"userId": userid,
-							"name":     user,
-							"deviceId": deviceid})
-					loggedIn = true
-				} else {
-					self.logger.Error(self.logCat,
-						"No user associated with valid device!!",
-						util.Fields{"deviceId": deviceid})
-				}
-			} else {
-				self.logger.Warn(self.logCat,
-					"Failed Hawk Header Check",
-					util.Fields{"deviceId": deviceid})
-			}
+		devRec, err = store.GetDeviceInfo(deviceid)
+		if err != nil {
+			self.logger.Warn(self.logCat, "Could not get info for deviceid",
+				util.Fields{"deviceid": deviceid,
+					"error": err.Error()})
 		}
-		if !loggedIn {
-			self.logger.Error(self.logCat, "Device Not logged in",
-				util.Fields{"deviceId": deviceid})
+	}
+	// If there's an assertion, validate it and pull user info.
+	if assertion, ok := buffer["assert"]; ok {
+		userid, email, err = self.verify(assertion.(string))
+		if err != nil || userid == "" {
 			http.Error(resp, "Unauthorized", 401)
 			return
 		}
-		// If there's a pushUrl specified, make sure it's not empty.
-		if val, ok := buffer["pushurl"]; !ok || val == nil || len(val.(string)) == 0 {
-			self.logger.Error(self.logCat, "Missing SimplePush url", nil)
-			http.Error(resp, "Bad Data", 400)
-			return
-		} else {
-			pushUrl = val.(string)
-		}
-		//ALWAYS generate a new secret on registration!
-		secret = GenNonce(16)
-		if val, ok := buffer["has_passcode"]; !ok {
-			hasPasscode = true
-		} else {
-			hasPasscode, err = strconv.ParseBool(val.(string))
-			if err != nil {
-				hasPasscode = false
+		self.logger.Debug(self.logCat, "Got user "+email, nil)
+		loggedIn = true
+	} else {
+		// Huh, no assertion. Check the HAWK header to see if the
+		// user is valid or not. If so, get the user registered for
+		// this device.
+		self.logger.Warn(self.logCat, "Missing 'assert' value",
+			util.Fields{"body": raw})
+		// Use HAWK + deviceid to determine if this is a re-registration.
+		if hv := self.verifyHawkHeader(req,
+			[]byte(raw),
+			devRec); devRec != nil && hv {
+			self.logger.Info(self.logCat,
+				"Hawk Verified, getting user info ...\n",
+				nil)
+			if userid, user, err = store.GetUserFromDevice(deviceid); err == nil {
+				self.logger.Debug(self.logCat,
+					"Got user info ",
+					util.Fields{"userId": userid,
+						"name":     user,
+						"deviceId": deviceid})
+				loggedIn = true
+			} else {
+				self.logger.Error(self.logCat,
+					"No user associated with valid device!!",
+					util.Fields{"deviceId": deviceid})
 			}
-		}
-		if self.config.GetFlag("ek.ignore_passcode_state") {
-			// This overrides the passcode state reported by the device.
-			// This is a work around for a device lock screen bug that
-			// caches the last pass code, even if the user has disabled
-			// the device pass code.
-			hasPasscode = false
-		}
-		if val, ok := buffer["accepts"]; ok {
-			// collapse the array to a string
-			if l := len(val.([]interface{})); l > 0 {
-				acc := make([]byte, l)
-				for n, ke := range val.([]interface{}) {
-					acc[n] = ke.(string)[0]
-				}
-				accepts = strings.ToLower(string(acc))
-			}
-		}
-		if len(accepts) == 0 {
-			accepts = "elrth"
-		}
-		if !strings.Contains("h", accepts) {
-			accepts = accepts + "h"
-		}
-
-		// create the new device record
-		var devId string
-		if user == "" {
-			user = strings.SplitN(email, "@", 2)[0]
-		}
-		if devId, err = store.RegisterDevice(
-			userid,
-			&storage.Device{
-				ID:          deviceid,
-				Name:        user,
-				Secret:      secret,
-				PushUrl:     pushUrl,
-				HasPasscode: hasPasscode,
-				Accepts:     accepts,
-			}); err != nil {
-			self.logger.Error(self.logCat, "Error Registering device", nil)
-			http.Error(resp, "Bad Request", 400)
-			return
 		} else {
-			if devId != deviceid {
-				self.logger.Error(self.logCat, "Different deviceID returned",
-					util.Fields{"original": deviceid, "new": devId})
-				http.Error(resp, "Server error", 500)
-				return
-			}
-			self.devId = deviceid
+			self.logger.Warn(self.logCat,
+				"Failed Hawk Header Check",
+				util.Fields{"deviceId": deviceid})
 		}
 	}
+	if !loggedIn {
+		self.logger.Error(self.logCat, "Device Not logged in",
+			util.Fields{"deviceId": deviceid})
+		http.Error(resp, "Unauthorized", 401)
+		return
+	}
+	// If there's a pushUrl specified, make sure it's not empty.
+	if val, ok := buffer["pushurl"]; !ok || val == nil || len(val.(string)) == 0 {
+		self.logger.Error(self.logCat, "Missing SimplePush url", nil)
+		http.Error(resp, "Bad Data", 400)
+		return
+	} else {
+		pushUrl = val.(string)
+	}
+	//ALWAYS generate a new secret on registration!
+	secret = GenNonce(16)
+	if val, ok := buffer["has_passcode"]; !ok {
+		hasPasscode = true
+	} else {
+		hasPasscode, err = strconv.ParseBool(val.(string))
+		if err != nil {
+			hasPasscode = false
+		}
+	}
+	if self.config.GetFlag("ek.ignore_passcode_state") {
+		// This overrides the passcode state reported by the device.
+		// This is a work around for a device lock screen bug that
+		// caches the last pass code, even if the user has disabled
+		// the device pass code.
+		hasPasscode = false
+	}
+	if val, ok := buffer["accepts"]; ok {
+		// collapse the array to a string
+		if l := len(val.([]interface{})); l > 0 {
+			acc := make([]byte, l)
+			for n, ke := range val.([]interface{}) {
+				acc[n] = ke.(string)[0]
+			}
+			accepts = strings.ToLower(string(acc))
+		}
+	}
+	if len(accepts) == 0 {
+		accepts = "elrth"
+	}
+	if !strings.Contains("h", accepts) {
+		accepts = accepts + "h"
+	}
+
+	// create the new device record
+	var devId string
+	if user == "" {
+		user = strings.SplitN(email, "@", 2)[0]
+	}
+	if devId, err = store.RegisterDevice(
+		userid,
+		&storage.Device{
+			ID:          deviceid,
+			Name:        user,
+			Secret:      secret,
+			PushUrl:     pushUrl,
+			HasPasscode: hasPasscode,
+			Accepts:     accepts,
+		}); err != nil {
+		self.logger.Error(self.logCat, "Error Registering device", nil)
+		http.Error(resp, "Bad Request", 400)
+		return
+	}
+	if devId != deviceid {
+		self.logger.Error(self.logCat, "Different deviceID returned",
+			util.Fields{"original": deviceid, "new": devId})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	self.devId = deviceid
 	self.metrics.Increment("device.registration")
 	self.updatePage(self.devId, "register", buffer, false)
 	output, err := json.Marshal(util.Fields{"deviceid": self.devId,
@@ -1365,7 +1370,6 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			case "t":
 				err = self.updatePage(deviceId, c, margs, true)
 			case "x":
-				fmt.Printf("xxx %+v\n", margs[c])
 				if margs[c].(bool) == false {
 					self.logger.Debug(self.logCat,
 						"FMD Disabled on device, clearing commands",
@@ -1407,6 +1411,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				"deviceId": devRec.ID,
 				"userId":   devRec.User})
 		http.Error(resp, "\"Server Error\"", http.StatusServiceUnavailable)
+		return
 	}
 	if output == nil || len(output) < 2 {
 		output = []byte("{}")
@@ -1425,6 +1430,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				util.Fields{"error": err.Error(),
 					"deviceId": devRec.ID,
 					"userId":   devRec.User})
+			http.Error(resp, "\"Server Error\"", http.StatusServiceUnavailable)
+			return
 		}
 	}
 	if self.config.GetFlag("debug.show_output") {
@@ -2140,12 +2147,16 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	rand.Read(ib)
 	instance := hex.EncodeToString(ib)
 	self.devId = getDevFromUrl(ws.Request().URL)
-	userid, ok := session.Values[SESSION_USERID]
-	if !ok || !self.checkSig(ws.Request(), userid.(string), self.devId) {
-		self.logger.Error(self.logCat, "Unauthorized access.",
-			nil)
-		return
-	}
+	if !self.config.GetFlag("auth.no_sig_check") {
+		userid, ok := session.Values[SESSION_USERID]
+		if !ok || !self.checkSig(ws.Request(), userid.(string), self.devId) {
+			self.logger.Error(self.logCat, "Unauthorized access.",
+				nil)
+			return
+		}
+	} else {
+        self.logger.Warn(self.logCat, "WARNING:: IGNORING SIGNATURE", nil)
+    }
 	devRec, err := store.GetDeviceInfo(self.devId)
 	if err != nil {
 		self.logger.Error(self.logCat, "Invalid Device for socket",
@@ -2161,7 +2172,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		Device:  devRec,
 		Logger:  self.logger,
 		Born:    time.Now(),
-		Quit:    false}
+	}
 
 	defer func(logger util.Logger) {
 		if r := recover(); r != nil {
@@ -2300,7 +2311,7 @@ func (self *Handler) Validate(resp http.ResponseWriter, req *http.Request) {
 	// {assert: ... }
 	if buffer, raw, err := parseBody(req.Body); err == nil {
 		if assert, ok := buffer["assert"]; ok {
-			if userid, _, err := self.verifyFxAAssertion(assert.(string)); err == nil {
+			if userid, _, err := self.verify(assert.(string)); err == nil {
 				reply["valid"] = true
 				reply["uid"] = userid
 			} else {
