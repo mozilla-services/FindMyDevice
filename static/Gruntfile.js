@@ -443,6 +443,10 @@ module.exports = function (grunt) {
         return grunt.task.run([
           'htmllint'
         ]);
+      default:
+        return grunt.task.run([
+          'lint:prebuild'
+        ]);
     }
   });
 
