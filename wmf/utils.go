@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	//	"fmt"
+	"fmt"
 )
 
 //filters
@@ -69,15 +69,18 @@ func parseBody(rbody io.ReadCloser) (rep util.JsMap, raw string, err error) {
 
 // Take an interface value and return if it's true or not.
 func isTrue(val interface{}) bool {
-	switch val.(type) {
+    switch val.(type) {
 	case string:
 		flag, _ := strconv.ParseBool(val.(string))
 		return flag
 	case bool:
 		return val.(bool)
-	case int64:
-		return val.(int64) != 0
+    case int64, int32, int:
+		return val != 0
+    case float64, float32:
+        return val != 0.0
 	default:
+        fmt.Printf("type %t\n", val)
 		return false
 	}
 }

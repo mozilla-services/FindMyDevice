@@ -105,7 +105,7 @@ var (
 
 type ClientBox struct {
 	sync.RWMutex
-	clients map[string]map[string]*WWS
+	clients map[string]map[string]WWS
 }
 
 // apply bin64 padd
@@ -113,14 +113,19 @@ func pad(in string) string {
 	return in + "===="[:len(in)%4]
 }
 
+func NewClientBox() *ClientBox {
+    return &ClientBox{clients: make(map[string]map[string]WWS)}
+}
+
+
 // Client Mapping functions
 // Add a new trackable client.
-func (c *ClientBox) Add(id, instance string, sock *WWS, maxInstances int64) error {
+func (c *ClientBox) Add(id, instance string, sock WWS, maxInstances int64) error {
 	defer c.Unlock()
 	c.Lock()
 	if clients, ok := c.clients[id]; ok {
 		// if we know the ID, check to see if we have the instance.
-		if maxInstances > 0 && len(clients) > int(maxInstances) {
+		if maxInstances > 0 && len(clients) >= int(maxInstances) {
 			return ErrTooManyClient
 		}
 		if _, ok := clients[instance]; ok {
@@ -130,7 +135,7 @@ func (c *ClientBox) Add(id, instance string, sock *WWS, maxInstances int64) erro
 		c.clients[id][instance] = sock
 		return nil
 	} else {
-		c.clients[id] = make(map[string]*WWS)
+		c.clients[id] = make(map[string]WWS)
 		c.clients[id][instance] = sock
 	}
 	return nil
@@ -144,8 +149,8 @@ func (c *ClientBox) Del(id, instance string) (bool, error) {
 		// remove the instance
 		if cli, ok := clients[instance]; ok {
 			// Forcing client connection closed
-			if cli.Socket.IsClientConn() {
-				cli.Socket.Close()
+			if cli.Socket().IsClientConn() {
+				cli.Socket().Close()
 			}
 			delete(clients, instance)
 			if len(clients) == 0 {
@@ -160,7 +165,7 @@ func (c *ClientBox) Del(id, instance string) (bool, error) {
 	return true, ErrNoClient
 }
 
-func (c *ClientBox) Clients(id string) (map[string]*WWS, bool) {
+func (c *ClientBox) Clients(id string) (map[string]WWS, bool) {
 	defer c.Unlock()
 	c.Lock()
 	// must call separately to get bool
@@ -169,8 +174,7 @@ func (c *ClientBox) Clients(id string) (map[string]*WWS, bool) {
 }
 
 func init() {
-	Clients = new(ClientBox)
-	Clients.clients = make(map[string]map[string]*WWS)
+	Clients = NewClientBox()
 }
 
 //Handler private functions
@@ -762,7 +766,7 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 	if ok {
 		js, _ := json.Marshal(location)
 		for _, i := range clients {
-			i.Socket.Write(js)
+			i.Socket().Write(js)
 		}
 	} else {
 		self.logger.Warn(self.logCat,
@@ -2166,12 +2170,12 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		return
 	}
 
-	sock := &WWS{
-		Socket:  ws,
-		Handler: self,
-		Device:  devRec,
-		Logger:  self.logger,
-		Born:    time.Now(),
+	sock := &WWSs{
+		socket:  ws,
+		handler: self,
+		device:  devRec,
+		logger:  self.logger,
+		born:    time.Now(),
 	}
 
 	defer func(logger util.Logger) {
@@ -2185,7 +2189,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 				log.Printf("Socket Unknown Error: %s\n", r.(error).Error())
 			}
 		}
-	}(sock.Logger)
+	}(sock.Logger())
 
 	if self.devId == "" {
 		self.logger.Error(self.logCat, "No deviceID found",
@@ -2211,9 +2215,9 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		util.Fields{"deviceId": self.devId,
 			"userId":   devRec.User,
 			"instance": instance})
-	defer func(self *Handler, sock *WWS, instance string) {
+	defer func(self *Handler, sock WWS, instance string) {
 		self.metrics.Decrement("page.socket")
-		self.metrics.Timer("page.socket", int64(time.Since(sock.Born).Seconds()))
+		self.metrics.Timer("page.socket", int64(time.Since(sock.Born()).Seconds()))
 		if stopTrack, err := Clients.Del(self.devId, instance); err != nil {
 			self.logger.Error(self.logCat,
 				"Could not clean up closed instance!",
