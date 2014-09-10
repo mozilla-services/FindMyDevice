@@ -60,7 +60,6 @@ func parseBody(rbody io.ReadCloser) (rep util.JsMap, raw string, err error) {
 	if body, err = ioutil.ReadAll(rbody.(io.Reader)); err != nil {
 		return nil, "", err
 	}
-	// fmt.Printf("### parseBody: %s\n", body)
 	if err = json.Unmarshal(body, &rep); err != nil {
 		return nil, string(body), err
 	}

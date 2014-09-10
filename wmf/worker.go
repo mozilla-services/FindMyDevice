@@ -112,8 +112,8 @@ func (self *WWSs) sniffer() (err error) {
 		if len(raw) <= 0 {
 			continue
 		}
-		self.logger.Debug("worker",
-			"#### Recv'd",
+		self.Logger.Debug("worker",
+			"Recv'd",
 			util.Fields{"raw": string(raw)})
 		self.input <- raw
 	}
