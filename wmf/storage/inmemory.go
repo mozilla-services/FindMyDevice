@@ -8,7 +8,7 @@ import (
 	"github.com/mozilla-services/FindMyDevice/util"
 
 	"fmt"
-    "sort"
+	"sort"
 	"strings"
 	"time"
 
@@ -21,7 +21,7 @@ type udmap struct {
 }
 
 type cst struct {
-	CType string
+	CType   string
 	Command string
 }
 
@@ -40,15 +40,15 @@ type memStore struct {
 // Open the database.
 func OpenInmemory(config *util.MzConfig, logger util.Logger, metrics util.Metrics) (storage Storage, err error) {
 	return &memStore{
-		config:   config,
-		logger:   logger,
-        users:    make(map[string]udmap),
-        devices:  make(map[string]*Device),
-        positions: make(map[string]*Position),
-        commands: make(map[string]map[int64]*cst),
-        accessTokens: make(map[string]string),
-        nonces: make(map[string]string),
-    }, nil
+		config:       config,
+		logger:       logger,
+		users:        make(map[string]udmap),
+		devices:      make(map[string]*Device),
+		positions:    make(map[string]*Position),
+		commands:     make(map[string]map[int64]*cst),
+		accessTokens: make(map[string]string),
+		nonces:       make(map[string]string),
+	}, nil
 }
 
 // Create the tables, indexes and other needed items.
@@ -98,9 +98,9 @@ func (r *memStore) GetPending(devId string) (cmd, ctype string, err error) {
 		keys = append(keys, int(k))
 	}
 	sort.Ints(keys)
-    cmd = cmds[int64(keys[0])].Command
-    ctype = cmds[int64(keys[0])].CType
-	delete(cmds,int64(keys[0]))
+	cmd = cmds[int64(keys[0])].Command
+	ctype = cmds[int64(keys[0])].CType
+	delete(cmds, int64(keys[0]))
 	r.commands[devId] = cmds
 	return
 }
@@ -121,11 +121,11 @@ func (r *memStore) GetDevicesForUser(userId, oldUserId string) (devices []Device
 	if !ok {
 		return nil, ErrUnknownDevice
 	}
-    devInfo, ok := r.devices[user.DeviceID]
+	devInfo, ok := r.devices[user.DeviceID]
 	if !ok {
 		return nil, ErrUnknownDevice
 	}
-    return append(devices, DeviceList{user.DeviceID, devInfo.Name}), nil
+	return append(devices, DeviceList{user.DeviceID, devInfo.Name}), nil
 }
 
 // Store a command into the list of pending commands for a device.
@@ -169,7 +169,7 @@ func (*memStore) GcDatabase(devId, userId string) (err error) {
 // remove all tracking information for devId.
 func (r *memStore) PurgePosition(devId string) (err error) {
 	delete(r.positions, devId)
-    return nil
+	return nil
 }
 
 func (*memStore) Touch(devId string) (err error) {
@@ -205,8 +205,8 @@ func (r *memStore) GetNonce() (string, error) {
 // Does the user's nonce match?
 func (r *memStore) CheckNonce(nonce string) (bool, error) {
 
-    items := strings.Split(nonce, "-")
-    val, ok := r.nonces[items[0]]
+	items := strings.Split(nonce, "-")
+	val, ok := r.nonces[items[0]]
 	delete(r.nonces, items[0])
 	return ok && val == items[1], nil
 }

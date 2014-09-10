@@ -114,9 +114,8 @@ func pad(in string) string {
 }
 
 func NewClientBox() *ClientBox {
-    return &ClientBox{clients: make(map[string]map[string]WWS)}
+	return &ClientBox{clients: make(map[string]map[string]WWS)}
 }
-
 
 // Client Mapping functions
 // Add a new trackable client.
@@ -2159,8 +2158,8 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 			return
 		}
 	} else {
-        self.logger.Warn(self.logCat, "WARNING:: IGNORING SIGNATURE", nil)
-    }
+		self.logger.Warn(self.logCat, "WARNING:: IGNORING SIGNATURE", nil)
+	}
 	devRec, err := store.GetDeviceInfo(self.devId)
 	if err != nil {
 		self.logger.Error(self.logCat, "Invalid Device for socket",

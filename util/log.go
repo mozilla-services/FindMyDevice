@@ -11,6 +11,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+    "testing"
 )
 
 type Log struct {
@@ -26,6 +27,9 @@ const (
 	WARNING
 	INFO
 	DEBUG
+)
+var (
+    levels = []string{"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
 )
 
 // The fields to relay. NOTE: object reflection is VERY CPU expensive.
@@ -43,7 +47,7 @@ type Logger interface {
     Critical(mtype, payload string, field Fields) error
 }
 
-// Create a new Heka logging interface.
+// Create a new Stdout logging interface.
 func NewLogger(conf *MzConfig) *Log {
 	//Preflight
 	var filter int64
@@ -112,6 +116,46 @@ func (r *Log) Error(mtype, msg string, fields Fields) (err error) {
 func (r *Log) Critical(mtype, msg string, fields Fields) (err error) {
 	debug.PrintStack()
 	return r.Log(CRITICAL, mtype, msg, fields)
+}
+
+// ====
+
+type TestLog struct {
+    T *testing.T
+    Out string
+}
+
+func (r *TestLog) Log(level int64, mtype, payload string, fields Fields) error {
+    r.Out = fmt.Sprintf("[% 8s] %s:%s %+v", levels[level], mtype, payload, fields)
+    switch level {
+case CRITICAL:
+    r.T.Fatal(r.Out)
+case ERROR:
+    r.T.Error(r.Out)
+default:
+    r.T.Log(r.Out)
+}
+    return nil
+}
+
+func (r *TestLog) Info(mtype, msg string, fields Fields) (error) {
+    return r.Log(INFO, mtype, msg, fields)
+}
+
+func (r *TestLog) Debug(mtype, msg string, fields Fields) (error) {
+    return r.Log(DEBUG, mtype, msg, fields)
+}
+
+func (r *TestLog) Warn(mtype, msg string, fields Fields) (error) {
+    return r.Log(WARNING, mtype, msg, fields)
+}
+
+func (r *TestLog) Error(mtype, msg string, fields Fields) (error) {
+    return r.Log(ERROR, mtype, msg, fields)
+}
+
+func (r *TestLog) Critical(mtype, msg string, fields Fields) (error) {
+    return r.Log(CRITICAL, mtype, msg, fields)
 }
 
 // o4fs

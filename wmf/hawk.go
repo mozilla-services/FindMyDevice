@@ -64,9 +64,9 @@ func (self *Hawk) AsHeader(req *http.Request, id, body, extra, secret string) st
 	if self.Signature == "" {
 		self.GenerateSignature(req, extra, body, secret)
 	}
-    if extra == "" && len(self.Extra) > 0 {
-        extra = self.Extra
-    }
+	if extra == "" && len(self.Extra) > 0 {
+		extra = self.Extra
+	}
 	rep := fmt.Sprintf("Hawk id=\"%s\", ts=\"%s\", nonce=\"%s\", ext=\"%s\", hash=\"%s\", mac=\"%s\"",
 		id,
 		self.Time,
@@ -170,7 +170,7 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 	if self.Hash == "" {
 		self.Hash = self.genHash(req, body)
 	}
-    self.Extra = extra
+	self.Extra = extra
 
 	marshalStr := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n",
 		"hawk.1.header",

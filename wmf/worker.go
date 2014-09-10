@@ -32,20 +32,6 @@ type Sock interface {
 	Write([]byte) (int, error)
 }
 
-// Mock Websocket Interface (used for testing)
-type MockWSConn struct {
-	Buff      []byte
-	Connected bool
-}
-
-func (r *MockWSConn) Receive() []byte { return r.Buff }
-func (r *MockWSConn) Write(b []byte) (int, error) {
-	r.Buff = b
-	return len(b), nil
-}
-func (*MockWSConn) Close() error         { return nil }
-func (r *MockWSConn) IsClientConn() bool { return r.Connected }
-
 // Websocket Handler function.
 type WWS interface {
 	Run()
@@ -77,7 +63,7 @@ func (self *WWSs) sniffer() (err error) {
 
 	defer func() {
 		lived := int64(time.Now().Sub(self.Born()).Seconds())
-		self.logger.Debug("worker",
+		self.Logger().Debug("worker",
 			"Closing Sniffer",
 			util.Fields{"seconds_lived": strconv.FormatInt(lived, 10)})
 		// tell the receiver to close.
@@ -91,7 +77,7 @@ func (self *WWSs) sniffer() (err error) {
 		case *MockWSConn:
 			raw = socket.(*MockWSConn).Receive()
 		default:
-			self.logger.Error("worker",
+			self.Logger().Error("worker",
 				"Invalid socket type specified.",
 				nil)
 			return ErrInvalidSocket
@@ -99,11 +85,11 @@ func (self *WWSs) sniffer() (err error) {
 		if err != nil {
 			switch {
 			case err == io.EOF:
-				self.logger.Debug("worker",
+				self.Logger().Debug("worker",
 					"Closing channel",
 					nil)
 			default:
-				self.logger.Error("worker",
+				self.Logger().Error("worker",
 					"Unhandled error in reader",
 					util.Fields{"error": err.Error()})
 			}
@@ -112,7 +98,7 @@ func (self *WWSs) sniffer() (err error) {
 		if len(raw) <= 0 {
 			continue
 		}
-		self.Logger.Debug("worker",
+		self.Logger().Debug("worker",
 			"Recv'd",
 			util.Fields{"raw": string(raw)})
 		self.input <- raw
@@ -176,7 +162,7 @@ func (self *WWSs) Run() {
 	for {
 		select {
 		case <-self.quitter:
-			self.logger.Debug("worker",
+			self.Logger().Debug("worker",
 				"Killing client",
 				util.Fields{"deviceId": self.device.ID})
 			self.socket.Close()
@@ -187,7 +173,7 @@ func (self *WWSs) Run() {
 		case input := <-self.input:
 			msg := make(replyType)
 			if err := json.Unmarshal(input, &msg); err != nil {
-				self.logger.Error("worker", "Unparsable cmd",
+				self.Logger().Error("worker", "Unparsable cmd",
 					util.Fields{"cmd": string(input),
 						"error": err.Error()})
 				self.socket.Write([]byte("false"))
@@ -198,7 +184,7 @@ func (self *WWSs) Run() {
 				rargs := args.(replyType)
 				_, err := self.handler.Queue(self.device, cmd, &rargs, &rep)
 				if err != nil {
-					self.logger.Error("worker", "Error processing command",
+					self.Logger().Error("worker", "Error processing command",
 						util.Fields{
 							"error": err.Error(),
 							"cmd":   cmd,
@@ -211,10 +197,26 @@ func (self *WWSs) Run() {
 		case output := <-self.output:
 			_, err := self.socket.Write(output)
 			if err != nil {
-				self.logger.Error("worker",
+				self.Logger().Error("worker",
 					"Unhandled error writing to socket",
 					util.Fields{"error": err.Error()})
 			}
 		}
 	}
 }
+
+// ==
+// Mock Websocket Interface (used for testing)
+type MockWSConn struct {
+	Buff      []byte
+	Connected bool
+}
+
+// absolute minimum of functions for what we need.
+func (r *MockWSConn) Receive() []byte { return r.Buff }
+func (r *MockWSConn) Write(b []byte) (int, error) {
+	r.Buff = b
+	return len(b), nil
+}
+func (*MockWSConn) Close() error         { return nil }
+func (r *MockWSConn) IsClientConn() bool { return r.Connected }

@@ -20,25 +20,25 @@ const (
 )
 
 type Storage interface {
-    Init() error
-    RegisterDevice(string, *Device) (string, error)
-    GetDeviceInfo(string) (*Device, error)
-    GetPositions(string) ([]Position, error)
-    GetPending(string) (string, string, error)
-    GetUserFromDevice(string) (string, string, error)
-    GetDevicesForUser(string, string) ([]DeviceList, error)
-    StoreCommand(string, string, string) error
-    SetAccessToken(string, string) error
-    SetDeviceLock(string, bool) error
-    SetDeviceLocation(string, *Position) error
-    GcDatabase(string, string) error
-    PurgePosition(string) error
-    Touch(string) error
-    DeleteDevice(string) error
-    PurgeCommands(string) error
-    Close()
-    GetNonce() (string, error)
-    CheckNonce(string) (bool, error)
+	Init() error
+	RegisterDevice(string, *Device) (string, error)
+	GetDeviceInfo(string) (*Device, error)
+	GetPositions(string) ([]Position, error)
+	GetPending(string) (string, string, error)
+	GetUserFromDevice(string) (string, string, error)
+	GetDevicesForUser(string, string) ([]DeviceList, error)
+	StoreCommand(string, string, string) error
+	SetAccessToken(string, string) error
+	SetDeviceLock(string, bool) error
+	SetDeviceLocation(string, *Position) error
+	GcDatabase(string, string) error
+	PurgePosition(string) error
+	Touch(string) error
+	DeleteDevice(string) error
+	PurgeCommands(string) error
+	Close()
+	GetNonce() (string, error)
+	CheckNonce(string) (bool, error)
 }
 
 // Device position
@@ -76,5 +76,5 @@ type DeviceList struct {
 type Unstructured map[string]interface{}
 
 type AvailableStorage map[string]func(*util.MzConfig, util.Logger, util.Metrics) (Storage, error)
-var AvailableStores = make(AvailableStorage)
 
+var AvailableStores = make(AvailableStorage)

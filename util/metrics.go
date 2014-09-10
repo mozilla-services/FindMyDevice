@@ -147,3 +147,18 @@ func (self *Metric) Timer(metric string, value int64) {
 		self.statsd.Timing(metric, value, 1.0)
 	}
 }
+
+//===
+
+type TestMetric struct { }
+
+func NewTestMetric (prefix string, logger Logger, config *MzConfig) (*TestMetric) {
+    return &TestMetric{}
+}
+
+func (r *TestMetric) Prefix(string) {}
+func (r *TestMetric) Snapshot() (m map[string]interface{}) { return m}
+func (r *TestMetric) IncrementBy(string, int) {}
+func (r *TestMetric) Increment(string) {}
+func (r *TestMetric) Decrement(string) {}
+func (r *TestMetric) Timer(string, int64) {}

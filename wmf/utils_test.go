@@ -118,4 +118,3 @@ func Test_getDevFromUrl(t *testing.T) {
 		t.Error("Failed to trim bad characters:%s", r)
 	}
 }
-

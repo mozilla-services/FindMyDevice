@@ -94,14 +94,14 @@ func main() {
 	fullVers := fmt.Sprintf("%s-%s", config.Get("VERSION", VERSION),
 		getCodeVersion())
 	config.Override("VERSION", fullVers)
-    config.Override("ddl.create", opts.Ddlcreate)
-    config.Override("ddl.downgrade", opts.Ddldowngrade)
-    if opts.Ddlupgrade {
-        config.SetDefaultFlag("ddl.upgrade",true)
-    }
-    if opts.Ddllog {
-        config.SetDefaultFlag("ddl.log", true)
-    }
+	config.Override("ddl.create", opts.Ddlcreate)
+	config.Override("ddl.downgrade", opts.Ddldowngrade)
+	if opts.Ddlupgrade {
+		config.SetDefaultFlag("ddl.upgrade", true)
+	}
+	if opts.Ddllog {
+		config.SetDefaultFlag("ddl.log", true)
+	}
 	sock_secret, _ := util.GenUUID4()
 	config.SetDefault("ws.socket_secret", sock_secret)
 

@@ -139,9 +139,9 @@ func Test_ParseAuthHeader(t *testing.T) {
 }
 
 func Test_Compare(t *testing.T) {
-    fh := &Hawk{Signature: "123==="}
+	fh := &Hawk{Signature: "123==="}
 
-    if ! fh.Compare("123") {
-        t.Errorf("Failed to properly equate signatures")
-    }
+	if !fh.Compare("123") {
+		t.Errorf("Failed to properly equate signatures")
+	}
 }

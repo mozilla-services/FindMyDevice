@@ -12,8 +12,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-    "log"
 	"io"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -101,9 +101,9 @@ func OpenPostgres(config *util.MzConfig, logger util.Logger, metrics util.Metric
 		defExpry = 432000
 	}
 
-    if err = applyPostgresUpdates(config); err != nil {
-        return nil, err
-    }
+	if err = applyPostgresUpdates(config); err != nil {
+		return nil, err
+	}
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
@@ -131,17 +131,17 @@ func OpenPostgres(config *util.MzConfig, logger util.Logger, metrics util.Metric
 
 func applyPostgresUpdates(config *util.MzConfig) error {
 	if config.Get("ddl.create", "") != "" ||
-       config.GetFlag("ddl.upgrade") ||
-       config.Get("ddl.downgrade", "") != "" ||
-       config.GetFlag("ddl.log") {
-        if config.Get("ddl.create", "") != "" && config.GetFlag("ddl.upgrade") {
+		config.GetFlag("ddl.upgrade") ||
+		config.Get("ddl.downgrade", "") != "" ||
+		config.GetFlag("ddl.log") {
+		if config.Get("ddl.create", "") != "" && config.GetFlag("ddl.upgrade") {
 			log.Fatalf("Invalid DDL options.  You can only specify one DDL command at a time.")
 			return errors.New("Invalid option")
 		}
 
 		rcs := new(DBRcs)
 		rcs.Init(config)
-        if create := config.Get("ddl.create", ""); create != "" {
+		if create := config.Get("ddl.create", ""); create != "" {
 			if _, _, err := rcs.CreateNextRev("sql/patches", create); err != nil {
 				log.Fatalf("Could not create a new revision: %s", err.Error())
 			}
@@ -156,7 +156,7 @@ func applyPostgresUpdates(config *util.MzConfig) error {
 			return errors.New("Invalid database upgrade")
 		}
 
-        if down := config.Get("ddl.downgrade", ""); down != "" {
+		if down := config.Get("ddl.downgrade", ""); down != "" {
 			err := rcs.Downgrade("sql/patches", down)
 			if err != nil {
 				log.Fatalf("Could not downgrade database: %s", err.Error())
@@ -172,7 +172,7 @@ func applyPostgresUpdates(config *util.MzConfig) error {
 			return err
 		}
 	}
-    return nil
+	return nil
 }
 
 // Create the tables, indexes and other needed items.
@@ -771,5 +771,5 @@ func (self *pgStore) CheckNonce(nonce string) (bool, error) {
 }
 
 func init() {
-    AvailableStores["postgres"] = OpenPostgres
+	AvailableStores["postgres"] = OpenPostgres
 }
