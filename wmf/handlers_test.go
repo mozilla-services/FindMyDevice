@@ -5,10 +5,8 @@ package wmf
 
 import (
     "testing"
-    /*
-    "net/http"
-    "net/http/httptest"
-    */
+    //"net/http"
+    //"net/http/httptest"
 )
 
 type fakeWWS struct {
@@ -47,12 +45,20 @@ func Test_ClientBox_Del(t *testing.T) {
         t.Errorf("Record not purged");
     }
 }
-
 /*
 func Test_Handler_verifyFxAAssertion(t *testing.T) {
     // TODO: create a draft assertion, stub out http to not call remotely
     ts := httptest.NewServer(http.HandlerFunc(func(resp http.Response, req *http.Request){
             resp.Header.Add("Content-Type", "application/json")
-            fmt.Fprintln(resp, "
+            email := "test+test@example.com"
+            id := "0123456789abcdef"
+            fmt.Fprintln(resp, fmt.Sprintf("{\"fxa-generation\":1404770592087,\"fxa-lastAuthAt\":1404834090,\"fxa-verifiedEmail\":\"%s\",\"public-key\":{\"algorithm\":\"DS\",\"y\":\"\",\"p\":\"\",\"q\":\"\",\"g\":\"\"},\"principal\":{\"email\":\"%s@api.accounts.firefox.com\"},\"iat\":1404834172418,\"exp\":1404855782418,\"iss\":\"api.accounts.firefox.com\"}", email, id))
+        }))
+    defer ts.Close()
+    config := util.MzConfig{config: make(util.JsMap), flags: make(map[string]bool)}
+    config.Override("fxa.verifier", ts.URL)
+
+    handler := &Handler{config: config, logging:
+
 }
 */
