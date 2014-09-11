@@ -11,7 +11,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
-    "testing"
+	"testing"
 )
 
 type Log struct {
@@ -28,8 +28,9 @@ const (
 	INFO
 	DEBUG
 )
+
 var (
-    levels = []string{"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
+	levels = []string{"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
 )
 
 // The fields to relay. NOTE: object reflection is VERY CPU expensive.
@@ -39,12 +40,12 @@ var (
 type Fields map[string]string
 
 type Logger interface {
-    Log(level int64, mtype, payload string, field Fields) error
-    Info(mtype, payload string, field Fields) error
-    Debug(mtype, payload string, field Fields) error
-    Warn(mtype, payload string, field Fields) error
-    Error(mtype, payload string, field Fields) error
-    Critical(mtype, payload string, field Fields) error
+	Log(level int64, mtype, payload string, field Fields) error
+	Info(mtype, payload string, field Fields) error
+	Debug(mtype, payload string, field Fields) error
+	Warn(mtype, payload string, field Fields) error
+	Error(mtype, payload string, field Fields) error
+	Critical(mtype, payload string, field Fields) error
 }
 
 // Create a new Stdout logging interface.
@@ -121,41 +122,41 @@ func (r *Log) Critical(mtype, msg string, fields Fields) (err error) {
 // ====
 
 type TestLog struct {
-    T *testing.T
-    Out string
+	T   *testing.T
+	Out string
 }
 
 func (r *TestLog) Log(level int64, mtype, payload string, fields Fields) error {
-    r.Out = fmt.Sprintf("[% 8s] %s:%s %+v", levels[level], mtype, payload, fields)
-    switch level {
-case CRITICAL:
-    r.T.Fatal(r.Out)
-case ERROR:
-    r.T.Error(r.Out)
-default:
-    r.T.Log(r.Out)
-}
-    return nil
-}
-
-func (r *TestLog) Info(mtype, msg string, fields Fields) (error) {
-    return r.Log(INFO, mtype, msg, fields)
+	r.Out = fmt.Sprintf("[% 8s] %s:%s %+v", levels[level], mtype, payload, fields)
+	switch level {
+	case CRITICAL:
+		r.T.Fatal(r.Out)
+	case ERROR:
+		r.T.Error(r.Out)
+	default:
+		r.T.Log(r.Out)
+	}
+	return nil
 }
 
-func (r *TestLog) Debug(mtype, msg string, fields Fields) (error) {
-    return r.Log(DEBUG, mtype, msg, fields)
+func (r *TestLog) Info(mtype, msg string, fields Fields) error {
+	return r.Log(INFO, mtype, msg, fields)
 }
 
-func (r *TestLog) Warn(mtype, msg string, fields Fields) (error) {
-    return r.Log(WARNING, mtype, msg, fields)
+func (r *TestLog) Debug(mtype, msg string, fields Fields) error {
+	return r.Log(DEBUG, mtype, msg, fields)
 }
 
-func (r *TestLog) Error(mtype, msg string, fields Fields) (error) {
-    return r.Log(ERROR, mtype, msg, fields)
+func (r *TestLog) Warn(mtype, msg string, fields Fields) error {
+	return r.Log(WARNING, mtype, msg, fields)
 }
 
-func (r *TestLog) Critical(mtype, msg string, fields Fields) (error) {
-    return r.Log(CRITICAL, mtype, msg, fields)
+func (r *TestLog) Error(mtype, msg string, fields Fields) error {
+	return r.Log(ERROR, mtype, msg, fields)
+}
+
+func (r *TestLog) Critical(mtype, msg string, fields Fields) error {
+	return r.Log(CRITICAL, mtype, msg, fields)
 }
 
 // o4fs

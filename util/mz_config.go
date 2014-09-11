@@ -56,7 +56,7 @@ func ReadMzConfig(filename string) (config *MzConfig, err error) {
 
 // Used by testing mostly
 func NewMzConfig() *MzConfig {
-    return &MzConfig{config: make(JsMap), flags: make(map[string]bool)}
+	return &MzConfig{config: make(JsMap), flags: make(map[string]bool)}
 }
 
 /* Get a value from the config map, providing an optional default.

@@ -24,13 +24,12 @@ type trec struct {
 type timer map[string]trec
 
 type Metrics interface {
-    Increment(string)
-    IncrementBy(string, int)
-    Decrement(string)
-    Timer(string, int64)
-    Snapshot() map[string]interface{}
+	Increment(string)
+	IncrementBy(string, int)
+	Decrement(string)
+	Timer(string, int64)
+	Snapshot() map[string]interface{}
 }
-
 
 type Metric struct {
 	dict   map[string]int64 // counters
@@ -41,7 +40,7 @@ type Metric struct {
 	born   time.Time
 }
 
-func NewMetrics(prefix string, logger Logger, config *MzConfig) (*Metric) {
+func NewMetrics(prefix string, logger Logger, config *MzConfig) *Metric {
 
 	var statsdc *statsd.Client
 	if server := config.Get("statsd.server", ""); server != "" {
@@ -150,15 +149,15 @@ func (self *Metric) Timer(metric string, value int64) {
 
 //===
 
-type TestMetric struct { }
+type TestMetric struct{}
 
-func NewTestMetric (prefix string, logger Logger, config *MzConfig) (*TestMetric) {
-    return &TestMetric{}
+func NewTestMetric(prefix string, logger Logger, config *MzConfig) *TestMetric {
+	return &TestMetric{}
 }
 
-func (r *TestMetric) Prefix(string) {}
-func (r *TestMetric) Snapshot() (m map[string]interface{}) { return m}
-func (r *TestMetric) IncrementBy(string, int) {}
-func (r *TestMetric) Increment(string) {}
-func (r *TestMetric) Decrement(string) {}
-func (r *TestMetric) Timer(string, int64) {}
+func (r *TestMetric) Prefix(string)                        {}
+func (r *TestMetric) Snapshot() (m map[string]interface{}) { return m }
+func (r *TestMetric) IncrementBy(string, int)              {}
+func (r *TestMetric) Increment(string)                     {}
+func (r *TestMetric) Decrement(string)                     {}
+func (r *TestMetric) Timer(string, int64)                  {}
