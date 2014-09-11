@@ -1,4 +1,4 @@
-create table if not exists userToDeviceMap (userId varchar, deviceId varchar, name varchar, date date);
+create table if not exists userToDeviceMap (userId varchar, deviceId varchar, name varchar, date timestamp);
 create table if not exists deviceInfo (deviceId varchar unique, lockable boolean, loggedin boolean, lastExchange timestamp, hawkSecret varchar, pushurl varchar, accepts varchar, accesstoken varchar);
 create table if not exists pendingCommands (id bigserial, deviceId varchar, time timestamp, cmd varchar, type varchar);
 create table if not exists position (id bigserial, deviceId varchar, time  timestamp, latitude real, longitude real, altitude real, accuracy real);

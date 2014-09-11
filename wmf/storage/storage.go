@@ -216,7 +216,6 @@ func (self *Storage) createDb() (err error) {
 }
 
 func (self *Storage) markDb(date string) (err error) {
-	fmt.Printf("### marking db\n")
 	dbh := self.db
 	result, err := dbh.Exec("update meta set val=$2 where key=$1;",
 		"db.ver", date)
@@ -243,7 +242,7 @@ func (self *Storage) RegisterDevice(userid string, dev Device) (devId string, er
 	err = dbh.QueryRow("select deviceid from userToDeviceMap where userId = $1 and deviceid=$2;", userid, dev.ID).Scan(&deviceId)
 	if err == nil && deviceId == dev.ID {
 		self.logger.Debug(self.logCat, "Updating db",
-			util.Fields{"userId": userid, "deviceid": dev.ID})
+			util.Fields{"userId": userid, "deviceId": dev.ID})
 		rows, err := dbh.Query("update deviceinfo set lockable=$1, loggedin=$2, lastExchange=$3, hawkSecret=$4, accepts=$5, pushUrl=$6 where deviceid=$7;",
 			dev.HasPasscode,
 			dev.LoggedIn,

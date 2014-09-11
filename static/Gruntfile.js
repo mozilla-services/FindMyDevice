@@ -417,14 +417,12 @@ module.exports = function (grunt) {
   // CSS TASK
   grunt.registerTask('css', [
     'sass',
-    'autoprefixer',
-    'csslint'
+    'autoprefixer'
   ]);
 
   // DEFAULT TASK
   grunt.registerTask('default', [
     'lint:prebuild',
-    'validate-package',
     'build',
     'lint:postbuild',
     'test'
@@ -443,6 +441,10 @@ module.exports = function (grunt) {
       case 'postbuild':
         return grunt.task.run([
           'htmllint'
+        ]);
+      default:
+        return grunt.task.run([
+          'lint:prebuild'
         ]);
     }
   });

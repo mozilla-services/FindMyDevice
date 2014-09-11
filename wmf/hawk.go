@@ -71,7 +71,6 @@ func (self *Hawk) AsHeader(req *http.Request, id, body, extra, secret string) st
 		self.Extra,
 		self.Hash,
 		self.Signature)
-	//fmt.Printf("### header: %s\n", rep)
 	return rep
 }
 
@@ -184,7 +183,7 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 	mac.Write([]byte(marshalStr))
 	self.Signature = base64.StdEncoding.EncodeToString(mac.Sum(nil))
 	if self.config.GetFlag("hawk.show_hash") {
-		self.logger.Debug("hawk", "#### Marshal",
+		self.logger.Debug("hawk", "Marshal",
 			util.Fields{"marshalStr": marshalStr,
 				"secret": secret,
 				"mac":    self.Signature})
