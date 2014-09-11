@@ -144,14 +144,9 @@ def geoWalk():
 def newLocation(accuracy=5000):
     """ Create a new, fake location
     """
-    accuracy = accuracy - random.randint(0, 300)
-    if (random.randint(0, 1000) == 42):
-        accuracy = random.randint(1000, 50000)
     utc = int(time.time())
     lat = 37.3866 + geoWalk()
     lon = -122.0608 + geoWalk()
-    if (accuracy < 10):
-        accuracy = 10
     return {"t": {"ok": True, "la": lat, "lo": lon,
             "ti": utc, "acc": accuracy, "has_passcode": True}}
 
@@ -299,6 +294,16 @@ def sendCmd(config, cred, cmd):
     return send(trg, cmd, cred)
 
 
+def adjustAccuracy(accuracy):
+    accuracy = accuracy - random.randint(0, 300)
+    # if you have to ask "Why 42?", then you need to read more.
+    if (random.randint(0, 1000) < 42):
+        accuracy = random.randint(1000, 50000)
+    if (accuracy < 10):
+        accuracy = 10
+    return accuracy
+
+
 def main(argv):
     accuracy = 5000
     config = getConfig(argv)
@@ -323,6 +328,7 @@ def main(argv):
         #import pdb; pdb.set_trace()
         #print "!!! Sending reregister... \n"
         #time.sleep(1)
+        accuracy = adjustAccuracy(accuracy)
         cmd = sendCmd(config, cred, newLocation(accuracy))
         #cmd, cred = registerNew(config, cred)
 
