@@ -89,7 +89,7 @@ var (
 	ErrInvalidReply  = errors.New("Invalid Command Response")
 	ErrAuthorization = errors.New("Needs Authorization")
 	ErrNoUser        = errors.New("No User")
-	ErrOauth         = errors.New("OAuth Error")
+	ErrOAuth         = errors.New("OAuth Error")
 	ErrNoClient      = errors.New("No Client for Update")
 	ErrTooManyClient = errors.New("Too Many Clients for device")
 	ErrDeviceDeleted = errors.New("Device deleted")
@@ -431,7 +431,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 		if status == "failure" {
 			self.logger.Error(self.logCat, "FxA verification failed",
 				util.Fields{"error": buff["reason"].(string)})
-			return "", "", ErrOauth
+			return "", "", ErrOAuth
 		}
 	}
 	// the response has either been a redirect or a validated assertion.
@@ -467,23 +467,23 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	if len(code) == 0 {
 		self.logger.Error(self.logCat, "FxA code not present",
 			util.Fields{"url": redir.(string)})
-		return "", "", ErrOauth
+		return "", "", ErrOAuth
 	}
 	//Convert code to access token.
 	accessToken, err := self.getAccessToken(code)
 
 	if err != nil {
-		return "", "", ErrOauth
+		return "", "", ErrOAuth
 	}
 	// If we ever need more, probably want to use "profile".
 	// this will fetch a user's complete profile.
 	userid, err = self.getUserData(accessToken, "uid")
 	if err != nil {
-		return "", "", ErrOauth
+		return "", "", ErrOAuth
 	}
 	email, err = self.getUserData(accessToken, "email")
 	if err != nil {
-		return "", "", ErrOauth
+		return "", "", ErrOAuth
 	}
 	return userid, email, nil
 }
@@ -925,7 +925,7 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not get oauth token",
 			util.Fields{"code": code, "error": err.Error()})
-		return "", ErrOauth
+		return "", ErrOAuth
 	}
 	req.Header.Add("Content-Type", "application/json")
 	cli := http.DefaultClient
@@ -940,13 +940,13 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 		self.logger.Error(self.logCat, "FxA Access token failure",
 			util.Fields{"code": strconv.FormatFloat(code.(float64), 'f', 1, 64),
 				"body": raw})
-		return "", ErrOauth
+		return "", ErrOAuth
 	}
 	token, ok := reply["access_token"]
 	if !ok {
 		self.logger.Error(self.logCat, "OAuth Access token missing from reply",
 			util.Fields{"code": code})
-		return "", ErrOauth
+		return "", ErrOAuth
 	}
 	return token.(string), nil
 }
