@@ -43,6 +43,7 @@ var opts struct {
 const (
 	// VERSION is the version number for system.
 	VERSION = "1.4"
+	SERVER  = "FindMyDevice"
 )
 
 // get the latest version from the file, "GITREF"
@@ -94,6 +95,7 @@ func main() {
 	fullVers := fmt.Sprintf("%s-%s", config.Get("VERSION", VERSION),
 		getCodeVersion())
 	config.Override("VERSION", fullVers)
+	config.Override("SERVER", SERVER)
 	config.Override("ddl.create", opts.Ddlcreate)
 	config.Override("ddl.downgrade", opts.Ddldowngrade)
 	if opts.Ddlupgrade {
