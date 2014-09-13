@@ -33,6 +33,7 @@ var opts struct {
 	Profile    string `long:"profile"`
 	MemProfile string `long:"memprofile"`
 	LogLevel   int    `short:"l" long:"loglevel"`
+	LogFile    string `short:"o" long:"logfile"`
 
 	Ddlcreate    string `long:"ddlcreate" description:"Create a new version"`
 	Ddldowngrade string `long:"ddldowngrade" description:"Downgrade to a specific version"`
@@ -98,6 +99,9 @@ func main() {
 	config.Override("SERVER", SERVER)
 	config.Override("ddl.create", opts.Ddlcreate)
 	config.Override("ddl.downgrade", opts.Ddldowngrade)
+	if opts.LogFile != "" {
+		config.Override("logger.output", opts.LogFile)
+	}
 	if opts.Ddlupgrade {
 		config.SetDefaultFlag("ddl.upgrade", true)
 	}

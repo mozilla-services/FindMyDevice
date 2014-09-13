@@ -5,33 +5,25 @@
 package util
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
-	"runtime"
+	"os"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 type Log struct {
-	conf   *MzConfig
-	trace  bool
-	filter int64
+	conf    *MzConfig
+	filter  int32
+	logName string
+	logType string
+	outfile string
+	output  *os.File
 }
-
-// Message levels
-const (
-	CRITICAL = iota
-	ERROR
-	WARNING
-	INFO
-	DEBUG
-)
-
-var (
-	levels = []string{"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
-)
 
 // The fields to relay. NOTE: object reflection is VERY CPU expensive.
 // I specify strings here to reduce that as much as possible. Please do
@@ -39,26 +31,103 @@ var (
 // can dramatically increase server load.
 type Fields map[string]string
 
+// Message levels
+const (
+	EMERGENCY = iota // Everything is broken and on fire
+	ALERT            // We're broken.
+	CRITICAL         // Someone else is broken, but it's breaking us
+	ERROR            // Something bad happened.
+	WARNING          // Huh, that's not supposed to happen, but we can deal with it.
+	NOTICE           // That was odd, but not a big deal.
+	INFO             // The thing you wanted to happen happened.
+	DEBUG            // debugging.
+)
+
+var (
+	levels = []string{"EMERGENCY", "ALERT", "CRITICAL", "ERROR", "WARNING",
+		"NOTICE", "INFO", "DEBUG"}
+)
+
+func marshalFields(fields Fields) (flist []*Field, err error) {
+	flist = make([]*Field, len(fields))
+	i := 0
+	ty := Field_STRING
+	for key, value := range fields {
+		k := key
+		ff := &Field{
+			Name:        &k,
+			ValueString: []string{value},
+			ValueType:   &ty,
+		}
+		flist[i] = ff
+		i++
+	}
+	return flist, nil
+}
+
+func newMessage(level int32, logName, mtype, payload string, fields Fields) *Message {
+	msg := new(Message)
+
+	ts := time.Now().UTC().Unix()
+	hn, _ := os.Hostname()
+	pid := int32(os.Getpid())
+	envVersion := "1"
+
+	msg.Uuid, _ = RawUUID4()
+	msg.Timestamp = &ts
+	msg.Type = &mtype
+	msg.Logger = &logName
+	msg.Hostname = &hn
+	msg.EnvVersion = &envVersion // hardcoded logging envelope version
+	msg.Pid = &pid
+	msg.Payload = &payload
+	msg.Severity = &level
+	msg.Fields, _ = marshalFields(fields)
+	return msg
+}
+
+// ===
 type Logger interface {
-	Log(level int64, mtype, payload string, field Fields) error
+	Log(level int32, mtype, payload string, field Fields) error
 	Info(mtype, payload string, field Fields) error
 	Debug(mtype, payload string, field Fields) error
 	Warn(mtype, payload string, field Fields) error
 	Error(mtype, payload string, field Fields) error
 	Critical(mtype, payload string, field Fields) error
+	Alert(mtype, payload string, field Fields) error
 }
 
 // Create a new Stdout logging interface.
 func NewLogger(conf *MzConfig) *Log {
 	//Preflight
 	var filter int64
+	var output *os.File
+	var err error
 
-	filter, _ = strconv.ParseInt(conf.Get("logger.filter", "10"), 0, 0)
+	filter, _ = strconv.ParseInt(conf.Get("logger.filter", "3"), 0, 0)
+	name := conf.Get("logger.loggername",
+		fmt.Sprintf("%s %s", conf.Get("SERVER", "unknown"),
+			conf.Get("VERSION", "Unknown")))
+	outFile := conf.Get("logger.output", "STDOUT")
+	switch strings.ToLower(outFile) {
+	case "stdout":
+		output = os.Stdout
+	case "stderr":
+		output = os.Stderr
+	default:
+		output, err = os.Create(outFile)
+		if err != nil {
+			panic(fmt.Sprintf("Could not open logging file %s, %s", outFile, err.Error))
+		}
+	}
 
 	return &Log{
-		conf:   conf,
-		trace:  conf.GetFlag("logger.show_caller"),
-		filter: filter}
+		conf:    conf,
+		logName: name,
+		logType: conf.Get("logger.logtype", "protobuf"),
+		outfile: outFile,
+		output:  output,
+		filter:  int32(filter)}
 }
 
 // Logging workhorse function. Chances are you're not going to call this
@@ -67,42 +136,37 @@ func NewLogger(conf *MzConfig) *Log {
 // mtype - Message type, Short class identifier for the message
 // payload - Main error message
 // fields - additional optional key/value data associated with the message.
-func (r *Log) Log(level int64, mtype, payload string, fields Fields) (err error) {
+func (r *Log) Log(level int32, mtype, payload string, fields Fields) (err error) {
+	// Only print out the debug message if it's less than the filter.
 	if level > r.filter {
 		return
 	}
 
-	// Only print out the debug message if it's less than the filter.
-	dump := fmt.Sprintf("[%d]% 7s: %s", level, mtype, payload)
-	if len(fields) > 0 {
-		var fld []string
-		for key, val := range fields {
-			fld = append(fld, key+": "+val)
-		}
-		dump = fmt.Sprintf("%s {%s}", dump, strings.Join(fld, ", "))
+	var dump []byte
+	msg := newMessage(level, r.logName, mtype, payload, fields)
+	// switch eventually?
+	switch r.logType {
+	case "json":
+		dump, err = json.Marshal(msg)
+	case "human":
+		dump, err = r.forHumans(msg)
+	default:
+		dump, err = msg.Marshal()
 	}
-	if r.trace {
-		// add in go language tracing. (Also CPU intensive, but REALLY helpful
-		// when dev/debugging)
-
-		if pc, file, line, ok := runtime.Caller(2); ok {
-			funk := runtime.FuncForPC(pc)
-			dump = fmt.Sprintf("%s [%s:%s %s]", dump,
-				file, strconv.FormatInt(int64(line), 0), funk.Name())
-		}
+	if err != nil {
+		log.Printf("Error dumping log object %s", err)
 	}
-	log.Printf(dump)
+	fmt.Fprintln(r.output, string(dump))
 
 	return nil
 }
 
-// record the lowest priority message
-func (r *Log) Info(mtype, msg string, fields Fields) (err error) {
-	return r.Log(INFO, mtype, msg, fields)
-}
-
 func (r *Log) Debug(mtype, msg string, fields Fields) (err error) {
 	return r.Log(DEBUG, mtype, msg, fields)
+}
+
+func (r *Log) Info(mtype, msg string, fields Fields) (err error) {
+	return r.Log(INFO, mtype, msg, fields)
 }
 
 func (r *Log) Warn(mtype, msg string, fields Fields) (err error) {
@@ -113,10 +177,37 @@ func (r *Log) Error(mtype, msg string, fields Fields) (err error) {
 	return r.Log(ERROR, mtype, msg, fields)
 }
 
-// record the Highest priority message, and include a printstack to STDERR
 func (r *Log) Critical(mtype, msg string, fields Fields) (err error) {
 	debug.PrintStack()
 	return r.Log(CRITICAL, mtype, msg, fields)
+}
+
+func (r *Log) Alert(mtype, msg string, fields Fields) (err error) {
+	debug.PrintStack()
+	return r.Log(CRITICAL, mtype, msg, fields)
+}
+
+func (r *Log) Emergency(mtype, msg string, fields Fields) (err error) {
+	debug.PrintStack()
+	return r.Log(CRITICAL, mtype, msg, fields)
+}
+
+func (r *Log) forHumans(msg *Message) ([]byte, error) {
+	reply := fmt.Sprintf("%s [% 8s] %s \"%s\" ",
+		time.Unix(*msg.Timestamp, 0).Format("2006-01-02 03:04:05"),
+		levels[*msg.Severity],
+		*msg.Type,
+		*msg.Payload)
+	if msg.Fields != nil {
+		var ff = make([]string, len(msg.Fields))
+		for i, f := range msg.Fields {
+			ff[i] = fmt.Sprintf("%s:%s", *f.Name, f.ValueString[0])
+			i++
+		}
+		reply = reply + strings.Join(ff, ", ")
+	}
+	return []byte(reply), nil
+
 }
 
 // ====
@@ -126,10 +217,10 @@ type TestLog struct {
 	Out string
 }
 
-func (r *TestLog) Log(level int64, mtype, payload string, fields Fields) error {
+func (r *TestLog) Log(level int32, mtype, payload string, fields Fields) error {
 	r.Out = fmt.Sprintf("[% 8s] %s:%s %+v", levels[level], mtype, payload, fields)
 	switch level {
-	case CRITICAL:
+	case CRITICAL, ALERT, EMERGENCY:
 		r.T.Fatal(r.Out)
 	case ERROR:
 		r.T.Error(r.Out)
@@ -157,6 +248,14 @@ func (r *TestLog) Error(mtype, msg string, fields Fields) error {
 
 func (r *TestLog) Critical(mtype, msg string, fields Fields) error {
 	return r.Log(CRITICAL, mtype, msg, fields)
+}
+
+func (r *TestLog) Alert(mtype, msg string, fields Fields) error {
+	return r.Log(ALERT, mtype, msg, fields)
+}
+
+func (r *TestLog) Emergency(mtype, msg string, fields Fields) error {
+	return r.Log(EMERGENCY, mtype, msg, fields)
 }
 
 // o4fs
