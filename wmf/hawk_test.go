@@ -32,6 +32,17 @@ func Test_GenNonce(t *testing.T) {
 	}
 }
 
+func Test_Nonces(t *testing.T) {
+	nonce := GenNonce(0)
+
+	if !HawkNonces.Add(nonce) {
+		t.Errorf("Could not add nonce to HawkNonces")
+	}
+	if HawkNonces.Add(nonce) {
+		t.Errorf("Duplicate Nonce not blocked")
+	}
+}
+
 func Test_Clear(t *testing.T) {
 	h := fake_hawk
 
@@ -106,13 +117,13 @@ func Test_GenerateSignature(t *testing.T) {
 	hh.Clear()
 	hh.Time = "000"
 	hh.Nonce = "000"
-	hh.Method = "GET"
+	hh.Method = "POST"
 	hh.Hash = "000"
 	hh.Path = "000"
 	if err := hh.GenerateSignature(fr, "000", "body", "secret"); err != nil {
 		t.Errorf("GenerateSignture returned an error %s", err.Error())
 	}
-	if hh.Signature != "pJjRqB+tg2BI+St/qRDvUnGmDM9/To7VhSK9X/1xwA8=" {
+	if hh.Signature != "EHytGbwULFs9bYFurnTwGc0k+ZSsVEtCuoGDxs3iV20=" {
 		t.Errorf("Invalid signature %s", hh.Signature)
 	}
 }
@@ -135,6 +146,10 @@ func Test_ParseAuthHeader(t *testing.T) {
 		hh.Hash != "elvaRjdhz7QeKO4WtsxibZwGEaTtRqVNRYwx5yx074w=" ||
 		hh.Signature != "nqKnXZ12mluJj5gGuYqN9OzDCkAxw9lUxoOFDG0wQVI=" {
 		t.Errorf("ParseAuthHeader incorrectly parsed header %+v", hh)
+	}
+
+	if err := hh.ParseAuthHeader(fr, nil); err == nil {
+		t.Errorf("ParseAuthHeader failed to detect replay")
 	}
 }
 

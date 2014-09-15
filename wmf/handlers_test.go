@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gorilla/sessions"
 	"github.com/mozilla-services/FindMyDevice/util"
 	"github.com/mozilla-services/FindMyDevice/wmf/storage"
 )
@@ -49,7 +50,7 @@ func Test_ClientBox_Del(t *testing.T) {
 	}
 }
 
-func testServer(email, id string) *httptest.Server {
+func fakeValidator(email, id string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		//resp.Header.Add("Content-Type", "application/json")
 		email := "test+test@example.com"
@@ -58,7 +59,7 @@ func testServer(email, id string) *httptest.Server {
 	}))
 }
 
-func testHandler(config *util.MzConfig, t *testing.T) *Handler {
+func testHandler(config *util.MzConfig, t *testing.T) (*Handler, storage.Storage) {
 	logger := &util.TestLog{T: t}
 	metrics := &util.TestMetric{}
 	storage, _ := storage.OpenInmemory(config, logger, metrics)
@@ -67,7 +68,7 @@ func testHandler(config *util.MzConfig, t *testing.T) *Handler {
 		logger:  logger,
 		store:   storage,
 		metrics: metrics,
-	}
+	}, storage
 }
 
 func Test_Handler_verifyFxAAssertion(t *testing.T) {
@@ -75,12 +76,12 @@ func Test_Handler_verifyFxAAssertion(t *testing.T) {
 	temail := "test+test@example.com"
 	tid := "0123456789abcdef"
 
-	ts := testServer(temail, tid)
+	ts := fakeValidator(temail, tid)
 	defer ts.Close()
 
 	config := util.NewMzConfig()
 	config.Override("fxa.verifier", ts.URL)
-	h := testHandler(config, t)
+	h, _ := testHandler(config, t)
 
 	userid, email, err := h.verifyFxAAssertion("FakeAssertion")
 
@@ -89,6 +90,93 @@ func Test_Handler_verifyFxAAssertion(t *testing.T) {
 		err != nil {
 		t.Logf("Returned userid: %s, email: %s", userid, email)
 		t.Errorf("Failed to validate mock assertion %s", err)
+	}
+}
+
+func Test_Handler_clearSession(t *testing.T) {
+	var ok bool
+
+	config := util.NewMzConfig()
+	h, _ := testHandler(config, t)
+	sess := new(sessions.Session)
+	sess.Values = make(map[interface{}]interface{})
+	sess.Values[SESSION_USERID] = true
+	sess.Values[SESSION_DEVICEID] = true
+	sess.Values[SESSION_EMAIL] = true
+	sess.Values[SESSION_TOKEN] = true
+	sess.Values[SESSION_CSRFTOKEN] = true
+	h.clearSession(sess)
+	if _, ok = sess.Values[SESSION_USERID]; ok {
+		t.Errorf("Userid not cleared")
+	}
+	if _, ok = sess.Values[SESSION_DEVICEID]; ok {
+		t.Errorf("Deviceid not cleared")
+	}
+	if _, ok = sess.Values[SESSION_EMAIL]; ok {
+		t.Errorf("Email not cleared")
+	}
+	if _, ok = sess.Values[SESSION_TOKEN]; ok {
+		t.Errorf("Token not cleared")
+	}
+	if _, ok = sess.Values[SESSION_CSRFTOKEN]; ok {
+		t.Errorf("CSRFToken not cleared")
+	}
+}
+
+func Test_Handler_initData(t *testing.T) {
+	tuid := "abcdef123456"
+	config := util.NewMzConfig()
+	config.Override("ws.hostname", "validhost")
+	h, store := testHandler(config, t)
+	store.RegisterDevice("TestUserID", &storage.Device{
+		ID:   tuid,
+		User: "TestUserID",
+	})
+	store.SetDeviceLocation(tuid, &storage.Position{})
+
+	freq, _ := http.NewRequest("GET", "http://localhost/", nil)
+	fresp := httptest.NewRecorder()
+	fsess := &sessionInfoStruct{
+		AccessToken: "testtest",
+		CSRFToken:   "test-test",
+	}
+
+	// get no login data
+	fsess.UserId = "TestUserID"
+	fsess.Email = "Test@test.test"
+	data, err := h.initData(fresp, freq, fsess)
+	if err != nil {
+		t.Errorf("initData: %s", err.Error())
+	}
+	if data == nil {
+		t.Error("initData: No data returned")
+		return
+	}
+	if data.Token == "" {
+		t.Error("initData: invalid Token")
+	}
+	if host, ok := data.Host["Hostname"]; !ok || host != "validhost" {
+		t.Error("initData: invalid hostname returned")
+	}
+	if len(data.DeviceList) == 0 {
+		t.Error("initData: No devices returned for user")
+	}
+	// get login data
+	freq, _ = http.NewRequest("GET", fmt.Sprintf("http://localhost/%s", tuid), nil)
+	data, err = h.initData(fresp, freq, fsess)
+	if err != nil {
+		t.Errorf("initData: %s", err.Error())
+	}
+	// check the device list
+	if data.Device.ID != tuid {
+		t.Error("initData: incorrect device id")
+	}
+	if data.Device == nil {
+		t.Error("initData:No specific device record returned")
+		return
+	}
+	if data.Device.User != "TestUserID" {
+		t.Error("initData: incorrect user id")
 	}
 }
 

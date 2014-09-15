@@ -249,6 +249,9 @@ func (self *Handler) extractAudience(assertion string) (audience string) {
 
 // verify a Persona assertion using the config values
 // part of Handler for config & logging reasons
+// Persona support is deprecated and may eventually go away. It is
+// still provided for educational reasons and in case you want to use this
+// with a private Persona service.
 func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email string, err error) {
 	var ok bool
 	var audience string
@@ -842,6 +845,11 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 	}
 
 	// Generate the comparator signature from what we know.
+	if !HawkNonces.Add(rhawk.Nonce) {
+		self.logger.Warn(self.logCat, "Encountered duplicate nonce",
+			nil)
+		return false
+	}
 	lhawk.Nonce = rhawk.Nonce
 	lhawk.Time = rhawk.Time
 	// getting intermittent sig clashes. I'm copying time, but i don't know if the
