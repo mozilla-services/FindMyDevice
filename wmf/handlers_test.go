@@ -284,7 +284,6 @@ func Test_Handler_getSessionInfo(t *testing.T) {
 }
 
 func Test_Handler_Cmd(t *testing.T) {
-	//var err error
 	var name = "Test_Handler_Cmd"
 	var email = "test@test.co"
 	var uid = "abcdef123456"

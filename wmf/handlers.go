@@ -837,7 +837,7 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 	// Get the remote signature from the header
 	err = rhawk.ParseAuthHeader(req, self.logger)
 	if err != nil {
-		self.logger.Error(self.logCat, "Invaild Hawk header",
+		self.logger.Error(self.logCat, "Invalid Hawk header",
 			util.Fields{"error": err.Error()})
 		return false
 	}
