@@ -219,14 +219,7 @@ type TestLog struct {
 
 func (r *TestLog) Log(level int32, mtype, payload string, fields Fields) error {
 	r.Out = fmt.Sprintf("[% 8s] %s:%s %+v", levels[level], mtype, payload, fields)
-	switch level {
-	case CRITICAL, ALERT, EMERGENCY:
-		r.T.Fatal(r.Out)
-	case ERROR:
-		r.T.Error(r.Out)
-	default:
-		r.T.Log(r.Out)
-	}
+	r.T.Log(r.Out)
 	return nil
 }
 

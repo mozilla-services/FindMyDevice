@@ -43,7 +43,6 @@ type Handler struct {
 	accepts []string
 	hawk    *Hawk
 	store   storage.Storage
-	maxCli  int64
 	verify  func(string) (string, string, error)
 }
 
@@ -97,8 +96,6 @@ var (
 
 // package globals
 var (
-	// using a map of maps here because it's less hassle than iterating
-	// over a list. Need to investigate if there's significant memory loss
 	sessionStore *sessions.CookieStore
 	Clients      *ClientBox
 )
@@ -106,6 +103,7 @@ var (
 type ClientBox struct {
 	sync.RWMutex
 	clients map[string]map[string]WWS
+	Max     int64
 }
 
 // apply bin64 padd
@@ -119,12 +117,12 @@ func NewClientBox() *ClientBox {
 
 // Client Mapping functions
 // Add a new trackable client.
-func (c *ClientBox) Add(id, instance string, sock WWS, maxInstances int64) error {
+func (c *ClientBox) Add(id, instance string, sock WWS) error {
 	defer c.Unlock()
 	c.Lock()
 	if clients, ok := c.clients[id]; ok {
 		// if we know the ID, check to see if we have the instance.
-		if maxInstances > 0 && len(clients) >= int(maxInstances) {
+		if c.Max > 0 && len(clients) >= int(c.Max) {
 			return ErrTooManyClient
 		}
 		if _, ok := clients[instance]; ok {
@@ -839,17 +837,11 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 	// Get the remote signature from the header
 	err = rhawk.ParseAuthHeader(req, self.logger)
 	if err != nil {
-		self.logger.Error(self.logCat, "Could not parse Hawk header",
+		self.logger.Error(self.logCat, "Invaild Hawk header",
 			util.Fields{"error": err.Error()})
 		return false
 	}
 
-	// Generate the comparator signature from what we know.
-	if !HawkNonces.Add(rhawk.Nonce) {
-		self.logger.Warn(self.logCat, "Encountered duplicate nonce",
-			nil)
-		return false
-	}
 	lhawk.Nonce = rhawk.Nonce
 	lhawk.Time = rhawk.Time
 	// getting intermittent sig clashes. I'm copying time, but i don't know if the
@@ -1075,7 +1067,7 @@ func NewHandler(config *util.MzConfig, logger util.Logger, metrics util.Metrics)
 		// This confuses gorilla, which winds up setting two "user" cookies.
 		//MaxAge: 3600 * 24,
 	}
-	maxCli, _ := strconv.ParseInt(config.Get("ws.max_clients", "0"), 10, 64)
+	Clients.Max, _ = strconv.ParseInt(config.Get("ws.max_clients", "0"), 10, 64)
 
 	// Initialize the data store once. This creates tables and
 	// applies required changes.
@@ -1086,7 +1078,6 @@ func NewHandler(config *util.MzConfig, logger util.Logger, metrics util.Metrics)
 		logCat:  "handler",
 		metrics: metrics,
 		store:   store,
-		maxCli:  maxCli,
 	}
 
 	// oh, go...
@@ -1785,6 +1776,13 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 
 	deviceList, err := store.GetDevicesForUser(data.UserId, self.genHash(email))
 	if err != nil {
+		if err == storage.ErrUnknownDevice {
+			self.logger.Info(self.logCat,
+				"No devices for user",
+				util.Fields{"userid": data.UserId})
+			http.Error(resp, "{}", 204)
+			return
+		}
 		self.logger.Error(self.logCat,
 			"Could not get devices for user",
 			util.Fields{"error": err.Error()})
@@ -2207,7 +2205,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	}
 
 	self.metrics.Increment("page.socket")
-	if err := Clients.Add(self.devId, instance, sock, self.maxCli); err != nil {
+	if err := Clients.Add(self.devId, instance, sock); err != nil {
 		self.logger.Error(self.logCat,
 			"Could not add WebUI client",
 			util.Fields{"deviceId": self.devId,

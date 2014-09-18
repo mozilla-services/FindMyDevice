@@ -24,6 +24,7 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/pprof"
+	"strconv"
 	"strings"
 	"syscall"
 )
@@ -167,6 +168,14 @@ func main() {
 	if err != nil {
 		logger.Error("main", "Unable to connect to database. Have you configured it yet?", nil)
 		return
+	}
+	if hawkCount := config.Get("hawk.nonce_cache", "1000"); hawkCount != "1000" {
+		count, err := strconv.ParseInt(hawkCount, 10, 32)
+		if err != nil {
+			log.Printf("Could not read hawk.nonce_cache, defaulting to 1000")
+		} else {
+			wmf.InitHawkNonces(count)
+		}
 	}
 	handlers := wmf.NewHandler(config, logger, metrics)
 	if handlers == nil {

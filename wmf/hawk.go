@@ -69,13 +69,16 @@ type nonceCache struct {
 
 var HawkNonces *nonceCache
 
-func init() {
-	count := 100
-
+func InitHawkNonces(count int64) {
 	HawkNonces = &nonceCache{
 		order: make([]string, count),
 		hash:  make(map[string]struct{}),
 	}
+}
+
+func init() {
+	// In case we forget to initialize the hawk nonces.
+	InitHawkNonces(1000)
 }
 
 func (r *nonceCache) Contains(value string) bool {
