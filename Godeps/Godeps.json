@@ -20,6 +20,10 @@
 			"Comment": "go.r60-146",
 			"Rev": "f5ac12b15e49095c60ae0acc6da0e28d47e2a29f"
 		},
+        {
+            "ImportPath": "code.google.com/p/gogoprotobuf",
+            "Rev": "6c980277330804e94257ac7ef70a3adbe1641059"
+        },
 		{
 			"ImportPath": "github.com/cactus/go-statsd-client/statsd",
 			"Rev": "5b5607a786a6be31226ca2063e49695712aebc6d"
