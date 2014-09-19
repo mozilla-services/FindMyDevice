@@ -10,15 +10,21 @@ GO=GOPATH=$(GOPATH) go
 
 all: build
 
+config.ini:
+	@if [ ! -f config.ini ]; then \
+		cp config-sample.ini config.ini; \
+		echo "\n!! Sample config copied to config.ini !!"; \
+		echo "!! Some modification required           !!\n"; \
+	fi
+
 $(DEPS):
 	mkdir -p .godeps
 	$(GPM) install
 
-install: $(DEPS)
-	@echo $(GOPATH)
+install: config.ini $(DEPS)
 	@echo "installed"
 
-build: $(DEPS)
+build: install
 	$(GO) build -o $(EXEC) github.com/mozilla-services/FindMyDevice
 
 clean:
