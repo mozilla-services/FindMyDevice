@@ -12,6 +12,7 @@ define([
 
   var Device = Backbone.Model.extend({
     LOCATION_TIMEOUT: 60 * 1000,
+    SOCKET_KEEP_ALIVE_INTERVAL: 45 * 1000,
 
     defaults: {
       activity: 'blank',
@@ -136,9 +137,17 @@ define([
       this.socket.onclose = function (close) {
         console.log('ws:close', close);
       };
+
+      this.socketKeepAliveTimer = setInterval(_.bind(this.keepSocketAlive, this), this.SOCKET_KEEP_ALIVE_INTERVAL);
+    },
+
+    keepSocketAlive: function () {
+      this.socket.send('');
     },
 
     stopListening: function () {
+      clearTimeout(this.socketKeepAliveTimer);
+
       this.socket.close();
     },
 
