@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	//	"fmt"
+	"fmt"
 )
 
 //filters
@@ -74,9 +74,12 @@ func isTrue(val interface{}) bool {
 		return flag
 	case bool:
 		return val.(bool)
-	case int64:
-		return val.(int64) != 0
+	case int64, int32, int:
+		return val != 0
+	case float64, float32:
+		return val != 0.0
 	default:
+		fmt.Printf("type %t\n", val)
 		return false
 	}
 }

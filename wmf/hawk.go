@@ -24,7 +24,7 @@ var ErrInvalidSignature = errors.New("Header does not match signature")
 
 // minimal HAWK for now (e.g. no bewit because IAGNI)
 type Hawk struct {
-	logger    *util.HekaLogger
+	logger    util.Logger
 	config    *util.MzConfig
 	header    string
 	Id        string
@@ -64,11 +64,14 @@ func (self *Hawk) AsHeader(req *http.Request, id, body, extra, secret string) st
 	if self.Signature == "" {
 		self.GenerateSignature(req, extra, body, secret)
 	}
+	if extra == "" && len(self.Extra) > 0 {
+		extra = self.Extra
+	}
 	rep := fmt.Sprintf("Hawk id=\"%s\", ts=\"%s\", nonce=\"%s\", ext=\"%s\", hash=\"%s\", mac=\"%s\"",
 		id,
 		self.Time,
 		self.Nonce,
-		self.Extra,
+		extra,
 		self.Hash,
 		self.Signature)
 	return rep
@@ -167,6 +170,7 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 	if self.Hash == "" {
 		self.Hash = self.genHash(req, body)
 	}
+	self.Extra = extra
 
 	marshalStr := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n",
 		"hawk.1.header",
@@ -177,7 +181,7 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 		strings.ToLower(self.Host),
 		self.Port,
 		self.Hash,
-		extra)
+		self.Extra)
 
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(marshalStr))
@@ -192,7 +196,7 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 }
 
 // Initialize self from the AuthHeader
-func (self *Hawk) ParseAuthHeader(req *http.Request, logger *util.HekaLogger) (err error) {
+func (self *Hawk) ParseAuthHeader(req *http.Request, logger util.Logger) (err error) {
 
 	auth := req.Header.Get("Authorization")
 	if auth == "" {

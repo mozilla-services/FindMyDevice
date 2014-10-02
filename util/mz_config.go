@@ -28,10 +28,7 @@ type MzConfig struct {
  */
 func ReadMzConfig(filename string) (config *MzConfig, err error) {
 	// Yay for no equivalent to readln
-	config = &MzConfig{
-		config: make(JsMap),
-		flags:  make(map[string]bool),
-	}
+	config = NewMzConfig()
 	file, err := os.Open(filename)
 
 	defer file.Close()
@@ -55,6 +52,11 @@ func ReadMzConfig(filename string) (config *MzConfig, err error) {
 		log.Panic(err)
 	}
 	return config, nil
+}
+
+// Used by testing mostly
+func NewMzConfig() *MzConfig {
+	return &MzConfig{config: make(JsMap), flags: make(map[string]bool)}
 }
 
 /* Get a value from the config map, providing an optional default.

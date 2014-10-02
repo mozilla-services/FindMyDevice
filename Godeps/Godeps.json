@@ -46,16 +46,6 @@
 			"Rev": "ae7391529ced9c12f06bf01eae33dadb4c70e49f"
 		},
 		{
-			"ImportPath": "github.com/mozilla-services/heka/client",
-			"Comment": "v0.5.2-7-gf3fce9f",
-			"Rev": "f3fce9f463c2c78a8205f3c0b48e19e4986ae5ba"
-		},
-		{
-			"ImportPath": "github.com/mozilla-services/heka/message",
-			"Comment": "v0.5.2-7-gf3fce9f",
-			"Rev": "f3fce9f463c2c78a8205f3c0b48e19e4986ae5ba"
-		},
-		{
 			"ImportPath": "github.com/rafrombrc/gospec/src/gospec",
 			"Comment": "gospec-1.3.9-3-g2e46585",
 			"Rev": "2e46585948f47047b0c217d00fa24bbc4e370e6b"
