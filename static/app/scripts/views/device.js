@@ -80,40 +80,36 @@ define([
 
     eraseReceived: function (command) {
       if (command.ok) {
-        this.notify('Your device is erasing.');
+        Notifier.notify(this.l('Your device is erasing.'));
       } else {
-        this.notify('An error occurred while trying to erase your device.');
+        Notifier.notify(this.l('An error occurred while trying to erase your device.'));
       }
     },
 
     lockReceived: function (command) {
       if (command.ok) {
-        this.notify('Your device is locked.');
+        Notifier.notify(this.l('Your device is locked.'));
       } else {
-        this.notify('An error occurred while trying to lock your device.');
+        Notifier.notify(this.l('An error occurred while trying to lock your device.'));
       }
     },
 
     ringReceived: function (command) {
       if (command.ok) {
-        this.notify('Your device is ringing.');
+        Notifier.notify(this.l('Your device is ringing.'));
       } else {
-        this.notify('An error occurred while trying to ring your device.');
+        Notifier.notify(this.l('An error occurred while trying to ring your device.'));
       }
     },
 
     trackReceived: function (command) {
       if (!command.ok) {
-        this.notify('An error occurred while trying to locate your device. Trying again...');
+        Notifier.notify(this.l('An error occurred while trying to locate your device. Trying again...'));
       }
     },
 
-    notify: function (message) {
-      Notifier.notify(this.localize(message));
-    },
-
     updateLocatingMessage: function () {
-      this.$('.locating h2').html(this.localize('Locating device...'));
+      this.$('.locating h2').html(this.l('Locating device...'));
     },
 
     openDeviceSelector: function (event) {

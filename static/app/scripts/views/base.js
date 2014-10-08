@@ -45,7 +45,7 @@ define(
         return context;
       },
 
-      localize: function (text) {
+      l: function (text) {
         // This should actually look up the localized string
         return text;
       },
@@ -65,7 +65,7 @@ define(
 
         context.l = function (text) {
           return function (text, render) {
-            return render(self.localize(text));
+            return render(self.l(text));
           };
         };
 
