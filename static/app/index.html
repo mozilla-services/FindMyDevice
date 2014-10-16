@@ -23,13 +23,121 @@
       <script src="https://api.tiles.mapbox.com/mapbox.js/v1.6.4/mapbox.js"></script>
       <script data-main="scripts/main" src="bower_components/requirejs/require.js"></script>
     {{else}}
-      <div class="hero">
-        <h1>Rumor has it that you can't find your device.</h1>
-        <h2>Don't worry: we're the app for that.</h2>
-        <div id="login">
-          <a href="/signin/">Sign in</a>
+      <h3>{{ "Firefox OS" | l }}</h3>
+      <h1>{{ "Find My Device" | l }}</h1>
+      <h2>{{ "Locate a lost phone, lock it or even erase it remotely." | l }}</h2>
+
+      <div class="intro">
+        <p>{{ "If you’ve lost your Firefox OS smartphone, Find My Device can help you find it. You can see it on a map, make it play a sound and have it display a message. You can also lock it for safety or delete your personal info completely." | l }}</p>
+        <p>{{ "To get started, make sure you have a Firefox Account and Find My Device enabled on your phone." | l }}</p>
+      </div>
+
+      <div class="cta">
+        <a href="/signin/">{{ "Sign in" | l }}</a>
+        <a href="">{{ "Create a Firefox Account" | l }}</a>
+      </div>
+
+      <div class="features">
+        <div class="feature">
+          <h3>{{ "Track" | l }}</h3>
+          <p>{{ "As long as your phone remains on and connected to the Internet, you can see its location on the map." | l }}</p>
+        </div>
+        <div class="feature">
+          <h3>{{ "Ring" | l }}</h3>
+          <p>{{ "If you see that it’s nearby on the map, you can make the phone ring, even if the ringer is set to silent." | l }}</p>
+        </div>
+        <div class="feature">
+          <h3>{{ "Lock" | l }}</h3>
+          <p>{{ "To protect your personal info, you can lock your screen and have it display a message to help someone return it to you." | l }}</p>
+        </div>
+        <div class="feature">
+          <h3>{{ "Erase" | l }}</h3>
+          <p>{{ "If you’re unable to find your phone, you can permanently erase it, but please note that this can not be undone." | l }}</p>
         </div>
       </div>
+
+      <footer id="colophon" class="">
+        <nav class="row">
+          <div class="col col-1">
+            <h1 class="logo"><a href="/en-US/">{{ "Mozilla" | l }}</a></h1>
+            <p class="license">{{ "Portions of this content are ©1998–2014 by individual mozilla.org contributors. Content available under a <a href='/en-US/foundation/licensing/website-content/'>Creative Commons license</a>." | l }}</p>
+          </div>
+          <div class="col col-2">
+            <ul class="links-join">
+              <li><a href="/en-US/contact/spaces/">{{ "Contact Us" | l }}</a></li>
+              <li class="wrap"><a href="/en-US/about/partnerships/">{{ "Partner with Us" | l }}</a></li>
+              <li class="clear"><a href="https://sendto.mozilla.org/page/contribute/Give-Now?source=mozillaorg_default_footer" class="donate">{{ "Donate" | l }}</a></li>
+              <li class="wrap"><a href="https://affiliates.mozilla.org/">{{ "Firefox Affiliates" | l }}</a></li>
+              <li class="clear"><a href="/en-US/contribute/page/">{{ "Contribute to this page" | l }}</a></li>
+            </ul>
+            <ul class="links-legal">
+              <li><a href="/en-US/privacy/">{{ "Privacy" | l }}</a></li>
+              <li class="wrap"><a href="/en-US/about/legal/">{{ "Legal" | l }}</a></li>
+              <li class="clear"><a href="/en-US/about/legal/fraud-report/">{{ "Report Trademark Abuse" | l }}</a></li>
+            </ul>
+          </div>
+          <div class="col col-3">
+            <ul class="links-social">
+              <li>
+                {{ "Mozilla:" | l }}
+                <ul>
+                  <li>{{ "<a href='https://twitter.com/mozilla'>Twitter<span> (@mozilla)</span></a>" | l }}</li>
+                  <li>{{ "<a href='https://www.facebook.com/mozilla'>Facebook<span> (Mozilla)</span></a>" | l }}</li>
+                </ul>
+              </li>
+              <li>
+                {{ "Firefox:" | l }}
+                <ul>
+                  <li>{{ "<a href='https://twitter.com/firefox'>Twitter<span> (@firefox)</span></a>" | l }}</li>
+                  <li>{{ "<a href='https://www.facebook.com/Firefox'>Facebook<span> (Firefox)</span></a>" | l }}</li>
+                  <li>{{ "<a href='https://www.youtube.com/firefoxchannel'>YouTube<span> (firefoxchannel)</span></a>" | l }}</li>
+                </ul>
+              </li>
+            </ul>
+            <div class="lang-switcher">
+              <form id="lang_form" method="get" action="#">
+                <label for="language">{{ "Other languages:" | l }}</label>
+                <select id="language" name="lang" dir="ltr">
+                  <option value="bn-BD" lang="bn-BD">বাংলা (বাংলাদেশ)</option>
+                  <option value="ca" lang="ca">Català</option>
+                  <option value="cs" lang="cs">Čeština</option>
+                  <option value="de" lang="de">Deutsch</option>
+                  <option value="el" lang="el">Ελληνικά</option>
+                  <option value="en-US" selected="" lang="en-US">English (US)</option>
+                  <option value="es-AR" lang="es-AR">Español (de Argentina)</option>
+                  <option value="es-CL" lang="es-CL">Español (de Chile)</option>
+                  <option value="es-ES" lang="es-ES">Español (de España)</option>
+                  <option value="es-MX" lang="es-MX">Español (de México)</option>
+                  <option value="et" lang="et">Eesti keel</option>
+                  <option value="fr" lang="fr">Français</option>
+                  <option value="fy-NL" lang="fy-NL">Frysk</option>
+                  <option value="hi-IN" lang="hi-IN">हिन्दी (भारत)</option>
+                  <option value="hr" lang="hr">Hrvatski</option>
+                  <option value="hu" lang="hu">magyar</option>
+                  <option value="it" lang="it">Italiano</option>
+                  <option value="ja" lang="ja">日本語</option>
+                  <option value="ko" lang="ko">한국어</option>
+                  <option value="mk" lang="mk">Македонски</option>
+                  <option value="nl" lang="nl">Nederlands</option>
+                  <option value="pl" lang="pl">Polski</option>
+                  <option value="pt-BR" lang="pt-BR">Português (do&nbsp;Brasil)</option>
+                  <option value="ro" lang="ro">română</option>
+                  <option value="ru" lang="ru">Русский</option>
+                  <option value="sr" lang="sr">Српски</option>
+                  <option value="sv-SE" lang="sv-SE">Svenska</option>
+                  <option value="ta" lang="ta">தமிழ்</option>
+                  <option value="xh" lang="xh">isiXhosa</option>
+                  <option value="zh-CN" lang="zh-CN">中文 (简体)</option>
+                  <option value="zh-TW" lang="zh-TW">正體中文 (繁體)</option>
+                </select>
+                <noscript>
+                  <button type="submit">{{ "Go" | l }}</button>
+                </noscript>
+              </form>
+            </div>
+          </div>
+        </nav>
+      </footer>
     {{end}}
   </body>
 </html>

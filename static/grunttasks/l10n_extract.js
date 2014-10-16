@@ -28,35 +28,30 @@ module.exports = function (grunt) {
       'output': 'client.pot',
       'join-existing': false,
       'keyword': 'l',
-      parsers: {
+      'parsers': {
         '.js': 'javascript',
         '.html': 'handlebars'
       }
     });
 
     clientWalker.on('end', function () {
-      done();
+      console.log('walking the server');
+      var serverWalker = extract({
+        'input-dir': path.join(__dirname, '..', 'app'),
+        // Exclude everything except static/app/index.html
+        'exclude': /^(?!.*static\/app\/index\.html$).*$/,
+        'output-dir': messagesOutputPath,
+        'output': 'server.pot',
+        'join-existing': false,
+        'parsers': {
+          '.html': 'golang'
+        }
+      });
+
+      serverWalker.on('end', function () {
+        done();
+      });
     });
-
-    // clientWalker.on('end', function () {
-    //   var authWalker = extract({
-    //     'input-dir': path.join(__dirname, '..', 'server'),
-    //     exclude: /pages\/dist/,
-    //     'output-dir': messagesOutputPath,
-    //     'output': 'server.pot',
-    //     'join-existing': false,
-    //     'keyword': 'l',
-    //     parsers: {
-    //       '.js': 'javascript',
-    //       '.txt': 'handlebars',
-    //       '.html': 'handlebars'
-    //     }
-    //   });
-
-    //   authWalker.on('end', function () {
-    //     done();
-    //   });
-    // });
   });
 };
 

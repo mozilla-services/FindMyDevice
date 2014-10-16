@@ -6,6 +6,7 @@
 // .po files are expected to already be downloaded.
 
 const path = require('path');
+const util = require('util');
 
 module.exports = function (grunt) {
   'use strict';
@@ -40,20 +41,15 @@ module.exports = function (grunt) {
           filename = path.basename(filename, '.po') + '.json';
         }
 
-        return locale + '/' + filename;
+        return path.join(locale, filename);
       },
       output_transform: function (data) {
-        // write the first translation only, ignore pluralization.
-        var isArray = function (item) {
-          return Object.prototype.toString.call(item) === '[object Array]';
-        };
-
         var transformed = {};
 
         for (var msgid in data) {
           var translation = data[msgid];
 
-          if (isArray(translation) && translation.length >= 2) {
+          if (util.isArray(translation) && translation.length >= 2) {
             translation = translation[1];
           }
 
