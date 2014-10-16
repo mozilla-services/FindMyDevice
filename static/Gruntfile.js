@@ -149,7 +149,8 @@ module.exports = function (grunt) {
             '*.{ico,txt}',
             '.htaccess',
             'images/{,*/}*.{png,jpg,jpeg,webp,gif}',
-            'styles/fonts/{,*/}*.*'
+            'styles/fonts/{,*/}*.*',
+            'index.html'
           ]
         },
         // Copy these files into tmp so that concat can find them
@@ -419,7 +420,6 @@ module.exports = function (grunt) {
     'clean:dist',
     'css',
     'useminPrepare',
-    'htmlmin',
     'copy',
     'concat',
     'cssmin',
