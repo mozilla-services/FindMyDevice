@@ -109,11 +109,11 @@ define([
     },
 
     notify: function (message) {
-      Notifier.notify(message);
+      Notifier.notify(this.localize(message));
     },
 
     updateLocatingMessage: function () {
-      this.$('.locating h2').html('Locating device...');
+      this.$('.locating h2').html(this.localize('Locating device...'));
     },
 
     openDeviceSelector: function (event) {

@@ -1,13 +1,17 @@
 <header>
-  <a class="close">Close</a>
-  <h2>Erase Device</h2>
+  <a class="close">{{#l}}Close{{/l}}</a>
+  <h2>{{#l}}Erase Device{{/l}}</h2>
 </header>
 <section>
-  <p>All content will be erased. Your device will no longer be able to be located or tracked.</p>
+  <p>{{#l}}Erasing your device will:{{/l}}</p>
 
-  <p>Once you erase your device you will not be able to restore this device.</p>
+  <ol>
+    <li>{{#l}}Delete your contacts, media, messages and installed apps{{/l}}</li>
+    <li>{{#l}}Restore the device to its factory settings{{/l}}</li>
+    <li>{{#l}}Disable Find My Device{{/l}}</li>
+  </ol>
 
   <div class="buttons">
-    <button type="button" class="erase primary">Erase Device</button>
+    <button type="button" class="erase primary">{{#l}}Erase Device{{/l}}</button>
   </div>
 </section>
