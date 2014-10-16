@@ -240,6 +240,8 @@ def send(urlStr, data, cred, method="POST"):
         if checkHawk(response, cred.get("secret")) is False:
             pdb.set_trace()
             print "HAWK Header failed"
+    if response.json() != {}:
+        print response.json()
     return response
 
 
@@ -266,6 +268,8 @@ def processCmd(config, cred, cmd):
         elif 'e' in obj:
             print "Erasing device..."
             reply = {"e": {"ok": True}}
+            sendCmd(config, cred, reply)
+            sys.exit()
         elif 't' in obj:
             print "Tracking device for %s seconds" % obj['t']['d']
             reply = newLocation()
@@ -284,8 +288,6 @@ def sendCmd(config, cred, cmd):
     """ Shorthand method to send a command to the server.
     """
     print "Sending Cmd %s\n" % json.dumps(cmd)
-    if cmd == {}:
-        return
     tmpl = config.get("urls", "cmd")
     trg = Template(tmpl).safe_substitute(
         scheme=config.get("main", "scheme"),
@@ -320,18 +322,13 @@ def main(argv):
     print "Registering client... \n"
     # Send a fake statement saying that the client has no passcode.
     cmd, cred = registerNew(config, cred)
-    #while cmd is not None:
     while True:
         # Burn through the command queue.
         print "Processing commands...\n"
         cmd = processCmd(config, cred, cmd)
-        #import pdb; pdb.set_trace()
-        #print "!!! Sending reregister... \n"
-        #time.sleep(1)
-        accuracy = adjustAccuracy(accuracy)
-        cmd = sendCmd(config, cred, newLocation(accuracy))
-        #cmd, cred = registerNew(config, cred)
-
+        if cmd is None or cmd.json() == {}:
+            accuracy = adjustAccuracy(accuracy)
+            cmd = sendCmd(config, cred, newLocation(accuracy))
     print "done"
 
 
