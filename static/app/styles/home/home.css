@@ -82,37 +82,32 @@ h3 {
     #container .band .band-inner p {
       line-height: 24px;
       text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8); }
-#container #intro {
-  margin-top: 100px;
-  min-height: 623px; }
-  #container #intro #tabzilla {
-    top: -100px; }
-  #container #intro #fxos-logo {
-    background-image: url("/images/home/ffos-logo.png");
-    background-size: 177px 54px;
-    height: 54px;
-    overflow: hidden;
-    text-indent: 100%;
-    white-space: nowrap;
-    width: 177px; }
-    @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
-      #container #intro #fxos-logo {
-        background-image: url("/images/home/ffos-logo@2x.png"); } }
-  #container #intro h1 {
-    margin-top: 28px; }
-  #container #intro p {
-    margin-top: 25px; }
-  #container #intro #cta {
-    margin: 45px 0; }
-    #container #intro #cta .sign-in {
-      background: #0095dd;
-      border: 2px solid #0095dd;
-      border-radius: 8px;
-      color: #fff;
-      display: block;
-      font-size: 20px;
-      padding: 10px 0;
-      text-align: center; }
+#container #intro #fxos-logo {
+  background-image: url("/images/home/ffos-logo.png");
+  background-size: 177px 54px;
+  height: 54px;
+  overflow: hidden;
+  text-indent: 100%;
+  white-space: nowrap;
+  width: 177px; }
+  @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
+    #container #intro #fxos-logo {
+      background-image: url("/images/home/ffos-logo@2x.png"); } }
+#container #intro h1 {
+  margin-top: 28px; }
+#container #intro p {
+  margin-top: 25px; }
+#container #intro #cta {
+  margin: 45px 0; }
+  #container #intro #cta .sign-in {
+    background: #0095dd;
+    border: 2px solid #0095dd;
+    border-radius: 8px;
+    color: #fff;
+    display: block;
+    font-size: 20px;
+    padding: 10px 0;
+    text-align: center; }
 #container #features {
   margin: 60px 0;
   overflow: auto; }
@@ -159,7 +154,78 @@ h3 {
       #container footer .band-inner ul li {
         list-style: none; }
 
-@media only screen and (max-width: 768px) {
+@media only screen and (min-width: 685px) {
+  #container #intro {
+    margin-top: 100px;
+    min-height: 623px; }
+    #container #intro #tabzilla {
+      top: -100px; }
+    #container #intro .column {
+      float: right;
+      position: relative;
+      width: 50%; }
+    #container #intro #hero {
+      background-image: url("/images/home/laptop-phone.png");
+      background-size: 992px 623px;
+      height: 623px;
+      overflow: hidden;
+      text-indent: 100%;
+      white-space: nowrap;
+      width: 992px;
+      position: absolute;
+      left: -1015px;
+      top: 0; }
+      @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
+        #container #intro #hero {
+          background-image: url("/images/home/laptop-phone@2x.png"); } }
+    #container #intro #cta {
+      bottom: -120px;
+      position: absolute;
+      width: 100%; }
+      #container #intro #cta .sign-in, #container #intro #cta .sign-up {
+        float: left;
+        width: 50%; }
+      #container #intro #cta .sign-up {
+        display: block;
+        padding: 14px 0 0 20px; }
+        #container #intro #cta .sign-up:after {
+          content: ' »'; }
+  #container #features .feature {
+    float: left;
+    min-height: 141px;
+    padding-left: 160px;
+    width: 50%; }
+    #container #features .feature.lock {
+      clear: left; }
+    #container #features .feature h3 {
+      margin-top: 8px; }
+    #container #features .feature p {
+      margin-top: 5px;
+      width: 96%; } }
+
+@media only screen and (min-width: 685px) and (max-width: 960px) {
+  h1 {
+    font-size: 50px;
+    letter-spacing: -1px; }
+  h2 {
+    font-size: 22px; }
+  #container .band .band-inner {
+    padding: 0 15px; }
+  #container #intro {
+    margin-top: 70px; }
+    #container #intro #tabzilla {
+      top: -70px; }
+    #container #intro p {
+      margin-top: 15px; }
+    #container #intro #cta {
+      bottom: -110px; }
+      #container #intro #cta .sign-in {
+        width: 35%; }
+      #container #intro #cta .sign-up {
+        padding-left: 15px;
+        width: 65%; } }
+
+@media only screen and (max-width: 684px) {
   body {
     text-align: center; }
   h1 {
@@ -212,45 +278,3 @@ h3 {
     padding-top: 150px; }
   #container footer {
     text-align: left; } }
-
-@media only screen and (min-width: 768px) {
-  #container #intro .column {
-    float: right;
-    position: relative;
-    width: 50%; }
-  #container #intro #hero {
-    background-image: url("/images/home/laptop-phone.png");
-    background-size: 992px 623px;
-    height: 623px;
-    overflow: hidden;
-    text-indent: 100%;
-    white-space: nowrap;
-    width: 992px;
-    position: absolute;
-    left: -1015px;
-    top: 0; }
-    @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
-      #container #intro #hero {
-        background-image: url("/images/home/laptop-phone@2x.png"); } }
-  #container #intro #cta {
-    bottom: -120px;
-    position: absolute;
-    width: 100%; }
-    #container #intro #cta .sign-in, #container #intro #cta .sign-up {
-      float: left;
-      width: 50%; }
-    #container #intro #cta .sign-up {
-      display: block;
-      padding: 14px 0 0 20px; }
-      #container #intro #cta .sign-up:after {
-        content: ' »'; }
-  #container #features .feature {
-    float: left;
-    min-height: 141px;
-    padding-left: 160px;
-    width: 50%; }
-    #container #features .feature h3 {
-      margin-top: 8px; }
-    #container #features .feature p {
-      margin-top: 5px;
-      width: 95%; } }

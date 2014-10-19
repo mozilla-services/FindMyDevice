@@ -1,6 +1,13 @@
-@media only screen and (min-width: 768px) {
+@media only screen and (min-width: 685px) {
   #container {
     #intro {
+      margin-top: 100px;
+      min-height: 623px;
+
+      #tabzilla {
+        top: -100px;
+      }
+
       .column {
         float: right;
         position: relative;
@@ -42,13 +49,18 @@
         padding-left: 160px;
         width: 50%;
 
+        &.lock {
+          // prevent jumpiness by forcing lock onto a new line
+          clear: left;
+        }
+
         h3 {
           margin-top: 8px;
         }
 
         p {
           margin-top: 5px;
-          width: 95%;
+          width: 96%;
         }
       }
     }

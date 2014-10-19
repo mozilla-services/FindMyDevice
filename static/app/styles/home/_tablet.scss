@@ -1,0 +1,44 @@
+@media only screen and (min-width: 685px) and (max-width: 960px) {
+  h1 {
+    font-size: 50px;
+    letter-spacing: -1px;
+  }
+
+  h2 {
+    font-size: 22px;
+  }
+
+  #container {
+
+    .band {
+      .band-inner {
+        padding: 0 15px;
+      }
+    }
+
+    #intro {
+      margin-top: 70px;
+
+      #tabzilla {
+        top: -70px;
+      }
+
+      p {
+        margin-top: 15px;
+      }
+
+      #cta {
+        bottom: -110px;
+
+        .sign-in {
+          width: 35%;
+        }
+
+        .sign-up {
+          padding-left: 15px;
+          width: 65%;
+        }
+      }
+    }
+  }
+}

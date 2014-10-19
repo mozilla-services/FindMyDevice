@@ -87,13 +87,6 @@ h3 {
   }
 
   #intro {
-    margin-top: 100px;
-    min-height: 623px;
-
-    #tabzilla {
-      top: -100px;
-    }
-
     #fxos-logo {
       @include image-replacement(home/ffos-logo, 177px, 54px);
     }
@@ -167,5 +160,6 @@ h3 {
   }
 }
 
-@import 'mobile';
 @import 'desktop';
+@import 'tablet';
+@import 'mobile';
