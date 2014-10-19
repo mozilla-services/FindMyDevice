@@ -20,11 +20,12 @@ select {
 }
 
 html {
-  background-attachment: fixed;
-  background-image: linear-gradient(to bottom, #d1e0f3 0%, #e9eef1 100%);
+  background: image-url('home/bg-blue-sand.png');
 }
 
 body {
+  background: image-url('home/bg-gradient-blue-sand.png') repeat-x;
+  border-top: 2px solid #fff;
   padding: 0;
 }
 
@@ -55,6 +56,17 @@ h3 {
   font-size: 26px;
 }
 
+@mixin button {
+  background: #0095dd;
+  border: 2px solid #0095dd;
+  border-radius: 8px;
+  color: #fff;
+  display: block;
+  font-size: 20px;
+  padding: 10px 0;
+  text-align: center;
+}
+
 #container {
   .band {
     //background: red;
@@ -75,21 +87,8 @@ h3 {
   }
 
   #intro {
-    // @include hidpi-background-image(home/cropped-laptop-phone, 687px 623px);
-    // background-repeat: no-repeat;
     margin-top: 100px;
     min-height: 623px;
-
-    // .band-inner {
-
-    //   //overflow: visible;
-    // }
-
-    .column {
-      float: right;
-      position: relative;
-      width: 50%;
-    }
 
     #tabzilla {
       top: -100px;
@@ -111,27 +110,8 @@ h3 {
       margin: 45px 0;
 
       .sign-in {
-        background: #0095dd;
-        border-radius: 8px;
-        color: #fff;
-        display: inline-block;
-        font-size: 20px;
-        padding: 12px 0;
-        text-align: center;
-        width: 220px;
+        @include button;
       }
-
-      .sign-up {
-        display: inline-block;
-        margin-left: 20px;
-      }
-    }
-
-    // TODO: add a class to this
-    img {
-      position: absolute;
-      left: -710px;
-      top: 0;
     }
   }
 
@@ -141,20 +121,7 @@ h3 {
 
     .feature {
       background-repeat: no-repeat;
-      float: left;
       margin-bottom: 55px;
-      min-height: 141px;
-      padding-left: 160px;
-      width: 50%;
-
-      h3 {
-        margin-top: 8px;
-      }
-
-      p {
-        margin-top: 5px;
-        width: 95%;
-      }
 
       &.track {
         @include hidpi-background-image(home/track, 141px 141px);
@@ -199,3 +166,6 @@ h3 {
     }
   }
 }
+
+@import 'mobile';
+@import 'desktop';
