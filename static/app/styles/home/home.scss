@@ -2,7 +2,16 @@
 @import '../mixins';
 @import '../fonts';
 
-@import url(http://fonts.googleapis.com/css?family=Open+Sans:400,300,700,300italic,400italic,600,600italic,700italic,800,800italic);
+@mixin button {
+  background: #0095dd;
+  border: 2px solid #0095dd;
+  border-radius: 8px;
+  color: #fff;
+  display: block;
+  font-size: 20px;
+  padding: 10px 0;
+  text-align: center;
+}
 
 /* Border box all the things */
 *,
@@ -32,6 +41,10 @@ body {
 a {
   color: #0a98de;
   text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 h1,
@@ -56,25 +69,12 @@ h3 {
   font-size: 26px;
 }
 
-@mixin button {
-  background: #0095dd;
-  border: 2px solid #0095dd;
-  border-radius: 8px;
-  color: #fff;
-  display: block;
-  font-size: 20px;
-  padding: 10px 0;
-  text-align: center;
-}
-
 #container {
   .band {
-    //background: red;
     clear: both;
     width: 100%;
 
     .band-inner {
-      //background: yellow;
       margin: 0 auto;
       max-width: 960px;
       width: 100%;
@@ -109,7 +109,7 @@ h3 {
   }
 
   #features {
-    margin: 60px 0;
+    margin: 60px 0 50px 0;
     overflow: auto;
 
     .feature {
@@ -137,23 +137,73 @@ h3 {
   footer {
     background: #fff;
     color: #bbbbbb;
-    font-size: 14px;
-    padding: 50px 0;
+    font-size: 13px;
+    padding: 40px 0;
+
+    .mozilla-logo {
+      @include image-replacement(home/mozilla-logo, 93px, 25px);
+    }
+
+    p {
+      line-height: 22px !important;
+    }
 
     .band-inner {
       overflow: auto;
 
       .column {
         float: left;
+        padding: 10px;
         width: 33%;
       }
 
       ul {
         margin: 0;
         padding: 0;
+        overflow: hidden;
 
-        li {
-          list-style: none;
+        &.links-join, &.links-legal {
+          li {
+            display: block;
+            list-style: none;
+            float: left;
+            margin-right: 3px;
+
+            &:before {
+              content: ' · ';
+            }
+
+            &.clear {
+              clear: left;
+
+              &:before {
+                content: '';
+              }
+            }
+          }
+        }
+
+        &.links-legal {
+          padding-top: 1em;
+        }
+
+        &.links-social {
+          ul {
+            display: inline;
+            margin-left: 0;
+
+            li {
+              display: inline;
+
+              &:before {
+                content: ' · ';
+              }
+
+              &:first-child:before {
+                content: '';
+              }
+            }
+          }
         }
       }
     }

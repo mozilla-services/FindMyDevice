@@ -1,8 +1,4 @@
 @media only screen and (max-width: 684px) {
-  body {
-    text-align: center;
-  }
-
   h1 {
     font-size: 36px;
     letter-spacing: -1px;
@@ -13,6 +9,8 @@
   }
 
   #container {
+    text-align: center;
+
     .band {
       .band-inner {
         padding: 0 20px;
@@ -28,15 +26,17 @@
 
       #fxos-logo {
         margin: 0 auto;
-        clear: both;
+        clear: both; // clears tabzilla
       }
 
       #hero {
         @include image-replacement(home/laptop-phone-mobile, 283px, 192px);
-        margin: 40px auto 0 auto;
+        margin: 20px auto 0 auto;
       }
 
       #cta {
+        margin: 10px 0;
+
         .sign-up {
           @include button;
           background: transparent;
@@ -45,8 +45,13 @@
         }
 
         .sign-in, .sign-up {
+          font-size: 18px;
           width: 100%;
         }
+      }
+
+      p {
+        padding: 0 10px;
       }
 
       .get-started {
@@ -58,15 +63,31 @@
     }
 
     #features {
+      margin: 35px 0 15px 0;
 
       .feature {
         background-position: 50% 0;
-        padding-top: 150px;
+        padding-top: 155px;
+
+        p {
+          margin-top: 10px;
+        }
       }
     }
 
     footer {
       text-align: left;
+
+      .band-inner {
+        .column {
+          float: none;
+          width: 100%;
+        }
+
+        .column-3 {
+          padding-top: 14px;
+        }
+      }
     }
   }
 }

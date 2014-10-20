@@ -11,13 +11,13 @@
     <meta name="viewport" content="width=device-width">
     <meta name="token" content="{{.Token}}">
     {{if .UserId}}
-      <link href="https://api.tiles.mapbox.com/mapbox.js/v1.6.4/mapbox.css" rel="stylesheet">
+      <link rel="stylesheet" href="https://api.tiles.mapbox.com/mapbox.js/v1.6.4/mapbox.css">
       <!-- build:css(.tmp) styles/main.css -->
         <link rel="stylesheet" href="bower_components/normalize-css/normalize.css">
         <link rel="stylesheet" href="styles/main.css">
       <!-- endbuild -->
     {{else}}
-      <link href="//mozorg.cdn.mozilla.net/media/css/tabzilla-min.css" rel="stylesheet" />
+      <link rel="stylesheet" href="//mozorg.cdn.mozilla.net/media/css/tabzilla-min.css">
       <!-- build:css(.tmp) styles/home.css -->
         <link rel="stylesheet" href="bower_components/normalize-css/normalize.css">
         <link rel="stylesheet" href="styles/home/home.css">
@@ -36,7 +36,7 @@
         <section id="intro" class="band">
           <div class="band-inner">
             <div class="column">
-              <a href="https://www.mozilla.org/" id="tabzilla">mozilla</a>
+              <a href="https://www.mozilla.org/" id="tabzilla">{{"mozilla" | l}}</a>
               <h3 id="fxos-logo">{{"Firefox OS" | l}}</h3>
               <h1>{{"Find My Device" | l}}</h1>
               <h2>{{"Locate a lost phone, lock it or even erase it remotely." | l}}</h2>
@@ -72,38 +72,39 @@
         </section>
         <footer class="band">
           <div class="band-inner">
-            <div class="column col-1">
-              <h3 class="logo"><a href="http://www.mozilla.org/">{{"Mozilla" | l}}</a></h3>
+            <div class="column column-1">
+              <h3 class="mozilla-logo"><a href="http://www.mozilla.org/">{{"Mozilla" | l}}</a></h3>
               <p class="license">{{"Portions of this content are ©1998–2014 by individual mozilla.org contributors. Content available under a <a href='http://www.mozilla.org/foundation/licensing/website-content/'>Creative Commons license</a>." | l}}</p>
             </div>
-            <div class="column col-2">
+            <div class="column column-2">
               <ul class="links-join">
-                <li><a href="http://www.mozilla.org/contact/spaces/">{{"Contact Us" | l}}</a></li>
-                <li class="wrap"><a href="http://www.mozilla.org/about/partnerships/">{{"Partner with Us" | l}}</a></li>
-                <li><a href="https://sendto.mozilla.org/page/contribute/Give-Now?source=mozillaorg_default_footer" class="donate">{{"Donate" | l}}</a></li>
-                <li class="wrap"><a href="https://affiliates.mozilla.org/">{{"Firefox Affiliates" | l}}</a></li>
+                <li class="clear"><a href="http://www.mozilla.org/contact/spaces/">{{"Contact Us" | l}}</a></li>
+                <li><a href="http://www.mozilla.org/about/partnerships/">{{"Partner with Us" | l}}</a></li>
+                <li class="clear"><a href="https://sendto.mozilla.org/page/contribute/Give-Now?source=mozillaorg_default_footer" class="donate">{{"Donate" | l}}</a></li>
+                <li><a href="https://affiliates.mozilla.org/">{{"Firefox Affiliates" | l}}</a></li>
+                <li class="clear"><a href="http://www.mozilla.org/contribute/page/">{{"Contribute to this page" | l}}</a></li>
               </ul>
               <ul class="links-legal">
-                <li><a href="http://www.mozilla.org/privacy/">{{"Privacy" | l}}</a></li>
-                <li class="wrap"><a href="http://www.mozilla.org/about/legal/">{{"Legal" | l}}</a></li>
-                <li><a href="http://www.mozilla.org/about/legal/fraud-report/">{{"Report Trademark Abuse" | l}}</a></li>
+                <li class="clear"><a href="http://www.mozilla.org/privacy/">{{"Privacy" | l}}</a></li>
+                <li><a href="http://www.mozilla.org/about/legal/">{{"Legal" | l}}</a></li>
+                <li class="clear"><a href="http://www.mozilla.org/about/legal/fraud-report/">{{"Report Trademark Abuse" | l}}</a></li>
               </ul>
             </div>
-            <div class="column col-3">
+            <div class="column column-3">
               <ul class="links-social">
                 <li>
                   {{"Mozilla:" | l}}
                   <ul>
-                    <li><a href="https://twitter.com/mozilla">{{"Twitter<span> (@mozilla)</span>" | l}}</a></li>
-                    <li><a href="https://www.facebook.com/mozilla">{{"Facebook<span> (Mozilla)</span>" | l}}</a></li>
+                    <li><a href="https://twitter.com/mozilla">{{"Twitter" | l}}</a></li>
+                    <li><a href="https://www.facebook.com/mozilla">{{"Facebook" | l}}</a></li>
                   </ul>
                 </li>
                 <li>
                   {{"Firefox:" | l}}
                   <ul>
-                    <li><a href="https://twitter.com/firefox">{{"Twitter<span> (@firefox)</span>" | l}}</a></li>
-                    <li><a href="https://www.facebook.com/Firefox">{{"Facebook<span> (Firefox)</span>" | l}}</a></li>
-                    <li><a href="https://www.youtube.com/firefoxchannel">{{"YouTube<span> (firefoxchannel)</span>" | l}}</a></li>
+                    <li><a href="https://twitter.com/firefox">{{"Twitter" | l}}</a></li>
+                    <li><a href="https://www.facebook.com/Firefox">{{"Facebook" | l}}</a></li>
+                    <li><a href="https://www.youtube.com/firefoxchannel">{{"YouTube" | l}}</a></li>
                   </ul>
                 </li>
               </ul>

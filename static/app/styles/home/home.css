@@ -1,37 +1,54 @@
-@import url(http://fonts.googleapis.com/css?family=Open+Sans:400,300,700,300italic,400italic,600,600italic,700italic,800,800italic);
-/* TypoPRO Fira Sans */
+/* Fira Sans */
 @font-face {
   font-family: 'Fira Sans';
-  src: url('/fonts/FiraSans/FiraSans-Regular.eot?#iefix') format('embedded-opentype'), url('/fonts/FiraSans/FiraSans-Regular.woff') format('woff'), url('/fonts/FiraSans/FiraSans-Regular.ttf') format('truetype');
+  src: url('/styles/fonts/FiraSans/FiraSans-Regular.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/FiraSans/FiraSans-Regular.woff') format('woff'), url('/styles/fonts/FiraSans/FiraSans-Regular.ttf') format('truetype');
   font-style: normal;
   font-weight: normal;
   font-stretch: normal;
   font-variant: normal; }
 
-/* TypoPRO Fira Sans Bold */
+/* Fira Sans Bold */
 @font-face {
   font-family: 'Fira Sans';
-  src: url('/fonts/FiraSans/FiraSans-Bold.eot?#iefix') format('embedded-opentype'), url('/fonts/FiraSans/FiraSans-Bold.woff') format('woff'), url('/fonts/FiraSans/FiraSans-Bold.ttf') format('truetype');
+  src: url('/styles/fonts/FiraSans/FiraSans-Bold.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/FiraSans/FiraSans-Bold.woff') format('woff'), url('/styles/fonts/FiraSans/FiraSans-Bold.ttf') format('truetype');
   font-style: normal;
   font-weight: bold;
   font-stretch: normal;
   font-variant: normal; }
 
-/* TypoPRO Fira Sans Italic */
+/* Fira Sans Italic */
 @font-face {
   font-family: 'Fira Sans';
-  src: url('/fonts/FiraSans/FiraSans-BookItalic.eot?#iefix') format('embedded-opentype'), url('/fonts/FiraSans/FiraSans-BookItalic.woff') format('woff'), url('/fonts/FiraSans/FiraSans-BookItalic.ttf') format('truetype');
+  src: url('/styles/fonts/FiraSans/FiraSans-BookItalic.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/FiraSans/FiraSans-BookItalic.woff') format('woff'), url('/styles/fonts/FiraSans/FiraSans-BookItalic.ttf') format('truetype');
   font-style: italic;
   font-weight: normal;
   font-stretch: normal;
   font-variant: normal; }
 
-/* TypoPRO Fira Sans Bold Italic */
+/* Fira Sans Bold Italic */
 @font-face {
   font-family: 'Fira Sans';
-  src: url('/fonts/FiraSans/FiraSans-BoldItalic.eot?#iefix') format('embedded-opentype'), url('/fonts/FiraSans/FiraSans-BoldItalic.woff') format('woff'), url('/fonts/FiraSans/FiraSans-BoldItalic.ttf') format('truetype');
+  src: url('/styles/fonts/FiraSans/FiraSans-BoldItalic.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/FiraSans/FiraSans-BoldItalic.woff') format('woff'), url('/styles/fonts/FiraSans/FiraSans-BoldItalic.ttf') format('truetype');
   font-style: italic;
   font-weight: bold;
+  font-stretch: normal;
+  font-variant: normal; }
+
+/* Open Sans */
+@font-face {
+  font-family: 'Open Sans';
+  src: url('/styles/fonts/OpenSans/OpenSans-Regular-webfont.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/OpenSans/OpenSans-Regular-webfont.woff') format('woff'), url('/styles/fonts/OpenSans/OpenSans-Regular-webfont.ttf') format('truetype');
+  font-style: normal;
+  font-weight: normal;
+  font-stretch: normal;
+  font-variant: normal; }
+
+/* Open Sans Light */
+@font-face {
+  font-family: 'Open Sans';
+  src: url('/styles/fonts/OpenSans/OpenSans-Light-webfont.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/OpenSans/OpenSans-Light-webfont.woff') format('woff'), url('/styles/fonts/OpenSans/OpenSans-Light-webfont.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 300;
   font-stretch: normal;
   font-variant: normal; }
 
@@ -55,6 +72,8 @@ body {
 a {
   color: #0a98de;
   text-decoration: none; }
+  a:hover {
+    text-decoration: underline; }
 
 h1, h2, h3 {
   color: #484848;
@@ -109,7 +128,7 @@ h3 {
     padding: 10px 0;
     text-align: center; }
 #container #features {
-  margin: 60px 0;
+  margin: 60px 0 50px 0;
   overflow: auto; }
   #container #features .feature {
     background-repeat: no-repeat;
@@ -141,18 +160,53 @@ h3 {
 #container footer {
   background: #fff;
   color: #bbbbbb;
-  font-size: 14px;
-  padding: 50px 0; }
+  font-size: 13px;
+  padding: 40px 0; }
+  #container footer .mozilla-logo {
+    background-image: url("/images/home/mozilla-logo.png");
+    background-size: 93px 25px;
+    height: 25px;
+    overflow: hidden;
+    text-indent: 100%;
+    white-space: nowrap;
+    width: 93px; }
+    @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
+      #container footer .mozilla-logo {
+        background-image: url("/images/home/mozilla-logo@2x.png"); } }
+  #container footer p {
+    line-height: 22px !important; }
   #container footer .band-inner {
     overflow: auto; }
     #container footer .band-inner .column {
       float: left;
+      padding: 10px;
       width: 33%; }
     #container footer .band-inner ul {
       margin: 0;
-      padding: 0; }
-      #container footer .band-inner ul li {
-        list-style: none; }
+      padding: 0;
+      overflow: hidden; }
+      #container footer .band-inner ul.links-join li, #container footer .band-inner ul.links-legal li {
+        display: block;
+        list-style: none;
+        float: left;
+        margin-right: 3px; }
+        #container footer .band-inner ul.links-join li:before, #container footer .band-inner ul.links-legal li:before {
+          content: ' · '; }
+        #container footer .band-inner ul.links-join li.clear, #container footer .band-inner ul.links-legal li.clear {
+          clear: left; }
+          #container footer .band-inner ul.links-join li.clear:before, #container footer .band-inner ul.links-legal li.clear:before {
+            content: ''; }
+      #container footer .band-inner ul.links-legal {
+        padding-top: 1em; }
+      #container footer .band-inner ul.links-social ul {
+        display: inline;
+        margin-left: 0; }
+        #container footer .band-inner ul.links-social ul li {
+          display: inline; }
+          #container footer .band-inner ul.links-social ul li:before {
+            content: ' · '; }
+          #container footer .band-inner ul.links-social ul li:first-child:before {
+            content: ''; }
 
 @media only screen and (min-width: 685px) {
   #container #intro {
@@ -223,58 +277,77 @@ h3 {
         width: 35%; }
       #container #intro #cta .sign-up {
         padding-left: 15px;
-        width: 65%; } }
+        width: 65%; }
+  #container footer .band-inner .column {
+    width: 50%; }
+  #container footer .band-inner .column-1 {
+    width: 100%;
+    float: none; } }
 
 @media only screen and (max-width: 684px) {
-  body {
-    text-align: center; }
   h1 {
     font-size: 36px;
     letter-spacing: -1px; }
   h2 {
     font-size: 22px; }
-  #container .band .band-inner {
-    padding: 0 20px; }
-  #container #intro {
-    margin-top: 20px; }
-    #container #intro #tabzilla {
-      top: -20px; }
-    #container #intro #fxos-logo {
-      margin: 0 auto;
-      clear: both; }
-    #container #intro #hero {
-      background-image: url("/images/home/laptop-phone-mobile.png");
-      background-size: 283px 192px;
-      height: 192px;
-      overflow: hidden;
-      text-indent: 100%;
-      white-space: nowrap;
-      width: 283px;
-      margin: 40px auto 0 auto; }
-      @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
-        #container #intro #hero {
-          background-image: url("/images/home/laptop-phone-mobile@2x.png"); } }
-    #container #intro #cta .sign-up {
-      background: #0095dd;
-      border: 2px solid #0095dd;
-      border-radius: 8px;
-      color: #fff;
-      display: block;
-      font-size: 20px;
-      padding: 10px 0;
-      text-align: center;
-      background: transparent;
-      color: #0095dd;
-      margin-top: 10px; }
-    #container #intro #cta .sign-in, #container #intro #cta .sign-up {
-      width: 100%; }
-    #container #intro .get-started {
-      border-color: #9f9f9f;
-      border-style: dotted;
-      border-width: 1px 0;
-      padding: 20px 10px; }
-  #container #features .feature {
-    background-position: 50% 0;
-    padding-top: 150px; }
-  #container footer {
-    text-align: left; } }
+  #container {
+    text-align: center; }
+    #container .band .band-inner {
+      padding: 0 20px; }
+    #container #intro {
+      margin-top: 20px; }
+      #container #intro #tabzilla {
+        top: -20px; }
+      #container #intro #fxos-logo {
+        margin: 0 auto;
+        clear: both; }
+      #container #intro #hero {
+        background-image: url("/images/home/laptop-phone-mobile.png");
+        background-size: 283px 192px;
+        height: 192px;
+        overflow: hidden;
+        text-indent: 100%;
+        white-space: nowrap;
+        width: 283px;
+        margin: 20px auto 0 auto; }
+        @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
+          #container #intro #hero {
+            background-image: url("/images/home/laptop-phone-mobile@2x.png"); } }
+      #container #intro #cta {
+        margin: 10px 0; }
+        #container #intro #cta .sign-up {
+          background: #0095dd;
+          border: 2px solid #0095dd;
+          border-radius: 8px;
+          color: #fff;
+          display: block;
+          font-size: 20px;
+          padding: 10px 0;
+          text-align: center;
+          background: transparent;
+          color: #0095dd;
+          margin-top: 10px; }
+        #container #intro #cta .sign-in, #container #intro #cta .sign-up {
+          font-size: 18px;
+          width: 100%; }
+      #container #intro p {
+        padding: 0 10px; }
+      #container #intro .get-started {
+        border-color: #9f9f9f;
+        border-style: dotted;
+        border-width: 1px 0;
+        padding: 20px 10px; }
+    #container #features {
+      margin: 35px 0 15px 0; }
+      #container #features .feature {
+        background-position: 50% 0;
+        padding-top: 155px; }
+        #container #features .feature p {
+          margin-top: 10px; }
+    #container footer {
+      text-align: left; }
+      #container footer .band-inner .column {
+        float: none;
+        width: 100%; }
+      #container footer .band-inner .column-3 {
+        padding-top: 14px; } }

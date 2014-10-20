@@ -1,29 +1,42 @@
-$font-base: '/fonts/FiraSans/';
+$font-base: '/styles/fonts';
 
-/* TypoPRO Fira Sans */
+/* Fira Sans */
 @include font-face(
   $font-family: $default-font-family,
-  $path: '#{$font-base}FiraSans-Regular'
+  $path: '#{$font-base}/FiraSans/FiraSans-Regular'
 );
 
-/* TypoPRO Fira Sans Bold */
+/* Fira Sans Bold */
 @include font-face(
   $font-family: $default-font-family,
-  $path: '#{$font-base}FiraSans-Bold',
+  $path: '#{$font-base}/FiraSans/FiraSans-Bold',
   $font-weight: bold
 );
 
-/* TypoPRO Fira Sans Italic */
+/* Fira Sans Italic */
 @include font-face(
   $font-family: $default-font-family,
-  $path: '#{$font-base}FiraSans-BookItalic',
+  $path: '#{$font-base}/FiraSans/FiraSans-BookItalic',
   $font-style: italic
 );
 
-/* TypoPRO Fira Sans Bold Italic */
+/* Fira Sans Bold Italic */
 @include font-face(
   $font-family: $default-font-family,
-  $path: '#{$font-base}FiraSans-BoldItalic',
+  $path: '#{$font-base}/FiraSans/FiraSans-BoldItalic',
   $font-style: italic,
   $font-weight: bold
+);
+
+/* Open Sans */
+@include font-face(
+  $font-family: 'Open Sans',
+  $path: '#{$font-base}/OpenSans/OpenSans-Regular-webfont'
+);
+
+/* Open Sans Light */
+@include font-face(
+  $font-family: 'Open Sans',
+  $path: '#{$font-base}/OpenSans/OpenSans-Light-webfont',
+  $font-weight: 300
 );

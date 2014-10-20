@@ -9,7 +9,6 @@
   }
 
   #container {
-
     .band {
       .band-inner {
         padding: 0 15px;
@@ -37,6 +36,19 @@
         .sign-up {
           padding-left: 15px;
           width: 65%;
+        }
+      }
+    }
+
+    footer {
+      .band-inner {
+        .column {
+          width: 50%;
+        }
+
+        .column-1 {
+          width: 100%;
+          float: none;
         }
       }
     }

@@ -1,39 +1,57 @@
 /*! This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* TypoPRO Fira Sans */
+/* Fira Sans */
 @font-face {
   font-family: 'Fira Sans';
-  src: url('/fonts/FiraSans/FiraSans-Regular.eot?#iefix') format('embedded-opentype'), url('/fonts/FiraSans/FiraSans-Regular.woff') format('woff'), url('/fonts/FiraSans/FiraSans-Regular.ttf') format('truetype');
+  src: url('/styles/fonts/FiraSans/FiraSans-Regular.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/FiraSans/FiraSans-Regular.woff') format('woff'), url('/styles/fonts/FiraSans/FiraSans-Regular.ttf') format('truetype');
   font-style: normal;
   font-weight: normal;
   font-stretch: normal;
   font-variant: normal; }
 
-/* TypoPRO Fira Sans Bold */
+/* Fira Sans Bold */
 @font-face {
   font-family: 'Fira Sans';
-  src: url('/fonts/FiraSans/FiraSans-Bold.eot?#iefix') format('embedded-opentype'), url('/fonts/FiraSans/FiraSans-Bold.woff') format('woff'), url('/fonts/FiraSans/FiraSans-Bold.ttf') format('truetype');
+  src: url('/styles/fonts/FiraSans/FiraSans-Bold.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/FiraSans/FiraSans-Bold.woff') format('woff'), url('/styles/fonts/FiraSans/FiraSans-Bold.ttf') format('truetype');
   font-style: normal;
   font-weight: bold;
   font-stretch: normal;
   font-variant: normal; }
 
-/* TypoPRO Fira Sans Italic */
+/* Fira Sans Italic */
 @font-face {
   font-family: 'Fira Sans';
-  src: url('/fonts/FiraSans/FiraSans-BookItalic.eot?#iefix') format('embedded-opentype'), url('/fonts/FiraSans/FiraSans-BookItalic.woff') format('woff'), url('/fonts/FiraSans/FiraSans-BookItalic.ttf') format('truetype');
+  src: url('/styles/fonts/FiraSans/FiraSans-BookItalic.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/FiraSans/FiraSans-BookItalic.woff') format('woff'), url('/styles/fonts/FiraSans/FiraSans-BookItalic.ttf') format('truetype');
   font-style: italic;
   font-weight: normal;
   font-stretch: normal;
   font-variant: normal; }
 
-/* TypoPRO Fira Sans Bold Italic */
+/* Fira Sans Bold Italic */
 @font-face {
   font-family: 'Fira Sans';
-  src: url('/fonts/FiraSans/FiraSans-BoldItalic.eot?#iefix') format('embedded-opentype'), url('/fonts/FiraSans/FiraSans-BoldItalic.woff') format('woff'), url('/fonts/FiraSans/FiraSans-BoldItalic.ttf') format('truetype');
+  src: url('/styles/fonts/FiraSans/FiraSans-BoldItalic.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/FiraSans/FiraSans-BoldItalic.woff') format('woff'), url('/styles/fonts/FiraSans/FiraSans-BoldItalic.ttf') format('truetype');
   font-style: italic;
   font-weight: bold;
+  font-stretch: normal;
+  font-variant: normal; }
+
+/* Open Sans */
+@font-face {
+  font-family: 'Open Sans';
+  src: url('/styles/fonts/OpenSans/OpenSans-Regular-webfont.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/OpenSans/OpenSans-Regular-webfont.woff') format('woff'), url('/styles/fonts/OpenSans/OpenSans-Regular-webfont.ttf') format('truetype');
+  font-style: normal;
+  font-weight: normal;
+  font-stretch: normal;
+  font-variant: normal; }
+
+/* Open Sans Light */
+@font-face {
+  font-family: 'Open Sans';
+  src: url('/styles/fonts/OpenSans/OpenSans-Light-webfont.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/OpenSans/OpenSans-Light-webfont.woff') format('woff'), url('/styles/fonts/OpenSans/OpenSans-Light-webfont.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 300;
   font-stretch: normal;
   font-variant: normal; }
 
