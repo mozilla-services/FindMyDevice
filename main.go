@@ -188,6 +188,8 @@ func main() {
 		handlers.RestQueue)
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/state/", verRoot),
 		handlers.State)
+	RESTMux.HandleFunc(fmt.Sprintf("/%s/l10n/client.json", verRoot),
+		handlers.Language)
 	// Static files (served by nginx in production)
 	if config.GetFlag("use_insecure_static") {
 		RESTMux.HandleFunc("/bower_components/",

@@ -4,9 +4,12 @@
 package wmf
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/mozilla-services/FindMyDevice/util"
@@ -89,6 +92,78 @@ func Test_Handler_verifyFxAAssertion(t *testing.T) {
 		err != nil {
 		t.Logf("Returned userid: %s, email: %s", userid, email)
 		t.Errorf("Failed to validate mock assertion %s", err)
+	}
+}
+
+func Test_getLocLang(t *testing.T) {
+	config := util.NewMzConfig()
+	h := testHandler(config, t)
+
+	req, _ := http.NewRequest("GET", "http://localhost/1/l10n/client.json", nil)
+	req.Header.Add("Accept-Language", "foo-BA;0.8,bar-GO;0.9")
+
+	result := h.getLocLang(req)
+	t.Logf("results: %+v\n", result)
+	if len(result) == 0 {
+		t.Errorf("getLocLang failed to return any results")
+	}
+	if len(result) != 5 {
+		t.Errorf("getLocLang returned too few results")
+	}
+	if result[0].Lang != "bar_go" {
+		t.Errorf("getLocLang failed to sort languages correctly")
+	}
+	if result[4].Lang != "en" {
+		t.Errorf("getLocLang failed to include 'en'")
+	}
+
+	req, _ = http.NewRequest("GET", "http://localhost/1/l10n/client.json", nil)
+	req.Header.Add("Accept-Language", "{:;}() echo invalid!")
+	result = h.getLocLang(req)
+	t.Logf("results: %+v\n", result)
+	if result[0].Lang != "en" {
+		t.Errorf("getLocLang failed to gracefully handle invalid Accept-Language")
+	}
+}
+
+func Test_PathExists(t *testing.T) {
+	// cwd appears to be ./wmf
+	cwd, _ := filepath.Abs(filepath.Clean("."))
+	if !PathExists(cwd, "handlers_test.go") {
+		t.Errorf("PathExists failed to find current file")
+	}
+	if PathExists(cwd, "Invalid file") {
+		t.Errorf("PathExists found Invalid file")
+	}
+	if PathExists(cwd, filepath.Join("..", "Makefile")) {
+		t.Error("PathExists failed to sandbox")
+	}
+}
+
+func Test_dumpFile(t *testing.T) {
+	config := util.NewMzConfig()
+	h := testHandler(config, t)
+
+	wd := os.TempDir()
+	tf_name := filepath.Join(wd, "wmf_test.txt")
+	tf, err := os.Create(tf_name)
+	if err != nil {
+		t.Fatalf("Could not gen test file: %s", err.Error())
+	}
+	defer os.Remove(tf_name)
+	tf.Write([]byte("Some data"))
+	tf.Close()
+
+	buffer := new(bytes.Buffer)
+	if err := h.dumpFile(wd, tf_name, buffer); err != nil {
+		t.Fatalf("dumpFile returned error: %s", err.Error())
+	}
+	if buffer.String() != "Some data" {
+		t.Errorf("dumpFile didn't return expected text")
+	}
+	buffer = new(bytes.Buffer)
+	if err := h.dumpFile(wd, "/etc/hostname", buffer); err == nil {
+		t.Errorf("dumpFile failed to error on inappropriate file: %s", buffer.String())
 	}
 }
 
