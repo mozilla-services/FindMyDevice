@@ -1,0 +1,6 @@
+{"alg":"RS256"}
+{"fxa-generation":1404770592087,"fxa-lastAuthAt":1404834090,"fxa-verifiedEmail":"test+test@unitedheroes.net","public-key":{"algorithm":"DS","y":"","p":"","q":"","g":""},"principal":{"email":"08fa36be8f6345ea9e44e2410d9f3d7d@api.accounts.firefox.com"},"iat":1404834172418,"exp":1404855782418,"iss":"api.accounts.firefox.com"}
+Nd0fa3BANsm0Ai3vGP7yj8kI64GyTF2qe1i_GKjVxmdcI87ALy--8o0W45B4acS_-J10X0h7bIc4esHwuPk09VjN4itRsrwkDxY6IJloxXJZmHO22LbqTek-hR_jCYv-HvB5wV2e-WyNS-7CCG0tgYWyXajUO68m5LM2IuuEKMWRnzYy7b1Urfh9mzIW40_O1twWHhce8tKbKfjOSXhK_bJ9cNqKxfITYPD_iWlT4B7fTUDE19htcC1HrIfN15JVq6WLJ6RmIVKGkNGUsVbYqRFUhGhHG-tEeB96CtkID5sPylZrPfxNLMNW9g2gf4YJIm-INWZwHvF26w_M0Y1-vg~eyJhbGciOiJEUzEyOCJ9
+{"exp":2193234184419,"aud":"https://oauth.stage.mozaws.net/v1"}
+YyjneLpdFPc-3WzYYux1LhLqL8pfc7dnGXJHdzuTDj2tMZq96ABuYg==
+

@@ -328,7 +328,7 @@ db.db=fmd
 
 	// Reset the public schema in the test database
 	if _, err = rcs.Db.Exec("drop schema if exists public cascade;"); err != nil {
-		fmt.Printf("Error droping public schema: [%v]\n", err)
+		fmt.Printf("Error dropping public schema: [%v]\n", err)
 		return nil, err
 	}
 	if _, err = rcs.Db.Exec("create schema if not exists public;"); err != nil {
