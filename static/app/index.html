@@ -6,7 +6,7 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Find My Device</title>
+    <title>{{ "Find My Device" | l }}</title>
     <meta name="viewport" content="width=device-width">
     <meta name="token" content="{{.Token}}">
     <link href="https://api.tiles.mapbox.com/mapbox.js/v1.6.4/mapbox.css" rel="stylesheet">
@@ -23,13 +23,80 @@
       <script src="https://api.tiles.mapbox.com/mapbox.js/v1.6.4/mapbox.js"></script>
       <script data-main="scripts/main" src="bower_components/requirejs/require.js"></script>
     {{else}}
-      <div class="hero">
-        <h1>Rumor has it that you can't find your device.</h1>
-        <h2>Don't worry: we're the app for that.</h2>
-        <div id="login">
-          <a href="/signin/">Sign in</a>
+      <h3>{{ "Firefox OS" | l }}</h3>
+      <h1>{{ "Find My Device" | l }}</h1>
+      <h2>{{ "Locate a lost phone, lock it or even erase it remotely." | l }}</h2>
+
+      <div class="intro">
+        <p>{{ "If you’ve lost your Firefox OS smartphone, Find My Device can help you find it. You can see it on a map, make it play a sound and have it display a message. You can also lock it for safety or delete your personal info completely." | l }}</p>
+        <p>{{ "To get started, make sure you have a Firefox Account and Find My Device enabled on your phone." | l }}</p>
+      </div>
+
+      <div class="cta">
+        <a href="/signin/" class="sign-in">{{ "Sign in" | l }}</a>
+        <a href="">{{ "Create a Firefox Account" | l }}</a>
+      </div>
+
+      <div class="features">
+        <div class="feature">
+          <h3>{{ "Track" | l }}</h3>
+          <p>{{ "As long as your phone remains on and connected to the Internet, you can see its location on the map." | l }}</p>
+        </div>
+        <div class="feature">
+          <h3>{{ "Ring" | l }}</h3>
+          <p>{{ "If you see that it’s nearby on the map, you can make the phone ring, even if the ringer is set to silent." | l }}</p>
+        </div>
+        <div class="feature">
+          <h3>{{ "Lock" | l }}</h3>
+          <p>{{ "To protect your personal info, you can lock your screen and have it display a message to help someone return it to you." | l }}</p>
+        </div>
+        <div class="feature">
+          <h3>{{ "Erase" | l }}</h3>
+          <p>{{ "If you’re unable to find your phone, you can permanently erase it, but please note that this can not be undone." | l }}</p>
         </div>
       </div>
+
+      <footer id="colophon" class="">
+        <nav class="row">
+          <div class="col col-1">
+            <h1 class="logo"><a href="http://www.mozilla.org/">{{ "Mozilla" | l }}</a></h1>
+            <p class="license">{{ "Portions of this content are ©1998–2014 by individual mozilla.org contributors. Content available under a <a href='http://www.mozilla.org/foundation/licensing/website-content/'>Creative Commons license</a>." | l }}</p>
+          </div>
+          <div class="col col-2">
+            <ul class="links-join">
+              <li><a href="http://www.mozilla.org/contact/spaces/">{{ "Contact Us" | l }}</a></li>
+              <li class="wrap"><a href="http://www.mozilla.org/about/partnerships/">{{ "Partner with Us" | l }}</a></li>
+              <li class="clear"><a href="https://sendto.mozilla.org/page/contribute/Give-Now?source=mozillaorg_default_footer" class="donate">{{ "Donate" | l }}</a></li>
+              <li class="wrap"><a href="https://affiliates.mozilla.org/">{{ "Firefox Affiliates" | l }}</a></li>
+              <li class="clear"><a href="http://www.mozilla.org/contribute/page/">{{ "Contribute to this page" | l }}</a></li>
+            </ul>
+            <ul class="links-legal">
+              <li><a href="http://www.mozilla.org/privacy/">{{ "Privacy" | l }}</a></li>
+              <li class="wrap"><a href="http://www.mozilla.org/about/legal/">{{ "Legal" | l }}</a></li>
+              <li class="clear"><a href="http://www.mozilla.org/about/legal/fraud-report/">{{ "Report Trademark Abuse" | l }}</a></li>
+            </ul>
+          </div>
+          <div class="col col-3">
+            <ul class="links-social">
+              <li>
+                {{ "Mozilla:" | l }}
+                <ul>
+                  <li><a href="https://twitter.com/mozilla">{{ "Twitter<span> (@mozilla)</span>" | l }}</a></li>
+                  <li><a href="https://www.facebook.com/mozilla">{{ "Facebook<span> (Mozilla)</span>" | l }}</a></li>
+                </ul>
+              </li>
+              <li>
+                {{ "Firefox:" | l }}
+                <ul>
+                  <li><a href="https://twitter.com/firefox">{{ "Twitter<span> (@firefox)</span>" | l }}</a></li>
+                  <li><a href="https://www.facebook.com/Firefox">{{ "Facebook<span> (Firefox)</span>" | l }}</a></li>
+                  <li><a href="https://www.youtube.com/firefoxchannel">{{ "YouTube<span> (firefoxchannel)</span>" | l }}</a></li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+        </nav>
+      </footer>
     {{end}}
   </body>
 </html>

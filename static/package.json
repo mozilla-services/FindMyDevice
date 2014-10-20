@@ -20,8 +20,7 @@
     "outdated": "npm outdated --depth 0",
     "lint": "grunt validate-shrinkwrap --force && npm run outdated && grunt lint"
   },
-  "dependencies": {},
-  "devDependencies": {
+  "dependencies": {
     "connect-livereload": "0.4.0",
     "express": "4.8.2",
     "grunt": "0.4.5",
@@ -42,6 +41,7 @@
     "grunt-jsonlint": "1.0.4",
     "grunt-nsp-shrinkwrap": "0.0.3",
     "grunt-open": "0.2.3",
+    "grunt-po2json": "git://github.com/shane-tomlinson/grunt-po2json.git#c1a7406",
     "grunt-requirejs": "0.4.2",
     "grunt-rev": "0.1.0",
     "grunt-sass": "0.14.1",
@@ -49,7 +49,9 @@
     "ini": "1.2.1",
     "intern": "2.0.3",
     "jshint-stylish": "0.4.0",
+    "jsxgettext-recursive": "git://github.com/nchapman/jsxgettext-recursive.git",
     "load-grunt-tasks": "0.6.0",
+    "mkdirp": "0.5.0",
     "pg.js": "3.4.2",
     "restler": "3.2.2",
     "time-grunt": "1.0.0"

@@ -28,13 +28,17 @@ module.exports = function (grunt) {
   // load all grunt tasks
   require('load-grunt-tasks')(grunt);
 
-  // Load npm tasks
+  // load npm tasks
   grunt.loadNpmTasks('intern');
 
   // configurable paths
   var yeomanConfig = {
     app: 'app',
     dist: 'dist',
+    strings: {
+      src: 'app/bower_components/FindMyDevice-l10n/locale',
+      dest: 'locale'
+    },
     test: 'test',
     tmp: '.tmp'
   };
@@ -125,6 +129,16 @@ module.exports = function (grunt) {
 
     // COPY TASK
     copy: {
+      strings: {
+        files: [{
+          expand: true,
+          cwd: '<%= yeoman.strings.src %>',
+          dest: '<%= yeoman.strings.dest %>',
+          src: [
+            '**/*.po'
+          ]
+        }]
+      },
       dist: {
         files: [{
           expand: true,
@@ -135,7 +149,8 @@ module.exports = function (grunt) {
             '*.{ico,txt}',
             '.htaccess',
             'images/{,*/}*.{png,jpg,jpeg,webp,gif}',
-            'styles/fonts/{,*/}*.*'
+            'styles/fonts/{,*/}*.*',
+            'index.html'
           ]
         },
         // Copy these files into tmp so that concat can find them
@@ -405,7 +420,6 @@ module.exports = function (grunt) {
     'clean:dist',
     'css',
     'useminPrepare',
-    'htmlmin',
     'copy',
     'concat',
     'cssmin',
@@ -486,4 +500,7 @@ module.exports = function (grunt) {
 
   // TEST TASK
   grunt.registerTask('test', [ 'intern' ]);
+
+  // load grunt tasks from ./grunttasks
+  grunt.loadTasks('grunttasks');
 };

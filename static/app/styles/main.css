@@ -57,9 +57,8 @@
 
 /* Border box all the things */
 *, *:before, *:after {
-  -webkit-box-sizing: border-box;
-     -moz-box-sizing: border-box;
-          box-sizing: border-box; }
+  -moz-box-sizing: border-box;
+       box-sizing: border-box; }
 
 html, body, input, select {
   font-family: 'TypoPRO Fira Sans', sans-serif; }
@@ -477,8 +476,7 @@ a {
     background-clip: padding-box;
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 6px;
-    -webkit-box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
-            box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
     margin-top: 12px;
     width: 300px; }
     #modal::before {
@@ -522,7 +520,6 @@ a {
     width: 100%; }
     #modal.drawer {
       border-bottom: 1px solid #e0e0e0;
-      -webkit-box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
-              box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
       height: auto;
       top: 47px !important; } }
