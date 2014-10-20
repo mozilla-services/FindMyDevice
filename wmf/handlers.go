@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
+	"text/template"
 	"io"
 	// "io/ioutil"
 	"log"
@@ -1388,11 +1388,21 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 					store.PurgeCommands(deviceId)
 				}
 				err = self.updatePage(deviceId, c, margs, false)
-			case "q":
-				// User has quit, nuke what we know.
-				if self.config.GetFlag("cmd.q.allow") {
-					err = store.DeleteDevice(deviceId)
+			case "e":
+				// erase requested.
+				self.logger.Debug(self.logCat,
+					"Deleting device",
+					util.Fields{"deviceId": devRec.ID})
+				if err = store.DeleteDevice(devRec.ID); err != nil {
+					self.logger.Warn(self.logCat, "Could not delete device",
+						util.Fields{"error": err.Error(),
+							"deviceId": devRec.ID,
+							"userId":   devRec.User})
+					http.Error(resp, "\"Server Error\"",
+						http.StatusServiceUnavailable)
+					return
 				}
+				self.updatePage(deviceId, c, margs, false)
 			default:
 				err = self.updatePage(deviceId, c, margs, false)
 			}
@@ -1432,19 +1442,6 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		"", devRec.Secret)
 	resp.Header().Add("Authorization", authHeader)
 	self.metrics.Increment("cmd.send." + ctype)
-	if ctype == "e" {
-		self.logger.Debug(self.logCat,
-			"Deleting device",
-			util.Fields{"deviceId": devRec.ID})
-		if err = store.DeleteDevice(devRec.ID); err != nil {
-			self.logger.Warn(self.logCat, "Could not delete device",
-				util.Fields{"error": err.Error(),
-					"deviceId": devRec.ID,
-					"userId":   devRec.User})
-			http.Error(resp, "\"Server Error\"", http.StatusServiceUnavailable)
-			return
-		}
-	}
 	if self.config.GetFlag("debug.show_output") {
 		self.logger.Debug(self.logCat,
 			">>>output",
@@ -1458,6 +1455,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	var v interface{}
 	var vs string
 	var ok bool
+	var logout bool
 	status = http.StatusOK
 	store := self.store
 
@@ -1534,9 +1532,8 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		}
 	case "e": // erase
 		rargs = replyType{}
-		// Delete the device
-		return http.StatusOK, ErrDeviceDeleted
-
+		logout = true
+		// erase requested, log the user off soon.
 	default:
 		self.logger.Warn(self.logCat, "Invalid Command",
 			util.Fields{"cmd": string(cmd),
@@ -1584,6 +1581,9 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				"deviceId": devRec.ID,
 				"userId":   devRec.User})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
+	}
+	if logout {
+		err = ErrDeviceDeleted
 	}
 	return
 }
@@ -1724,16 +1724,9 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 			case nil:
 				break
 			case ErrDeviceDeleted:
-				// remove the deviceId
-				if err = store.DeleteDevice(devRec.ID); err != nil {
-					self.logger.Warn(self.logCat,
-						"Could not remove device",
-						util.Fields{"deviceId": devRec.ID,
-							"userId": devRec.User,
-							"error":  err.Error()})
-				}
-				// remove device from session
-				session.Values[SESSION_DEVICEID] = ""
+				self.logger.Info(self.logCat, "Clearing session", nil)
+				self.clearSession(session)
+				session.Options.MaxAge = -1
 				session.Save(req, resp)
 			default:
 				self.logger.Error(self.logCat, "Error processing command",
@@ -1832,6 +1825,20 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 
 // user login functions
 
+func Localize(args ...interface{}) string {
+	ok := false
+	var s string
+
+	if len(args) == 1 {
+		s, ok = args[0].(string)
+	}
+	if !ok {
+		s = fmt.Sprint(args...)
+	}
+
+	return s
+}
+
 func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:Index"
 
@@ -1859,13 +1866,14 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	tmpl, err := template.New("index.html").ParseFiles(docRoot + "/index.html")
+	tmpl, err := template.New("index.html").Funcs(template.FuncMap{"l": Localize}).ParseFiles(docRoot + "/index.html")
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not display index page",
 			util.Fields{"error": err.Error(),
 				"user": initData.UserId})
 		http.Error(resp, "Server error", 500)
 	}
+
 	if sessionInfo != nil {
 		session.Values[SESSION_USERID] = sessionInfo.UserId
 		session.Values[SESSION_EMAIL] = sessionInfo.Email

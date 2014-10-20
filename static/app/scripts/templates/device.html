@@ -1,16 +1,16 @@
 <header>
   <h1 title="{{id}}">{{name}}</h1>
-  <a class="menu">Menu</a>
-  <a class="signout" href="/signout/">Sign out</a>
+  <a class="menu">{{#l}}Menu{{/l}}</a>
+  <a class="signout" href="/signout/">{{#l}}Sign out{{/l}}</a>
 </header>
 <div id="map">
   <div class="locating">
-    <h2>Connecting to device...</h2>
+    <h2>{{#l}}Connecting to device...{{/l}}</h2>
   </div>
-  <div class="brand">Firefox OS</div>
+  <div class="brand">{{#l}}Firefox OS{{/l}}</div>
 </div>
 <footer>
-  <span class="button play-sound"><a>Ring</a></span>
-  <span class="button lost-mode"><a>Lock</a></span>
-  <span class="button erase"><a>Erase</a></span>
+  <span class="button play-sound"><a>{{#l}}Ring{{/l}}</a></span>
+  <span class="button lost-mode"><a>{{#l}}Lock{{/l}}</a></span>
+  <span class="button erase"><a>{{#l}}Erase{{/l}}</a></span>
 </footer>

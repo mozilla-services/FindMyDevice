@@ -45,6 +45,11 @@ define(
         return context;
       },
 
+      l: function (text) {
+        // This should actually look up the localized string
+        return text;
+      },
+
       /**
       * Renders by combining template and context and inserting into the associated element.
       *
@@ -56,6 +61,13 @@ define(
         this.destroySubviews();
 
         var context = this.getContext();
+        var self = this;
+
+        context.l = function (text) {
+          return function (text, render) {
+            return render(self.l(text));
+          };
+        };
 
         this.$el.html(this.template(context));
 
