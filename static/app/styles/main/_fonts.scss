@@ -1,5 +1,3 @@
-$font-base: '/styles/fonts';
-
 /* Fira Sans */
 @include font-face(
   $font-family: $default-font-family,
@@ -26,17 +24,4 @@ $font-base: '/styles/fonts';
   $path: '#{$font-base}/FiraSans/FiraSans-BoldItalic',
   $font-style: italic,
   $font-weight: bold
-);
-
-/* Open Sans */
-@include font-face(
-  $font-family: 'Open Sans',
-  $path: '#{$font-base}/OpenSans/OpenSans-Regular-webfont'
-);
-
-/* Open Sans Light */
-@include font-face(
-  $font-family: 'Open Sans',
-  $path: '#{$font-base}/OpenSans/OpenSans-Light-webfont',
-  $font-weight: 300
 );

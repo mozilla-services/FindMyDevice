@@ -1,43 +1,7 @@
-/* Fira Sans */
-@font-face {
-  font-family: 'Fira Sans';
-  src: url('/styles/fonts/FiraSans/FiraSans-Regular.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/FiraSans/FiraSans-Regular.woff') format('woff'), url('/styles/fonts/FiraSans/FiraSans-Regular.ttf') format('truetype');
-  font-style: normal;
-  font-weight: normal;
-  font-stretch: normal;
-  font-variant: normal; }
-
-/* Fira Sans Bold */
-@font-face {
-  font-family: 'Fira Sans';
-  src: url('/styles/fonts/FiraSans/FiraSans-Bold.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/FiraSans/FiraSans-Bold.woff') format('woff'), url('/styles/fonts/FiraSans/FiraSans-Bold.ttf') format('truetype');
-  font-style: normal;
-  font-weight: bold;
-  font-stretch: normal;
-  font-variant: normal; }
-
-/* Fira Sans Italic */
-@font-face {
-  font-family: 'Fira Sans';
-  src: url('/styles/fonts/FiraSans/FiraSans-BookItalic.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/FiraSans/FiraSans-BookItalic.woff') format('woff'), url('/styles/fonts/FiraSans/FiraSans-BookItalic.ttf') format('truetype');
-  font-style: italic;
-  font-weight: normal;
-  font-stretch: normal;
-  font-variant: normal; }
-
-/* Fira Sans Bold Italic */
-@font-face {
-  font-family: 'Fira Sans';
-  src: url('/styles/fonts/FiraSans/FiraSans-BoldItalic.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/FiraSans/FiraSans-BoldItalic.woff') format('woff'), url('/styles/fonts/FiraSans/FiraSans-BoldItalic.ttf') format('truetype');
-  font-style: italic;
-  font-weight: bold;
-  font-stretch: normal;
-  font-variant: normal; }
-
 /* Open Sans */
 @font-face {
   font-family: 'Open Sans';
-  src: url('/styles/fonts/OpenSans/OpenSans-Regular-webfont.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/OpenSans/OpenSans-Regular-webfont.woff') format('woff'), url('/styles/fonts/OpenSans/OpenSans-Regular-webfont.ttf') format('truetype');
+  src: url('fonts/OpenSans/OpenSans-Regular-webfont.eot?#iefix') format('embedded-opentype'), url('fonts/OpenSans/OpenSans-Regular-webfont.woff') format('woff'), url('fonts/OpenSans/OpenSans-Regular-webfont.ttf') format('truetype');
   font-style: normal;
   font-weight: normal;
   font-stretch: normal;
@@ -46,7 +10,7 @@
 /* Open Sans Light */
 @font-face {
   font-family: 'Open Sans';
-  src: url('/styles/fonts/OpenSans/OpenSans-Light-webfont.eot?#iefix') format('embedded-opentype'), url('/styles/fonts/OpenSans/OpenSans-Light-webfont.woff') format('woff'), url('/styles/fonts/OpenSans/OpenSans-Light-webfont.ttf') format('truetype');
+  src: url('fonts/OpenSans/OpenSans-Light-webfont.eot?#iefix') format('embedded-opentype'), url('fonts/OpenSans/OpenSans-Light-webfont.woff') format('woff'), url('fonts/OpenSans/OpenSans-Light-webfont.ttf') format('truetype');
   font-style: normal;
   font-weight: 300;
   font-stretch: normal;
@@ -62,10 +26,10 @@ html, body, input, select {
   font-family: 'Open Sans', sans-serif; }
 
 html {
-  background: url("/images/home/bg-blue-sand.png"); }
+  background: url("../images/home/bg-blue-sand.png"); }
 
 body {
-  background: url("/images/home/bg-gradient-blue-sand.png") repeat-x;
+  background: url("../images/home/bg-gradient-blue-sand.png") repeat-x;
   border-top: 2px solid #fff;
   padding: 0; }
 
@@ -102,7 +66,7 @@ h3 {
       line-height: 24px;
       text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8); }
 #container #intro #fxos-logo {
-  background-image: url("/images/home/ffos-logo.png");
+  background-image: url("../images/home/ffos-logo.png");
   background-size: 177px 54px;
   height: 54px;
   overflow: hidden;
@@ -111,7 +75,7 @@ h3 {
   width: 177px; }
   @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
     #container #intro #fxos-logo {
-      background-image: url("/images/home/ffos-logo@2x.png"); } }
+      background-image: url("../images/home/ffos-logo@2x.png"); } }
 #container #intro h1 {
   margin-top: 28px; }
 #container #intro p {
@@ -134,36 +98,36 @@ h3 {
     background-repeat: no-repeat;
     margin-bottom: 55px; }
     #container #features .feature.track {
-      background-image: url("/images/home/track.png");
+      background-image: url("../images/home/track.png");
       background-size: 141px 141px; }
       @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
         #container #features .feature.track {
-          background-image: url("/images/home/track@2x.png"); } }
+          background-image: url("../images/home/track@2x.png"); } }
     #container #features .feature.ring {
-      background-image: url("/images/home/ring.png");
+      background-image: url("../images/home/ring.png");
       background-size: 141px 141px; }
       @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
         #container #features .feature.ring {
-          background-image: url("/images/home/ring@2x.png"); } }
+          background-image: url("../images/home/ring@2x.png"); } }
     #container #features .feature.lock {
-      background-image: url("/images/home/lock.png");
+      background-image: url("../images/home/lock.png");
       background-size: 141px 141px; }
       @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
         #container #features .feature.lock {
-          background-image: url("/images/home/lock@2x.png"); } }
+          background-image: url("../images/home/lock@2x.png"); } }
     #container #features .feature.erase {
-      background-image: url("/images/home/erase.png");
+      background-image: url("../images/home/erase.png");
       background-size: 141px 141px; }
       @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
         #container #features .feature.erase {
-          background-image: url("/images/home/erase@2x.png"); } }
+          background-image: url("../images/home/erase@2x.png"); } }
 #container footer {
   background: #fff;
   color: #bbbbbb;
   font-size: 13px;
   padding: 40px 0; }
   #container footer .mozilla-logo {
-    background-image: url("/images/home/mozilla-logo.png");
+    background-image: url("../images/home/mozilla-logo.png");
     background-size: 93px 25px;
     height: 25px;
     overflow: hidden;
@@ -172,7 +136,7 @@ h3 {
     width: 93px; }
     @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
       #container footer .mozilla-logo {
-        background-image: url("/images/home/mozilla-logo@2x.png"); } }
+        background-image: url("../images/home/mozilla-logo@2x.png"); } }
   #container footer p {
     line-height: 22px !important; }
   #container footer .band-inner {
@@ -208,7 +172,7 @@ h3 {
           #container footer .band-inner ul.links-social ul li:first-child:before {
             content: ''; }
 
-@media only screen and (min-width: 685px) {
+@media screen and (min-width: 685px) {
   #container #intro {
     margin-top: 100px;
     min-height: 623px; }
@@ -219,7 +183,7 @@ h3 {
       position: relative;
       width: 50%; }
     #container #intro #hero {
-      background-image: url("/images/home/laptop-phone.png");
+      background-image: url("../images/home/laptop-phone.png");
       background-size: 992px 623px;
       height: 623px;
       overflow: hidden;
@@ -231,7 +195,7 @@ h3 {
       top: 0; }
       @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
         #container #intro #hero {
-          background-image: url("/images/home/laptop-phone@2x.png"); } }
+          background-image: url("../images/home/laptop-phone@2x.png"); } }
     #container #intro #cta {
       bottom: -120px;
       position: absolute;
@@ -257,7 +221,7 @@ h3 {
       margin-top: 5px;
       width: 96%; } }
 
-@media only screen and (min-width: 685px) and (max-width: 960px) {
+@media screen and (min-width: 685px) and (max-width: 960px) {
   h1 {
     font-size: 50px;
     letter-spacing: -1px; }
@@ -284,7 +248,7 @@ h3 {
     width: 100%;
     float: none; } }
 
-@media only screen and (max-width: 684px) {
+@media screen and (max-width: 684px) {
   h1 {
     font-size: 36px;
     letter-spacing: -1px; }
@@ -302,7 +266,7 @@ h3 {
         margin: 0 auto;
         clear: both; }
       #container #intro #hero {
-        background-image: url("/images/home/laptop-phone-mobile.png");
+        background-image: url("../images/home/laptop-phone-mobile.png");
         background-size: 283px 192px;
         height: 192px;
         overflow: hidden;
@@ -312,7 +276,7 @@ h3 {
         margin: 20px auto 0 auto; }
         @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
           #container #intro #hero {
-            background-image: url("/images/home/laptop-phone-mobile@2x.png"); } }
+            background-image: url("../images/home/laptop-phone-mobile@2x.png"); } }
       #container #intro #cta {
         margin: 10px 0; }
         #container #intro #cta .sign-up {
@@ -351,3 +315,51 @@ h3 {
         width: 100%; }
       #container footer .band-inner .column-3 {
         padding-top: 14px; } }
+
+html.lt-ie9 #container #intro {
+  margin-top: 100px;
+  min-height: 623px; }
+  html.lt-ie9 #container #intro #tabzilla {
+    top: -100px; }
+  html.lt-ie9 #container #intro .column {
+    float: right;
+    position: relative;
+    width: 50%; }
+  html.lt-ie9 #container #intro #hero {
+    background-image: url("../images/home/laptop-phone.png");
+    background-size: 992px 623px;
+    height: 623px;
+    overflow: hidden;
+    text-indent: 100%;
+    white-space: nowrap;
+    width: 992px;
+    position: absolute;
+    left: -1015px;
+    top: 0; }
+    @media (min--moz-device-pixel-ratio: 1.3), (-o-min-device-pixel-ratio: 2.6/2), (-webkit-min-device-pixel-ratio: 1.3), (min-device-pixel-ratio: 1.3), (min-resolution: 1.3dppx) {
+      html.lt-ie9 #container #intro #hero {
+        background-image: url("../images/home/laptop-phone@2x.png"); } }
+  html.lt-ie9 #container #intro #cta {
+    bottom: -120px;
+    position: absolute;
+    width: 100%; }
+    html.lt-ie9 #container #intro #cta .sign-in, html.lt-ie9 #container #intro #cta .sign-up {
+      float: left;
+      width: 50%; }
+    html.lt-ie9 #container #intro #cta .sign-up {
+      display: block;
+      padding: 14px 0 0 20px; }
+      html.lt-ie9 #container #intro #cta .sign-up:after {
+        content: ' »'; }
+html.lt-ie9 #container #features .feature {
+  float: left;
+  min-height: 141px;
+  padding-left: 160px;
+  width: 50%; }
+  html.lt-ie9 #container #features .feature.lock {
+    clear: left; }
+  html.lt-ie9 #container #features .feature h3 {
+    margin-top: 8px; }
+  html.lt-ie9 #container #features .feature p {
+    margin-top: 5px;
+    width: 96%; }

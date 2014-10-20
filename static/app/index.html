@@ -17,10 +17,13 @@
         <link rel="stylesheet" href="styles/main.css">
       <!-- endbuild -->
     {{else}}
+      <!--[if lte IE 8]>
+          <script src="//mozorg.cdn.mozilla.net/media/js/libs/html5shiv.js"></script>
+      <![endif]-->
       <link rel="stylesheet" href="//mozorg.cdn.mozilla.net/media/css/tabzilla-min.css">
       <!-- build:css(.tmp) styles/home.css -->
         <link rel="stylesheet" href="bower_components/normalize-css/normalize.css">
-        <link rel="stylesheet" href="styles/home/home.css">
+        <link rel="stylesheet" href="styles/home.css">
       <!-- endbuild -->
     {{end}}
   </head>
@@ -43,7 +46,7 @@
               <div id="hero"></div>
               <div id="cta">
                 <a href="/signin/" class="sign-in">{{"Sign in" | l}}</a>
-                <a href="" class="sign-up">{{"Create a Firefox Account" | l}}</a>
+                <a href="/signin/?action=signup" class="sign-up">{{"Create a Firefox Account" | l}}</a>
               </div>
               <p class="description">{{"If you’ve lost your Firefox OS smartphone, Find My Device can help you find it. You can see it on a map, make it play a sound and have it display a message. You can also lock it for safety or delete your personal info completely." | l}}</p>
               <p class="get-started">{{"To get started, make sure you have a Firefox Account and Find My Device enabled on your phone." | l}}</p>

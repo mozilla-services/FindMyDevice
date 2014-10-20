@@ -1,67 +1,65 @@
-@media only screen and (min-width: 685px) {
-  #container {
-    #intro {
-      margin-top: 100px;
-      min-height: 623px;
+#container {
+  #intro {
+    margin-top: 100px;
+    min-height: 623px;
 
-      #tabzilla {
-        top: -100px;
-      }
+    #tabzilla {
+      top: -100px;
+    }
 
-      .column {
-        float: right;
-        position: relative;
+    .column {
+      float: right;
+      position: relative;
+      width: 50%;
+    }
+
+    #hero {
+      @include image-replacement(home/laptop-phone, 992px, 623px);
+      position: absolute;
+      left: -1015px;
+      top: 0;
+    }
+
+    #cta {
+      bottom: -120px;
+      position: absolute;
+      width: 100%;
+
+      .sign-in, .sign-up {
+        float: left;
         width: 50%;
       }
 
-      #hero {
-        @include image-replacement(home/laptop-phone, 992px, 623px);
-        position: absolute;
-        left: -1015px;
-        top: 0;
-      }
+      .sign-up {
+        display: block;
+        padding: 14px 0 0 20px;
 
-      #cta {
-        bottom: -120px;
-        position: absolute;
-        width: 100%;
-
-        .sign-in, .sign-up {
-          float: left;
-          width: 50%;
-        }
-
-        .sign-up {
-          display: block;
-          padding: 14px 0 0 20px;
-
-          &:after {
-            content: ' »';
-          }
+        &:after {
+          content: ' »';
         }
       }
     }
+  }
 
-    #features {
-      .feature {
-        float: left;
-        min-height: 141px;
-        padding-left: 160px;
-        width: 50%;
+  #features {
+    .feature {
+      float: left;
+      min-height: 141px;
+      padding-left: 160px;
+      width: 50%;
 
-        &.lock {
-          // prevent jumpiness by forcing lock onto a new line
-          clear: left;
-        }
+      &.lock {
+        // prevent jumpiness by forcing lock onto a new line
+        clear: left;
+      }
 
-        h3 {
-          margin-top: 8px;
-        }
+      h3 {
+        margin-top: 8px;
+      }
 
-        p {
-          margin-top: 5px;
-          width: 96%;
-        }
+      p {
+        margin-top: 5px;
+        width: 96%;
       }
     }
   }

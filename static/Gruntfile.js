@@ -195,12 +195,10 @@ module.exports = function (grunt) {
       dist: {
         files: {
           '<%= yeoman.dist %>/styles/main.css': [
-            '<%= yeoman.tmp %>/styles/{,*/}*.css',
-            '<%= yeoman.app %>/styles/{,*/}*.css'
+            '<%= yeoman.tmp %>/styles/main.css'
           ],
           '<%= yeoman.dist %>/styles/home.css': [
-            '<%= yeoman.tmp %>/styles/home/*.css',
-            '<%= yeoman.app %>/styles/home/*.css'
+            '<%= yeoman.tmp %>/styles/home.css'
           ]
         }
       }
@@ -343,18 +341,18 @@ module.exports = function (grunt) {
     // SASS TASK
     sass: {
       options: {
-        imagePath: '/images'
+        imagePath: '../images'
       },
       dist: {
         files: {
           '<%= yeoman.tmp %>/styles/main.css': '<%= yeoman.app %>/styles/main.scss',
-          '<%= yeoman.tmp %>/styles/home/home.css': '<%= yeoman.app %>/styles/home/home.scss'
+          '<%= yeoman.tmp %>/styles/home.css': '<%= yeoman.app %>/styles/home.scss'
         }
       },
       dev: {
         files: {
           '<%= yeoman.app %>/styles/main.css': '<%= yeoman.app %>/styles/main.scss',
-          '<%= yeoman.app %>/styles/home/home.css': '<%= yeoman.app %>/styles/home/home.scss'
+          '<%= yeoman.app %>/styles/home.css': '<%= yeoman.app %>/styles/home.scss'
         }
       }
     },
@@ -460,7 +458,7 @@ module.exports = function (grunt) {
         ]);
       case 'postbuild':
         return grunt.task.run([
-          'htmllint'
+          //'htmllint'
         ]);
       default:
         return grunt.task.run([

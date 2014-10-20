@@ -1,0 +1,12 @@
+/* Open Sans */
+@include font-face(
+  $font-family: 'Open Sans',
+  $path: '#{$font-base}/OpenSans/OpenSans-Regular-webfont'
+);
+
+/* Open Sans Light */
+@include font-face(
+  $font-family: 'Open Sans',
+  $path: '#{$font-base}/OpenSans/OpenSans-Light-webfont',
+  $font-weight: 300
+);

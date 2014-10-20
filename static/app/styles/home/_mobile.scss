@@ -1,92 +1,90 @@
-@media only screen and (max-width: 684px) {
-  h1 {
-    font-size: 36px;
-    letter-spacing: -1px;
+h1 {
+  font-size: 36px;
+  letter-spacing: -1px;
+}
+
+h2 {
+  font-size: 22px;
+}
+
+#container {
+  text-align: center;
+
+  .band {
+    .band-inner {
+      padding: 0 20px;
+    }
   }
 
-  h2 {
-    font-size: 22px;
-  }
+  #intro {
+    margin-top: 20px;
 
-  #container {
-    text-align: center;
+    #tabzilla {
+      top: -20px;
+    }
 
-    .band {
-      .band-inner {
-        padding: 0 20px;
+    #fxos-logo {
+      margin: 0 auto;
+      clear: both; // clears tabzilla
+    }
+
+    #hero {
+      @include image-replacement(home/laptop-phone-mobile, 283px, 192px);
+      margin: 20px auto 0 auto;
+    }
+
+    #cta {
+      margin: 10px 0;
+
+      .sign-up {
+        @include button;
+        background: transparent;
+        color: #0095dd;
+        margin-top: 10px;
+      }
+
+      .sign-in, .sign-up {
+        font-size: 18px;
+        width: 100%;
       }
     }
 
-    #intro {
-      margin-top: 20px;
+    p {
+      padding: 0 10px;
+    }
 
-      #tabzilla {
-        top: -20px;
-      }
+    .get-started {
+      border-color: #9f9f9f;
+      border-style: dotted;
+      border-width: 1px 0;
+      padding: 20px 10px;
+    }
+  }
 
-      #fxos-logo {
-        margin: 0 auto;
-        clear: both; // clears tabzilla
-      }
+  #features {
+    margin: 35px 0 15px 0;
 
-      #hero {
-        @include image-replacement(home/laptop-phone-mobile, 283px, 192px);
-        margin: 20px auto 0 auto;
-      }
-
-      #cta {
-        margin: 10px 0;
-
-        .sign-up {
-          @include button;
-          background: transparent;
-          color: #0095dd;
-          margin-top: 10px;
-        }
-
-        .sign-in, .sign-up {
-          font-size: 18px;
-          width: 100%;
-        }
-      }
+    .feature {
+      background-position: 50% 0;
+      padding-top: 155px;
 
       p {
-        padding: 0 10px;
-      }
-
-      .get-started {
-        border-color: #9f9f9f;
-        border-style: dotted;
-        border-width: 1px 0;
-        padding: 20px 10px;
+        margin-top: 10px;
       }
     }
+  }
 
-    #features {
-      margin: 35px 0 15px 0;
+  footer {
+    text-align: left;
 
-      .feature {
-        background-position: 50% 0;
-        padding-top: 155px;
-
-        p {
-          margin-top: 10px;
-        }
+    .band-inner {
+      .column {
+        float: none;
+        width: 100%;
       }
-    }
 
-    footer {
-      text-align: left;
-
-      .band-inner {
-        .column {
-          float: none;
-          width: 100%;
-        }
-
-        .column-3 {
-          padding-top: 14px;
-        }
+      .column-3 {
+        padding-top: 14px;
       }
     }
   }
