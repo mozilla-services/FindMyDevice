@@ -19,9 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
-	"io"
-	// "io/ioutil"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -30,20 +28,23 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 )
 
 // base handler for REST and Socket calls.
 type Handler struct {
-	config  *util.MzConfig
-	logger  util.Logger
-	metrics util.Metrics
-	devId   string
-	logCat  string
-	accepts []string
-	hawk    *Hawk
-	store   storage.Storage
-	verify  func(string) (string, string, error)
+	config       *util.MzConfig
+	logger       util.Logger
+	metrics      util.Metrics
+	devId        string
+	logCat       string
+	accepts      []string
+	hawk         *Hawk
+	store        storage.Storage
+	maxCli       int64
+	maxBodyBytes int64
+	verify       func(string) (string, string, error)
 }
 
 const (
@@ -1067,17 +1068,20 @@ func NewHandler(config *util.MzConfig, logger util.Logger, metrics util.Metrics)
 		// This confuses gorilla, which winds up setting two "user" cookies.
 		//MaxAge: 3600 * 24,
 	}
-	Clients.Max, _ = strconv.ParseInt(config.Get("ws.max_clients", "0"), 10, 64)
+	maxCli, _ := strconv.ParseInt(config.Get("ws.max_clients", "0"), 10, 64)
+	maxBodyBytes, _ := strconv.ParseInt(config.Get("rest.max_body_bytes", "1048576"), 10, 64)
 
 	// Initialize the data store once. This creates tables and
 	// applies required changes.
 	store.Init()
 
 	h := &Handler{config: config,
-		logger:  logger,
-		logCat:  "handler",
-		metrics: metrics,
-		store:   store,
+		logger:       logger,
+		logCat:       "handler",
+		metrics:      metrics,
+		store:        store,
+		maxCli:       maxCli,
+		maxBodyBytes: maxBodyBytes,
 	}
 
 	// oh, go...
@@ -1115,6 +1119,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 	store := self.store
 
+	req.Body = http.MaxBytesReader(resp, req.Body, self.maxBodyBytes)
 	buffer, raw, err = parseBody(req.Body)
 	if err != nil {
 		http.Error(resp, "No body", http.StatusBadRequest)
@@ -1274,7 +1279,6 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 // Handle the Cmd response from the device and pass next command if available.
 func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	var err error
-	var l int
 
 	self.logCat = "handler:Cmd"
 	resp.Header().Set("Content-Type", "application/json")
@@ -1309,14 +1313,15 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	//decode the body
-	var body = make([]byte, req.ContentLength)
-	l, err = req.Body.Read(body)
-	if err != nil && err != io.EOF {
+	req.Body = http.MaxBytesReader(resp, req.Body, self.maxBodyBytes)
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
 		self.logger.Error(self.logCat, "Could not read body",
 			util.Fields{"error": err.Error()})
 		http.Error(resp, "Invalid", 400)
 		return
 	}
+	l := len(body)
 	//validate the Hawk header
 	if self.config.GetFlag("hawk.disabled") == false {
 		if !self.verifyHawkHeader(req, body, devRec) {
@@ -1379,11 +1384,21 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 					store.PurgeCommands(deviceId)
 				}
 				err = self.updatePage(deviceId, c, margs, false)
-			case "q":
-				// User has quit, nuke what we know.
-				if self.config.GetFlag("cmd.q.allow") {
-					err = store.DeleteDevice(deviceId)
+			case "e":
+				// erase requested.
+				self.logger.Debug(self.logCat,
+					"Deleting device",
+					util.Fields{"deviceId": devRec.ID})
+				if err = store.DeleteDevice(devRec.ID); err != nil {
+					self.logger.Warn(self.logCat, "Could not delete device",
+						util.Fields{"error": err.Error(),
+							"deviceId": devRec.ID,
+							"userId":   devRec.User})
+					http.Error(resp, "\"Server Error\"",
+						http.StatusServiceUnavailable)
+					return
 				}
+				self.updatePage(deviceId, c, margs, false)
 			default:
 				err = self.updatePage(deviceId, c, margs, false)
 			}
@@ -1423,19 +1438,6 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		"", devRec.Secret)
 	resp.Header().Add("Authorization", authHeader)
 	self.metrics.Increment("cmd.send." + ctype)
-	if ctype == "e" {
-		self.logger.Debug(self.logCat,
-			"Deleting device",
-			util.Fields{"deviceId": devRec.ID})
-		if err = store.DeleteDevice(devRec.ID); err != nil {
-			self.logger.Warn(self.logCat, "Could not delete device",
-				util.Fields{"error": err.Error(),
-					"deviceId": devRec.ID,
-					"userId":   devRec.User})
-			http.Error(resp, "\"Server Error\"", http.StatusServiceUnavailable)
-			return
-		}
-	}
 	if self.config.GetFlag("debug.show_output") {
 		self.logger.Debug(self.logCat,
 			">>>output",
@@ -1449,6 +1451,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	var v interface{}
 	var vs string
 	var ok bool
+	var logout bool
 	status = http.StatusOK
 	store := self.store
 
@@ -1525,9 +1528,8 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		}
 	case "e": // erase
 		rargs = replyType{}
-		// Delete the device
-		return http.StatusOK, ErrDeviceDeleted
-
+		logout = true
+		// erase requested, log the user off soon.
 	default:
 		self.logger.Warn(self.logCat, "Invalid Command",
 			util.Fields{"cmd": string(cmd),
@@ -1576,6 +1578,9 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				"userId":   devRec.User})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
+	if logout {
+		err = ErrDeviceDeleted
+	}
 	return
 }
 
@@ -1584,7 +1589,6 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	/* Queue commands for the device.
 	 */
 	var err error
-	var lbody int
 	store := self.store
 	rep := make(replyType)
 
@@ -1682,14 +1686,15 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	//decode the body
-	var body = make([]byte, req.ContentLength)
-	lbody, err = req.Body.Read(body)
-	if err != nil && err != io.EOF {
+	req.Body = http.MaxBytesReader(resp, req.Body, self.maxBodyBytes)
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
 		self.logger.Error(self.logCat, "Could not read body",
 			util.Fields{"error": err.Error()})
 		http.Error(resp, "Invalid", 400)
 		return
 	}
+	lbody := len(body)
 	self.logger.Info(self.logCat, "Handling cmd from UI",
 		util.Fields{
 			"cmd":    string(body),
@@ -1715,16 +1720,9 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 			case nil:
 				break
 			case ErrDeviceDeleted:
-				// remove the deviceId
-				if err = store.DeleteDevice(devRec.ID); err != nil {
-					self.logger.Warn(self.logCat,
-						"Could not remove device",
-						util.Fields{"deviceId": devRec.ID,
-							"userId": devRec.User,
-							"error":  err.Error()})
-				}
-				// remove device from session
-				session.Values[SESSION_DEVICEID] = ""
+				self.logger.Info(self.logCat, "Clearing session", nil)
+				self.clearSession(session)
+				session.Options.MaxAge = -1
 				session.Save(req, resp)
 			default:
 				self.logger.Error(self.logCat, "Error processing command",
@@ -1830,6 +1828,20 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 
 // user login functions
 
+func Localize(args ...interface{}) string {
+	ok := false
+	var s string
+
+	if len(args) == 1 {
+		s, ok = args[0].(string)
+	}
+	if !ok {
+		s = fmt.Sprint(args...)
+	}
+
+	return s
+}
+
 func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:Index"
 
@@ -1857,13 +1869,14 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	tmpl, err := template.New("index.html").ParseFiles(docRoot + "/index.html")
+	tmpl, err := template.New("index.html").Funcs(template.FuncMap{"l": Localize}).ParseFiles(docRoot + "/index.html")
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not display index page",
 			util.Fields{"error": err.Error(),
 				"user": initData.UserId})
 		http.Error(resp, "Server error", 500)
 	}
+
 	if sessionInfo != nil {
 		session.Values[SESSION_USERID] = sessionInfo.UserId
 		session.Values[SESSION_EMAIL] = sessionInfo.Email
@@ -2318,6 +2331,7 @@ func (self *Handler) Validate(resp http.ResponseWriter, req *http.Request) {
 
 	// Looking for the body of the request to contain a JSON object with
 	// {assert: ... }
+	req.Body = http.MaxBytesReader(resp, req.Body, self.maxBodyBytes)
 	if buffer, raw, err := parseBody(req.Body); err == nil {
 		if assert, ok := buffer["assert"]; ok {
 			if userid, _, err := self.verify(assert.(string)); err == nil {

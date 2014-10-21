@@ -6,14 +6,26 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Find My Device</title>
+    <title>{{"Find My Device — Firefox OS — Mozilla" | l}}</title>
+    <meta name="description" content="If you’ve lost your Firefox OS smartphone, Find My Device can help you find it. You can see it on a map, make it play a sound and have it display a message. You can also lock it for safety or delete your personal info completely.">
     <meta name="viewport" content="width=device-width">
     <meta name="token" content="{{.Token}}">
-    <link href="https://api.tiles.mapbox.com/mapbox.js/v1.6.4/mapbox.css" rel="stylesheet">
-    <!-- build:css(.tmp) styles/main.css -->
-      <link rel="stylesheet" href="bower_components/normalize-css/normalize.css">
-      <link rel="stylesheet" href="styles/main.css">
-    <!-- endbuild -->
+    {{if .UserId}}
+      <link rel="stylesheet" href="https://api.tiles.mapbox.com/mapbox.js/v1.6.4/mapbox.css">
+      <!-- build:css(.tmp) styles/main.css -->
+        <link rel="stylesheet" href="bower_components/normalize-css/normalize.css">
+        <link rel="stylesheet" href="styles/main.css">
+      <!-- endbuild -->
+    {{else}}
+      <!--[if lte IE 8]>
+          <script src="//mozorg.cdn.mozilla.net/media/js/libs/html5shiv.js"></script>
+      <![endif]-->
+      <link rel="stylesheet" href="//mozorg.cdn.mozilla.net/media/css/tabzilla-min.css">
+      <!-- build:css(.tmp) styles/home.css -->
+        <link rel="stylesheet" href="bower_components/normalize-css/normalize.css">
+        <link rel="stylesheet" href="styles/home.css">
+      <!-- endbuild -->
+    {{end}}
   </head>
   <body class="fmd">
     {{if .UserId}}
@@ -23,13 +35,87 @@
       <script src="https://api.tiles.mapbox.com/mapbox.js/v1.6.4/mapbox.js"></script>
       <script data-main="scripts/main" src="bower_components/requirejs/require.js"></script>
     {{else}}
-      <div class="hero">
-        <h1>Rumor has it that you can't find your device.</h1>
-        <h2>Don't worry: we're the app for that.</h2>
-        <div id="login">
-          <a href="/signin/">Sign in</a>
-        </div>
+      <div id="container">
+        <section id="intro" class="band">
+          <div class="band-inner">
+            <div class="column">
+              <a href="https://www.mozilla.org/" id="tabzilla">{{"mozilla" | l}}</a>
+              <h3 id="fxos-logo">{{"Firefox OS" | l}}</h3>
+              <h1>{{"Find My Device" | l}}</h1>
+              <h2>{{"Locate a lost phone, lock it or even erase it remotely." | l}}</h2>
+              <div id="hero"></div>
+              <div id="cta">
+                <a href="/signin/" class="sign-in">{{"Sign in" | l}}</a>
+                <a href="/signin/?action=signup" class="sign-up">{{"Create a Firefox Account" | l}}</a>
+              </div>
+              <p class="description">{{"If you’ve lost your Firefox OS smartphone, Find My Device can help you find it. You can see it on a map, make it play a sound and have it display a message. You can also lock it for safety or delete your personal info completely." | l}}</p>
+              <p class="get-started">{{"To get started, make sure you have a Firefox Account and Find My Device enabled on your phone." | l}}</p>
+            </div>
+          </div>
+        </section>
+        <section id="features" class="band">
+          <div class="band-inner">
+            <div class="feature track">
+              <h3>{{"Track" | l}}</h3>
+              <p>{{"As long as your phone remains on and connected to the Internet, you can see its location on the map." | l}}</p>
+            </div>
+            <div class="feature ring">
+              <h3>{{"Ring" | l}}</h3>
+              <p>{{"If you see that it’s nearby on the map, you can make the phone ring, even if the ringer is set to silent." | l}}</p>
+            </div>
+            <div class="feature lock">
+              <h3>{{"Lock" | l}}</h3>
+              <p>{{"To protect your personal info, you can lock your screen and have it display a message to help someone return it to you." | l}}</p>
+            </div>
+            <div class="feature erase">
+              <h3>{{"Erase" | l}}</h3>
+              <p>{{"If you’re unable to find your phone, you can permanently erase it, but please note that this can not be undone." | l}}</p>
+            </div>
+          </div>
+        </section>
+        <footer class="band">
+          <div class="band-inner">
+            <div class="column column-1">
+              <h3 class="mozilla-logo"><a href="http://www.mozilla.org/">{{"Mozilla" | l}}</a></h3>
+              <p class="license">{{"Portions of this content are ©1998–2014 by individual mozilla.org contributors. Content available under a <a href='http://www.mozilla.org/foundation/licensing/website-content/'>Creative Commons license</a>." | l}}</p>
+            </div>
+            <div class="column column-2">
+              <ul class="links-join">
+                <li class="clear"><a href="http://www.mozilla.org/contact/spaces/">{{"Contact Us" | l}}</a></li>
+                <li><a href="http://www.mozilla.org/about/partnerships/">{{"Partner with Us" | l}}</a></li>
+                <li class="clear"><a href="https://sendto.mozilla.org/page/contribute/Give-Now?source=mozillaorg_default_footer" class="donate">{{"Donate" | l}}</a></li>
+                <li><a href="https://affiliates.mozilla.org/">{{"Firefox Affiliates" | l}}</a></li>
+                <li class="clear"><a href="http://www.mozilla.org/contribute/page/">{{"Contribute to this page" | l}}</a></li>
+              </ul>
+              <ul class="links-legal">
+                <li class="clear"><a href="http://www.mozilla.org/privacy/">{{"Privacy" | l}}</a></li>
+                <li><a href="http://www.mozilla.org/about/legal/">{{"Legal" | l}}</a></li>
+                <li class="clear"><a href="http://www.mozilla.org/about/legal/fraud-report/">{{"Report Trademark Abuse" | l}}</a></li>
+              </ul>
+            </div>
+            <div class="column column-3">
+              <ul class="links-social">
+                <li>
+                  {{"Mozilla:" | l}}
+                  <ul>
+                    <li><a href="https://twitter.com/mozilla">{{"Twitter" | l}}</a></li>
+                    <li><a href="https://www.facebook.com/mozilla">{{"Facebook" | l}}</a></li>
+                  </ul>
+                </li>
+                <li>
+                  {{"Firefox:" | l}}
+                  <ul>
+                    <li><a href="https://twitter.com/firefox">{{"Twitter" | l}}</a></li>
+                    <li><a href="https://www.facebook.com/Firefox">{{"Facebook" | l}}</a></li>
+                    <li><a href="https://www.youtube.com/firefoxchannel">{{"YouTube" | l}}</a></li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </footer>
       </div>
+      <script src="//mozorg.cdn.mozilla.net/tabzilla/tabzilla.js"></script>
     {{end}}
   </body>
 </html>

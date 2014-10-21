@@ -23,7 +23,7 @@ define([
         .findByCssSelector('h1')
           .text()
           .then(function (text) {
-            expect(text).to.equal('Rumor has it that you can\'t find your device.');
+            expect(text).to.equal('Find My Device');
           });
     });
 
@@ -33,7 +33,7 @@ define([
         // Wait for up to FXA_TIMEOUT milliseconds for the FxA sign in step
         .setFindTimeout(FXA_TIMEOUT)
         // Click sign in link
-        .findByCssSelector('#login a')
+        .findByCssSelector('a.sign-in')
           .click()
         .end()
         // -> Context: FxA sign in

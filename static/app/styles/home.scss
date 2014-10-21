@@ -1,0 +1,26 @@
+@import 'variables';
+@import 'mixins';
+@import 'home/fonts';
+
+// All screens
+@import 'home/all';
+
+// Desktop
+@media screen and (min-width: 685px) {
+  @import 'home/desktop';
+}
+
+// Tablet
+@media screen and (min-width: 685px) and (max-width: 960px) {
+  @import 'home/tablet';
+}
+
+// Mobile
+@media screen and (max-width: 684px) {
+  @import 'home/mobile';
+}
+
+// IE < 9 doesn't support media queries so always use desktop styles
+html.lt-ie9 {
+  @import 'home/desktop';
+}
