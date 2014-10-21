@@ -67,9 +67,10 @@ func testHandler(config *util.MzConfig, t *testing.T) (*Handler, storage.Storage
 	storage, _ := storage.OpenInmemory(config, logger, metrics)
 
 	return &Handler{config: config,
-		logger:  logger,
-		store:   storage,
-		metrics: metrics,
+		logger:       logger,
+		store:        storage,
+		metrics:      metrics,
+		maxBodyBytes: 1048576,
 	}, storage
 }
 
