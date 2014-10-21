@@ -1,0 +1,54 @@
+h1 {
+  font-size: 50px;
+  letter-spacing: -1px;
+}
+
+h2 {
+  font-size: 22px;
+}
+
+#container {
+  .band {
+    .band-inner {
+      padding: 0 15px;
+    }
+  }
+
+  #intro {
+    margin-top: 70px;
+
+    #tabzilla {
+      top: -70px;
+    }
+
+    p {
+      margin-top: 15px;
+    }
+
+    #cta {
+      bottom: -110px;
+
+      .sign-in {
+        width: 35%;
+      }
+
+      .sign-up {
+        padding-left: 15px;
+        width: 65%;
+      }
+    }
+  }
+
+  footer {
+    .band-inner {
+      .column {
+        width: 50%;
+      }
+
+      .column-1 {
+        width: 100%;
+        float: none;
+      }
+    }
+  }
+}

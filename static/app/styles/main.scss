@@ -4,8 +4,8 @@
 
 @import 'variables';
 @import 'mixins';
-@import 'fonts';
-@import 'keyframes';
+@import 'main/fonts';
+@import 'main/keyframes';
 
 /* Border box all the things */
 *,
@@ -480,5 +480,5 @@ a {
   z-index: 1001;
 }
 
-@import 'desktop';
-@import 'mobile_overrides';
+@import 'main/desktop';
+@import 'main/mobile_overrides';
