@@ -19,9 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"text/template"
-	"io"
-	// "io/ioutil"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -30,21 +28,23 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 )
 
 // base handler for REST and Socket calls.
 type Handler struct {
-	config  *util.MzConfig
-	logger  util.Logger
-	metrics util.Metrics
-	devId   string
-	logCat  string
-	accepts []string
-	hawk    *Hawk
-	store   storage.Storage
-	maxCli  int64
-	verify  func(string) (string, string, error)
+	config       *util.MzConfig
+	logger       util.Logger
+	metrics      util.Metrics
+	devId        string
+	logCat       string
+	accepts      []string
+	hawk         *Hawk
+	store        storage.Storage
+	maxCli       int64
+	maxBodyBytes int64
+	verify       func(string) (string, string, error)
 }
 
 const (
@@ -1068,17 +1068,19 @@ func NewHandler(config *util.MzConfig, logger util.Logger, metrics util.Metrics)
 		//MaxAge: 3600 * 24,
 	}
 	maxCli, _ := strconv.ParseInt(config.Get("ws.max_clients", "0"), 10, 64)
+	maxBodyBytes, _ := strconv.ParseInt(config.Get("rest.max_body_bytes", "1048576"), 10, 64)
 
 	// Initialize the data store once. This creates tables and
 	// applies required changes.
 	store.Init()
 
 	h := &Handler{config: config,
-		logger:  logger,
-		logCat:  "handler",
-		metrics: metrics,
-		store:   store,
-		maxCli:  maxCli,
+		logger:       logger,
+		logCat:       "handler",
+		metrics:      metrics,
+		store:        store,
+		maxCli:       maxCli,
+		maxBodyBytes: maxBodyBytes,
 	}
 
 	// oh, go...
@@ -1116,6 +1118,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 	store := self.store
 
+	req.Body = http.MaxBytesReader(resp, req.Body, self.maxBodyBytes)
 	buffer, raw, err = parseBody(req.Body)
 	if err != nil {
 		http.Error(resp, "No body", http.StatusBadRequest)
@@ -1275,7 +1278,6 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 // Handle the Cmd response from the device and pass next command if available.
 func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	var err error
-	var l int
 
 	self.logCat = "handler:Cmd"
 	resp.Header().Set("Content-Type", "application/json")
@@ -1310,14 +1312,15 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	//decode the body
-	var body = make([]byte, req.ContentLength)
-	l, err = req.Body.Read(body)
-	if err != nil && err != io.EOF {
+	req.Body = http.MaxBytesReader(resp, req.Body, self.maxBodyBytes)
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
 		self.logger.Error(self.logCat, "Could not read body",
 			util.Fields{"error": err.Error()})
 		http.Error(resp, "Invalid", 400)
 		return
 	}
+	l := len(body)
 	//validate the Hawk header
 	if self.config.GetFlag("hawk.disabled") == false {
 		if !self.verifyHawkHeader(req, body, devRec) {
@@ -1585,7 +1588,6 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	/* Queue commands for the device.
 	 */
 	var err error
-	var lbody int
 	store := self.store
 	rep := make(replyType)
 
@@ -1683,14 +1685,15 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	//decode the body
-	var body = make([]byte, req.ContentLength)
-	lbody, err = req.Body.Read(body)
-	if err != nil && err != io.EOF {
+	req.Body = http.MaxBytesReader(resp, req.Body, self.maxBodyBytes)
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
 		self.logger.Error(self.logCat, "Could not read body",
 			util.Fields{"error": err.Error()})
 		http.Error(resp, "Invalid", 400)
 		return
 	}
+	lbody := len(body)
 	self.logger.Info(self.logCat, "Handling cmd from UI",
 		util.Fields{
 			"cmd":    string(body),
@@ -2320,6 +2323,7 @@ func (self *Handler) Validate(resp http.ResponseWriter, req *http.Request) {
 
 	// Looking for the body of the request to contain a JSON object with
 	// {assert: ... }
+	req.Body = http.MaxBytesReader(resp, req.Body, self.maxBodyBytes)
 	if buffer, raw, err := parseBody(req.Body); err == nil {
 		if assert, ok := buffer["assert"]; ok {
 			if userid, _, err := self.verify(assert.(string)); err == nil {
