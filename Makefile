@@ -4,7 +4,7 @@ BIN = $(HERE)/bin
 DEPS = $(HERE)/.godeps
 GOBIN = $(HERE)/bin
 GOPATH = $(DEPS):$(HERE)
-GODEP = GOPATH=$(GOPATH) gpm
+GODEP = GOPATH=$(GOPATH) ./gpm
 GO = GOPATH=$(GOPATH) go
 PKG = github.com/mozilla-services/FindMyDevice
 PBROOT=${DEPS}/src/code.google.com/p/gogoprotobuf
@@ -14,6 +14,7 @@ PBROOT=${DEPS}/src/code.google.com/p/gogoprotobuf
 all: build
 
 clean:
+	rm FindMyDevice
 	$(GO) clean
 	rm -rf $(DEPS)
 	rm util/pblog.pb.go
