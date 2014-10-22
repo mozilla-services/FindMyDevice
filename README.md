@@ -89,3 +89,8 @@ godep save ./...
 ```
 
 Then, commit `Godeps.json` and `Godeps/_workspace/src/github.com/mozilla-services/heka/`.
+
+
+## Using a custom Find My Device server
+
+For instructions on flashing your phone to use a custom Find My Device server, see [Custom FMD Server](https://wiki.mozilla.org/User_Services/Try_FMD#Custom_FMD_Server).
