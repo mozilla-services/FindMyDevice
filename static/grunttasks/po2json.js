@@ -35,7 +35,7 @@ module.exports = function (grunt) {
         var filename = matches[2];
 
         if (filename === 'server.po') {
-          filename = 'messages.json';
+          filename = 'server.json';
         } else {
           // get rid of the .po extension, replace with .json
           filename = path.basename(filename, '.po') + '.json';

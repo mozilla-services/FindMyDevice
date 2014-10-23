@@ -5,9 +5,10 @@
 define(
   [
     'underscore',
-    'backbone'
+    'backbone',
+    'lib/localizer'
   ],
-  function (_, Backbone) {
+  function (_, Backbone, Localizer) {
     'use strict';
 
     /**
@@ -47,7 +48,7 @@ define(
 
       l: function (text) {
         // This should actually look up the localized string
-        return text;
+        return Localizer.localize(text);
       },
 
       /**
