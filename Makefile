@@ -32,6 +32,10 @@ FindMyDevice:
 	@# Should add in npm content here
 
 # Build protobuf (since it's a bit complicated)
+# This version was built with protoc v2.5.0
+# It is included in the install for simplicity, however you're encouraged
+# to build your own version using a local protoc to ensure that you're
+# compatible with recipient versions.
 util/pblog.pb.go:
 	@# Ignore errors for this install
 	-GOPATH=${GOPATH} go get -d code.google.com/p/gogoprotobuf
