@@ -1,36 +1,36 @@
 /*! This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* TypoPRO Fira Sans */
+/* Fira Sans */
 @font-face {
-  font-family: 'TypoPRO Fira Sans';
+  font-family: 'Fira Sans';
   src: url('fonts/FiraSans/FiraSans-Regular.eot?#iefix') format('embedded-opentype'), url('fonts/FiraSans/FiraSans-Regular.woff') format('woff'), url('fonts/FiraSans/FiraSans-Regular.ttf') format('truetype');
   font-style: normal;
   font-weight: normal;
   font-stretch: normal;
   font-variant: normal; }
 
-/* TypoPRO Fira Sans Bold */
+/* Fira Sans Bold */
 @font-face {
-  font-family: 'TypoPRO Fira Sans';
+  font-family: 'Fira Sans';
   src: url('fonts/FiraSans/FiraSans-Bold.eot?#iefix') format('embedded-opentype'), url('fonts/FiraSans/FiraSans-Bold.woff') format('woff'), url('fonts/FiraSans/FiraSans-Bold.ttf') format('truetype');
   font-style: normal;
   font-weight: bold;
   font-stretch: normal;
   font-variant: normal; }
 
-/* TypoPRO Fira Sans Italic */
+/* Fira Sans Italic */
 @font-face {
-  font-family: 'TypoPRO Fira Sans';
+  font-family: 'Fira Sans';
   src: url('fonts/FiraSans/FiraSans-BookItalic.eot?#iefix') format('embedded-opentype'), url('fonts/FiraSans/FiraSans-BookItalic.woff') format('woff'), url('fonts/FiraSans/FiraSans-BookItalic.ttf') format('truetype');
   font-style: italic;
   font-weight: normal;
   font-stretch: normal;
   font-variant: normal; }
 
-/* TypoPRO Fira Sans Bold Italic */
+/* Fira Sans Bold Italic */
 @font-face {
-  font-family: 'TypoPRO Fira Sans';
+  font-family: 'Fira Sans';
   src: url('fonts/FiraSans/FiraSans-BoldItalic.eot?#iefix') format('embedded-opentype'), url('fonts/FiraSans/FiraSans-BoldItalic.woff') format('woff'), url('fonts/FiraSans/FiraSans-BoldItalic.ttf') format('truetype');
   font-style: italic;
   font-weight: bold;
@@ -57,12 +57,11 @@
 
 /* Border box all the things */
 *, *:before, *:after {
-  -webkit-box-sizing: border-box;
-     -moz-box-sizing: border-box;
-          box-sizing: border-box; }
+  -moz-box-sizing: border-box;
+       box-sizing: border-box; }
 
 html, body, input, select {
-  font-family: 'TypoPRO Fira Sans', sans-serif; }
+  font-family: 'Fira Sans', sans-serif; }
 
 html, body, #stage, #stage > div, #map {
   height: 100%;
@@ -477,8 +476,7 @@ a {
     background-clip: padding-box;
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 6px;
-    -webkit-box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
-            box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
     margin-top: 12px;
     width: 300px; }
     #modal::before {
@@ -522,7 +520,6 @@ a {
     width: 100%; }
     #modal.drawer {
       border-bottom: 1px solid #e0e0e0;
-      -webkit-box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
-              box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 5px 8px rgba(0, 0, 0, 0.2);
       height: auto;
       top: 47px !important; } }
