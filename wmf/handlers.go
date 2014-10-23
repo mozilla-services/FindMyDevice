@@ -1820,6 +1820,107 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 
 // user login functions
 
+type lang_loc struct {
+	Lang string
+	Loc  string
+	Pref float64
+}
+
+type LanguagePrefs []lang_loc
+
+func (r LanguagePrefs) Len() int            { return len(r) }
+func (r LanguagePrefs) Swap(i, j, int)      { r[i], r[j] = r[j], r[i] }
+func (r LanguagePrefs) Less(i, j, int) bool { return r[i].Pref > r[j].Pref }
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return os.IsNotExist(err)
+}
+
+func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs, raw string) {
+	var err error
+	// Filter the Accept-Language Header for just what we need.
+	raw = strings.Map(func(r rune) rune {
+		r = unicode.ToLower(r)
+		if strings.ContainsRune("0123456789abcdefghijklmnopqrstuvwxyz=.-;,", r) {
+			return r
+		}
+		return -1
+	}, req.Header.Get("Accept-Language"))
+
+	if raw == "" {
+		return append(results, lang_loc{"en", "", 1.0}), raw
+	}
+	for _, pref := range strings.Split(raw, ",") {
+		ll := lang_loc{}
+		ll.Pref = 1.0
+		bits := strings.SplitN(pref, ";", 2)
+		if len(bits) > 1 {
+			ll.Pref, err = strconv.ParseFloat(bits[1], 64)
+			if err != nil {
+				r.logger.Warn("index",
+					"error parsing Accept Language header",
+					util.Fields{"error": err.Error(),
+						"string": bits[1]})
+				continue
+			}
+		}
+		if strings.Contains(bits[0], "-") {
+			lls := strings.SplitN(bits[0], "-", 2)
+			ll.Lang = lls[0]
+			ll.Loc = lls[1]
+		} else {
+			ll.Lang = bits[0]
+		}
+		results = append(results, ll)
+	}
+	sort.Sort(LanguagePrefs(results))
+	return results, raw
+}
+
+func (r *Handler) Language(resp http.ResponseWriter, req *http.Request) {
+	// Move this to init?
+	docRoot := strings.TrimRight(self.config.Get("document.root",
+		self.config.Get("document_root", "./static/app")), "/.")
+	langTemplate := self.config.Get("document.lang_path", "{{.Root}}/l10n/{{.Lang}}/client.json")
+	tmpl, err := template.New("Lang").Parse(langTemplate)
+	if err != nil {
+		// TODO Errors
+		r.logger.Critical(self.logCat,
+			"Could not parse lang_path template",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server error", 500)
+	}
+	resp.Header().Set("Content-Type", "application/json")
+
+	buffer := new(bytes.Buffer)
+	langPrefs, _ := r.getLocLang(req)
+	langs := []string{fmt.Sprintf("%s_%s", prefLang.Lang, prefLang.Loc),
+		prefLang.Lang,
+		"en"}
+	for _, lang := range langs {
+		if tmpl.Execute(buffer, struct {
+			Root string
+			Lang string
+		}{
+			docRoot,
+			lang,
+		}); err != nil {
+			//TODO Errors
+		}
+		if pathExists(buffer.String()) {
+			r.dumpFile(buffer.String(), resp)
+			return
+		}
+	}
+	// Nothing found?
+	r.logger.Critical(self.logCat,
+		"Could not get ANY localized data! Check config for document.lang_path",
+		nil)
+	http.Error(resp, "Server error", 500)
+	return
+}
+
 func Localize(args ...interface{}) string {
 	ok := false
 	var s string
