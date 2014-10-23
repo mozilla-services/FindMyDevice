@@ -151,7 +151,7 @@ module.exports = function (grunt) {
             'images/{,*/}*.{png,jpg,jpeg,webp,gif}',
             'styles/fonts/{,*/}*.*',
             'index.html',
-            'l10n/{,*/}{,*/}*.*'
+            'l10n/**/*.json'
           ]
         },
         // Copy these files into tmp so that concat can find them

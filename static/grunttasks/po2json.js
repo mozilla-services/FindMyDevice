@@ -34,12 +34,8 @@ module.exports = function (grunt) {
         var locale = matches[1];
         var filename = matches[2];
 
-        if (filename === 'server.po') {
-          filename = 'server.json';
-        } else {
-          // get rid of the .po extension, replace with .json
-          filename = path.basename(filename, '.po') + '.json';
-        }
+        // get rid of the .po extension, replace with .json
+        filename = path.basename(filename, '.po') + '.json';
 
         return path.join(locale, filename);
       },

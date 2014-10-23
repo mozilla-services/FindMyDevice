@@ -11,12 +11,14 @@ define([
   var Localizer = {
     dictionary: {},
 
+    // Fetches the localized strings from the server and saves them for later
     fetch: function () {
       var xhr = $.ajax('/1/l10n/client.json');
 
       var self = this;
 
       xhr.fail(function () {
+        // Reset the dictionary on failure
         self.dictionary = {};
       });
 
@@ -27,6 +29,8 @@ define([
       return xhr;
     },
 
+    // Looks up the English string in the dictionary.
+    // Returns the English string if nothing is found.
     localize: function (input) {
       var output = this.dictionary[input];
 
