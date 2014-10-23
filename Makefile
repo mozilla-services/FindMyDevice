@@ -43,7 +43,7 @@ build: .godeps/installed util/pblog.pb.go FindMyDevice
 
 test:
 	#$(GO) test $(PKG)/util -cover
-	$(GO) test $(PKG)/wmf -coverS
+	$(GO) test $(PKG)/wmf -cover
 	@# Skipping storage tests because rds failures
 	@# RDS currently presumes the test database is fmd:fmd@localhost
 	#$(GO) test $(PKG)/wmf/storage -cover
