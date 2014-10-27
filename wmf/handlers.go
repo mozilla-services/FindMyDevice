@@ -1955,7 +1955,7 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 		// if there's a preference value...
 		if len(bits) > 1 {
 			ll.Pref, err = strconv.ParseFloat(strings.TrimLeft(bits[1],
-				" q="), 64)
+				"q="), 64)
 			if err != nil {
 				r.logger.Warn("index",
 					"error parsing Accept Language header",
