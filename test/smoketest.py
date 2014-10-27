@@ -37,7 +37,7 @@ def on_close(ws):
 
 
 def on_error(ws, error):
-    print "!! error:: " + error
+    print "!! error:: " + error.strerror
     exit()
 
 

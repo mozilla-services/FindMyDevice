@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -456,7 +458,6 @@ func Test_Handler_UserDevices(t *testing.T) {
 	makeSession()
 	config := util.NewMzConfig()
 	h, store := testHandler(config, t)
-	_ = store
 
 	freq, _ := http.NewRequest("GET", "http://box/devices", nil)
 	fresp := httptest.NewRecorder()
@@ -492,5 +493,69 @@ func Test_Handler_UserDevices(t *testing.T) {
 	}
 }
 
-// TODO: Finish tests for Index, InitDataJson, etc.
-//
+func Test_getLocLang(t *testing.T) {
+	config := util.NewMzConfig()
+	h, _ := testHandler(config, t)
+
+	req, _ := http.NewRequest("GET", "http://localhost/1/l10n/client.json", nil)
+	req.Header.Add("Accept-Language", "foo-BA;q=0.8,bar-GO;q=0.9")
+
+	result := h.getLocLang(req)
+	t.Logf("results: %+v\n", result)
+	if len(result) == 0 {
+		t.Errorf("getLocLang failed to return any results")
+	}
+	if len(result) != 5 {
+		t.Errorf("getLocLang returned too few results")
+	}
+	if result[0].Lang != "bar_GO" {
+		t.Errorf("getLocLang failed to sort languages correctly: %s", result[0].Lang)
+	}
+	if result[4].Lang != "en" {
+		t.Errorf("getLocLang failed to include 'en'")
+	}
+
+	req, _ = http.NewRequest("GET", "http://localhost/1/l10n/client.json", nil)
+	req.Header.Add("Accept-Language", "{:;}() echo invalid!")
+	result = h.getLocLang(req)
+	t.Logf("results: %+v\n", result)
+	if result[0].Lang != "en" {
+		t.Errorf("getLocLang failed to gracefully handle invalid Accept-Language")
+	}
+}
+
+func Test_LangPath(t *testing.T) {
+	tmpDir := os.TempDir()
+	testTemplate := "{{.Root}}/{{.Lang}}_test.txt"
+	testText := "Some data"
+	tf_name := filepath.Join(tmpDir, "en_test.txt")
+	tf, err := os.Create(tf_name)
+	if err != nil {
+		t.Fatalf("could not gen test file %s", err.Error())
+	}
+	defer os.Remove(tf_name)
+	tf.Write([]byte(testText))
+	tf.Close()
+
+	// this runs .path & .Check
+	lp, err := NewLangPath(testTemplate, tmpDir, "EN")
+	if err != nil {
+		t.Fatalf("Could not get LangPath: %s", err.Error)
+	}
+	buff := new(bytes.Buffer)
+	if err = lp.Write("en", buff); err != nil {
+		t.Fatalf("Could not write buffer: %s", err.Error)
+	}
+	if buff.String() != testText {
+		t.Fatalf("Data did not match: %s != %s", buff.String(), testText)
+	}
+	// Obviously, this should return an error, not the data.
+	lp, err = NewLangPath(testTemplate, tmpDir, "/etc/hostname")
+	if err != ErrNoLanguage {
+		t.Fatalf("Incorrect error returned")
+	}
+}
+
+// TODO: Finish tests for
+// getUser - stub out session? (sigh, why do I have to keep doing this...)
+// et al...
