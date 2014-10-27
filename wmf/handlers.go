@@ -1966,7 +1966,6 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 		}
 		// if there's a locale for the language
 		if lls := strings.SplitN(bits[0], "-", 2); len(lls) > 1 {
-			lls := strings.SplitN(bits[0], "-", 2)
 			// normalize the lang-loc to lang_loc
 			ll.Lang = fmt.Sprintf("%s_%s", lls[0], lls[1])
 			// and add it, plus a locale-less lang record, to the results.
