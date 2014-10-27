@@ -100,7 +100,7 @@ func Test_getLocLang(t *testing.T) {
 	h := testHandler(config, t)
 
 	req, _ := http.NewRequest("GET", "http://localhost/1/l10n/client.json", nil)
-	req.Header.Add("Accept-Language", "foo-BA;0.8,bar-GO;0.9")
+	req.Header.Add("Accept-Language", "foo-BA;q=0.8,bar-GO;q=0.9")
 
 	result := h.getLocLang(req)
 	t.Logf("results: %+v\n", result)
@@ -110,8 +110,8 @@ func Test_getLocLang(t *testing.T) {
 	if len(result) != 5 {
 		t.Errorf("getLocLang returned too few results")
 	}
-	if result[0].Lang != "bar_go" {
-		t.Errorf("getLocLang failed to sort languages correctly")
+	if result[0].Lang != "bar_GO" {
+		t.Errorf("getLocLang failed to sort languages correctly: %s", result[0].Lang)
 	}
 	if result[4].Lang != "en" {
 		t.Errorf("getLocLang failed to include 'en'")
@@ -126,44 +126,35 @@ func Test_getLocLang(t *testing.T) {
 	}
 }
 
-func Test_PathExists(t *testing.T) {
-	// cwd appears to be ./wmf
-	cwd, _ := filepath.Abs(filepath.Clean("."))
-	if !PathExists(cwd, "handlers_test.go") {
-		t.Errorf("PathExists failed to find current file")
-	}
-	if PathExists(cwd, "Invalid file") {
-		t.Errorf("PathExists found Invalid file")
-	}
-	if PathExists(cwd, filepath.Join("..", "Makefile")) {
-		t.Error("PathExists failed to sandbox")
-	}
-}
-
-func Test_dumpFile(t *testing.T) {
-	config := util.NewMzConfig()
-	h := testHandler(config, t)
-
-	wd := os.TempDir()
-	tf_name := filepath.Join(wd, "wmf_test.txt")
+func Test_LangPath(t *testing.T) {
+	tmpDir := os.TempDir()
+	testTemplate := "{{.Root}}/{{.Lang}}_test.txt"
+	testText := "Some data"
+	tf_name := filepath.Join(tmpDir, "en_test.txt")
 	tf, err := os.Create(tf_name)
 	if err != nil {
-		t.Fatalf("Could not gen test file: %s", err.Error())
+		t.Fatalf("could not gen test file %s", err.Error())
 	}
 	defer os.Remove(tf_name)
-	tf.Write([]byte("Some data"))
+	tf.Write([]byte(testText))
 	tf.Close()
 
-	buffer := new(bytes.Buffer)
-	if err := h.dumpFile(wd, tf_name, buffer); err != nil {
-		t.Fatalf("dumpFile returned error: %s", err.Error())
+	// this runs .path & .Check
+	lp, err := NewLangPath(testTemplate, tmpDir, "EN")
+	if err != nil {
+		t.Fatalf("Could not get LangPath: %s", err.Error)
 	}
-	if buffer.String() != "Some data" {
-		t.Errorf("dumpFile didn't return expected text")
+	buff := new(bytes.Buffer)
+	if err = lp.Write("en", buff); err != nil {
+		t.Fatalf("Could not write buffer: %s", err.Error)
 	}
-	buffer = new(bytes.Buffer)
-	if err := h.dumpFile(wd, "/etc/hostname", buffer); err == nil {
-		t.Errorf("dumpFile failed to error on inappropriate file: %s", buffer.String())
+	if buff.String() != testText {
+		t.Fatalf("Data did not match: %s != %s", buff.String(), testText)
+	}
+	// Obviously, this should return an error, not the data.
+	lp, err = NewLangPath(testTemplate, tmpDir, "/etc/hostname")
+	if err != ErrNoLanguage {
+		t.Fatalf("Incorrect error returned")
 	}
 }
 

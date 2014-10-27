@@ -34,8 +34,25 @@ import (
 	"sync"
 	"text/template"
 	"time"
-	"unicode"
 )
+
+const (
+	SESSION_NAME      = "user"
+	SESSION_LOGIN     = "login"
+	OAUTH_ENDPOINT    = "https://oauth.accounts.firefox.com"
+	CONTENT_ENDPOINT  = "https://accounts.firefox.com"
+	SESSION_USERID    = "userid"
+	SESSION_EMAIL     = "email"
+	SESSION_TOKEN     = "token"
+	SESSION_CSRFTOKEN = "csrftoken"
+	SESSION_DEVICEID  = "deviceid"
+)
+
+type LangPath struct {
+	tmpl *template.Template
+	Root string
+	Lang string
+}
 
 // base handler for REST and Socket calls.
 type Handler struct {
@@ -51,20 +68,8 @@ type Handler struct {
 	maxBodyBytes int64
 	verify       func(string) (string, string, error)
 	docRoot      string
-	langPath     *template.Template
+	langPath     *LangPath
 }
-
-const (
-	SESSION_NAME      = "user"
-	SESSION_LOGIN     = "login"
-	OAUTH_ENDPOINT    = "https://oauth.accounts.firefox.com"
-	CONTENT_ENDPOINT  = "https://accounts.firefox.com"
-	SESSION_USERID    = "userid"
-	SESSION_EMAIL     = "email"
-	SESSION_TOKEN     = "token"
-	SESSION_CSRFTOKEN = "csrftoken"
-	SESSION_DEVICEID  = "deviceid"
-)
 
 // Generic reply structure (useful for JSON responses)
 type replyType map[string]interface{}
@@ -100,6 +105,7 @@ var (
 	ErrNoClient      = errors.New("No Client for Update")
 	ErrTooManyClient = errors.New("Too Many Clients for device")
 	ErrDeviceDeleted = errors.New("Device deleted")
+	ErrNoLanguage    = errors.New("No Language client.json file found")
 )
 
 // package globals
@@ -181,6 +187,65 @@ func (c *ClientBox) Clients(id string) (map[string]WWS, bool) {
 
 func init() {
 	Clients = NewClientBox()
+}
+
+// Language Path
+func NewLangPath(tmpl, docroot, defaultLanguage string) (*LangPath, error) {
+	rtmpl, err := template.New("LangPath").Parse(tmpl)
+	if err != nil {
+		return nil, err
+	}
+	r := &LangPath{Root: docroot, tmpl: rtmpl}
+	if _, err = r.Check(defaultLanguage); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func (r *LangPath) path(lang string) (string, error) {
+	buffer := new(bytes.Buffer)
+	// Normalize paths to lower case.
+	r.Lang = strings.ToLower(lang)
+	if err := r.tmpl.Execute(buffer, r); err != nil {
+		return "", err
+	}
+	return buffer.String(), nil
+}
+
+func (r *LangPath) pathExists(root, path string) bool {
+	p, err := filepath.Abs(filepath.Clean(path))
+	if !strings.HasPrefix(p, root) {
+		return false
+	}
+	_, err = os.Stat(p)
+	return !os.IsNotExist(err)
+}
+
+func (r *LangPath) Check(lang string) (string, error) {
+	path, err := r.path(lang)
+	if err != nil {
+		return "", err
+	}
+	if !r.pathExists(r.Root, path) {
+		return "", ErrNoLanguage
+	}
+	return path, nil
+}
+
+func (r *LangPath) Write(lang string, out io.Writer) (err error) {
+	path, err := r.Check(lang)
+	if err != nil {
+		return err
+	}
+	in, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 //Handler private functions
@@ -1089,32 +1154,11 @@ func NewHandler(config *util.MzConfig, logger util.Logger, metrics util.Metrics)
 	}
 	langTemplate := config.Get("document.lang_path",
 		filepath.Join("{{.Root}}", "l10n", "{{.Lang}}", "client.json"))
-	tmpl, err := template.New("Lang").Parse(langTemplate)
+	tmpl, err := NewLangPath(langTemplate, docRoot, "en")
 	if err != nil {
 		logger.Error("handler", "Could not parse document.lang_path",
 			util.Fields{"error": err.Error()})
 		log.Fatalf("Configuration error. document.lang_path: %s", err.Error())
-		return nil
-	}
-	// Make sure the "en" one exists!
-	buffer := new(bytes.Buffer)
-	if err := tmpl.Execute(buffer, struct {
-		Root string
-		Lang string
-	}{docRoot, "en"}); err != nil {
-		logger.Error("handler", "Could not fill lang_path template",
-			util.Fields{"error": err.Error(), "root": docRoot, "lang": "en"})
-		log.Fatalf("Configuration error. document.lang_path incorrect: %s",
-			err.Error())
-		return nil
-	}
-	logger.Debug("handler", "Checking default language file",
-		util.Fields{"path": buffer.String()})
-	if !PathExists(docRoot, buffer.String()) {
-		logger.Error("handler", "Could not find default language file",
-			util.Fields{"path": buffer.String()})
-		log.Fatalf("Configuration error. Could not find default language file %s",
-			filepath.Clean(buffer.String()))
 		return nil
 	}
 
@@ -1881,40 +1925,19 @@ func (r LanguagePrefs) Len() int           { return len(r) }
 func (r LanguagePrefs) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
 func (r LanguagePrefs) Less(i, j int) bool { return r[i].Pref > r[j].Pref }
 
-func PathExists(root, path string) bool {
-	p, err := filepath.Abs(filepath.Clean(path))
-	if !strings.HasPrefix(p, root) {
-		return false
-	}
-	_, err = os.Stat(p)
-	return !os.IsNotExist(err)
-}
-
-func (r *Handler) dumpFile(root, path string, out io.Writer) error {
-	p, err := filepath.Abs(filepath.Clean(path))
-	if err != nil {
-		return err
-	}
-	if !strings.HasPrefix(p, root) {
-		return os.ErrPermission
-	}
-	r.logger.Debug(r.logCat, "dumpFile", util.Fields{"root": root, "path": path, "p": p})
-	file, err := ioutil.ReadFile(p)
-	if err != nil {
-		return err
-	}
-	if _, err := out.Write(file); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 	var err error
 	// Filter the Accept-Language Header for just what we need.
 	raw := strings.Map(func(r rune) rune {
-		r = unicode.ToLower(r)
-		if strings.ContainsRune("0123456789abcdefghijklmnopqrstuvwxyz=.-;,", r) {
+		if r < ',' || r > 'z' {
+			return -1
+		}
+		if r >= ',' && r <= '.' ||
+			r >= '0' && r <= '9' ||
+			r >= ':' && r <= ';' ||
+			r == '=' ||
+			r >= 'A' && r <= 'Z' ||
+			r >= 'a' && r <= 'z' {
 			return r
 		}
 		return -1
@@ -1929,7 +1952,8 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 		ll.Pref = 1.0
 		bits := strings.SplitN(pref, ";", 2)
 		if len(bits) > 1 {
-			ll.Pref, err = strconv.ParseFloat(bits[1], 64)
+			ll.Pref, err = strconv.ParseFloat(strings.TrimLeft(bits[1],
+				" q="), 64)
 			if err != nil {
 				r.logger.Warn("index",
 					"error parsing Accept Language header",
@@ -1938,10 +1962,11 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 				continue
 			}
 		}
-		if strings.Contains(bits[0], "-") {
+		if lls := strings.SplitN(bits[0], "-", 2); len(lls) > 1 {
 			lls := strings.SplitN(bits[0], "-", 2)
 			ll.Lang = fmt.Sprintf("%s_%s", lls[0], lls[1])
-			results = append(results, ll, lang_loc{Pref: ll.Pref, Lang: lls[0]})
+			results = append(results, ll,
+				lang_loc{Pref: ll.Pref, Lang: lls[0]})
 			continue
 		}
 		ll.Lang = bits[0]
@@ -1958,36 +1983,9 @@ func (r *Handler) Language(resp http.ResponseWriter, req *http.Request) {
 	resp.Header().Set("Content-Type", "application/json")
 
 	for _, lang := range r.getLocLang(req) {
-		buffer := new(bytes.Buffer)
-		if err := r.langPath.Execute(buffer, struct {
-			Root string
-			Lang string
-		}{
-			r.docRoot,
-			lang.Lang,
-		}); err != nil {
-			r.logger.Error(r.logCat,
-				"Could not fill lang_path template",
-				util.Fields{"error": err.Error(),
-					"root": r.docRoot,
-					"lang": lang.Lang,
-				})
-			continue
-		}
-		r.logger.Debug(r.logCat,
-			"checking language file",
-			util.Fields{"path": buffer.String()})
-		if PathExists(r.docRoot, buffer.String()) {
-			if err = r.dumpFile(r.docRoot, buffer.String(), resp); err == nil {
-				return
-			}
-			if !os.IsNotExist(err) {
-				r.logger.Error(r.logCat, "Could not dump file",
-					util.Fields{"error": err.Error(),
-						"file": buffer.String()})
-				http.Error(resp, "Server error", 500)
-				return
-			}
+		err = r.langPath.Write(lang.Lang, resp)
+		if err == nil {
+			return
 		}
 	}
 	// Nothing found?
