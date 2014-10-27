@@ -1974,7 +1974,7 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 	}
 	// Append the default to the end of the preferences
 	results = append(results, lang_loc{"en", 0.01})
-	sort.Sort(LanguagePrefs(results))
+	sort.Sort(results)
 	return results
 }
 
