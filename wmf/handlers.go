@@ -1959,6 +1959,7 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 		ll := lang_loc{}
 		ll.Pref = 1.0
 		bits := strings.SplitN(pref, ";", 2)
+		// if there's a preference value...
 		if len(bits) > 1 {
 			ll.Pref, err = strconv.ParseFloat(strings.TrimLeft(bits[1],
 				" q="), 64)
@@ -1970,9 +1971,12 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 				continue
 			}
 		}
+		// if there's a locale for the language
 		if lls := strings.SplitN(bits[0], "-", 2); len(lls) > 1 {
 			lls := strings.SplitN(bits[0], "-", 2)
+			// normalize the lang-loc to lang_loc
 			ll.Lang = fmt.Sprintf("%s_%s", lls[0], lls[1])
+			// and add it, plus a locale-less lang record, to the results.
 			results = append(results, ll,
 				lang_loc{Pref: ll.Pref, Lang: lls[0]})
 			continue
@@ -1982,6 +1986,12 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 	}
 	// Append the default to the end of the preferences
 	results = append(results, lang_loc{"en", 0.01})
+	// note, it's possible for there to be duplicate languages specified.
+	// e.g. "en" to appear twice. Since we stop at the first successful find,
+	// this should not be a problem. There's always the risk that a
+	// non-normative specifies preference for "en-UK:q=0.8;fr:q=0.7;en=0.5",
+	// and in that case, we will provide "en" before "fr". This is not
+	// expected to be a large audience.
 	sort.Sort(results)
 	return results
 }
