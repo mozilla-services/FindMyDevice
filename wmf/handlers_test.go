@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/gorilla/sessions"
@@ -527,6 +528,7 @@ func Test_getLocLang(t *testing.T) {
 func Test_LangPath(t *testing.T) {
 	tmpDir := os.TempDir()
 	testTemplate := "{{.Root}}/{{.Lang}}_test.txt"
+	testTmpl, _ := template.New("test").Parse(testTemplate)
 	testText := "Some data"
 	tf_name := filepath.Join(tmpDir, "en_test.txt")
 	tf, err := os.Create(tf_name)
@@ -538,7 +540,8 @@ func Test_LangPath(t *testing.T) {
 	tf.Close()
 
 	// this runs .path & .Check
-	lp, err := NewLangPath(testTemplate, tmpDir, "EN")
+
+	lp, err := NewLangPath(testTmpl, tmpDir, "EN")
 	if err != nil {
 		t.Fatalf("Could not get LangPath: %s", err.Error)
 	}
@@ -550,7 +553,7 @@ func Test_LangPath(t *testing.T) {
 		t.Fatalf("Data did not match: %s != %s", buff.String(), testText)
 	}
 	// Obviously, this should return an error, not the data.
-	lp, err = NewLangPath(testTemplate, tmpDir, "/etc/hostname")
+	lp, err = NewLangPath(testTmpl, tmpDir, "/etc/hostname")
 	if err != ErrNoLanguage {
 		t.Fatalf("Incorrect error returned")
 	}
