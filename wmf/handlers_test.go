@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"text/template"
 
 	"github.com/mozilla-services/FindMyDevice/util"
 	"github.com/mozilla-services/FindMyDevice/wmf/storage"
@@ -129,7 +130,8 @@ func Test_getLocLang(t *testing.T) {
 func Test_LangPath(t *testing.T) {
 	tmpDir := os.TempDir()
 	testTemplate := "{{.Root}}/{{.Lang}}_test.txt"
-	testText := "Some data"
+	testTmpl, _ := template.New("test").Parse(testTemplate)
+	testText := "{\"foo\": \"bar\"}"
 	tf_name := filepath.Join(tmpDir, "en_test.txt")
 	tf, err := os.Create(tf_name)
 	if err != nil {
@@ -140,7 +142,7 @@ func Test_LangPath(t *testing.T) {
 	tf.Close()
 
 	// this runs .path & .Check
-	lp, err := NewLangPath(testTemplate, tmpDir, "EN")
+	lp, err := NewLangPath(testTmpl, tmpDir, "EN")
 	if err != nil {
 		t.Fatalf("Could not get LangPath: %s", err.Error)
 	}
@@ -151,11 +153,21 @@ func Test_LangPath(t *testing.T) {
 	if buff.String() != testText {
 		t.Fatalf("Data did not match: %s != %s", buff.String(), testText)
 	}
+	if err = lp.Load("en"); err != nil {
+		t.Fatalf("Could not load test data: %s", err.Error())
+	}
+	if lp.Get("foo") != "bar" {
+		t.Fatalf("Incorrect valid value returned")
+	}
+	if lp.Get("bar") != "bar" {
+		t.Fatalf("Incorrect invalid value returned")
+	}
 	// Obviously, this should return an error, not the data.
-	lp, err = NewLangPath(testTemplate, tmpDir, "/etc/hostname")
+	lp, err = NewLangPath(testTmpl, tmpDir, "/etc/hostname")
 	if err != ErrNoLanguage {
 		t.Fatalf("Incorrect error returned")
 	}
+
 }
 
 // TODO: Finish tests for

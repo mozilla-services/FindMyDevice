@@ -52,23 +52,26 @@ type LangPath struct {
 	tmpl *template.Template
 	Root string
 	Lang string
+	hash map[string]string
 }
 
 // base handler for REST and Socket calls.
 type Handler struct {
-	config       *util.MzConfig
-	logger       util.Logger
-	metrics      util.Metrics
-	devId        string
-	logCat       string
-	accepts      []string
-	hawk         *Hawk
-	store        storage.Storage
-	maxCli       int64
-	maxBodyBytes int64
-	verify       func(string) (string, string, error)
-	docRoot      string
-	langPath     *LangPath
+	config             *util.MzConfig
+	logger             util.Logger
+	metrics            util.Metrics
+	devId              string
+	logCat             string
+	accepts            []string
+	hawk               *Hawk
+	store              storage.Storage
+	maxCli             int64
+	maxBodyBytes       int64
+	verify             func(string) (string, string, error)
+	docRoot            string
+	clientLangPath     *LangPath
+	serverLangPath     *LangPath
+	serverLangTemplate *template.Template
 }
 
 // Generic reply structure (useful for JSON responses)
@@ -105,7 +108,7 @@ var (
 	ErrNoClient      = errors.New("No Client for Update")
 	ErrTooManyClient = errors.New("Too Many Clients for device")
 	ErrDeviceDeleted = errors.New("Device deleted")
-	ErrNoLanguage    = errors.New("No Language client.json file found")
+	ErrNoLanguage    = errors.New("No Language json file found")
 )
 
 // package globals
@@ -190,13 +193,9 @@ func init() {
 }
 
 // Language Path
-func NewLangPath(tmpl, docroot, defaultLanguage string) (*LangPath, error) {
-	rtmpl, err := template.New("LangPath").Parse(tmpl)
-	if err != nil {
-		return nil, err
-	}
-	r := &LangPath{Root: docroot, tmpl: rtmpl}
-	if _, err = r.Check(defaultLanguage); err != nil {
+func NewLangPath(tmpl *template.Template, docroot, defaultLanguage string) (*LangPath, error) {
+	r := &LangPath{Root: docroot, tmpl: tmpl}
+	if _, err := r.Check(defaultLanguage); err != nil {
 		return nil, err
 	}
 	return r, nil
@@ -246,6 +245,29 @@ func (r *LangPath) Write(lang string, out io.Writer) (err error) {
 		return err
 	}
 	return nil
+}
+
+func (r *LangPath) Load(lang string) (err error) {
+	r.hash = make(map[string]string)
+	path, err := r.Check(lang)
+	if err != nil {
+		return err
+	}
+	in, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	if err = json.NewDecoder(in).Decode(&r.hash); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *LangPath) Get(key string) string {
+	if val, ok := r.hash[key]; ok {
+		return val
+	}
+	return key
 }
 
 //Handler private functions
@@ -1152,14 +1174,26 @@ func NewHandler(config *util.MzConfig, logger util.Logger, metrics util.Metrics)
 		log.Fatalf("Configuration error. Could not resolve document root: %s ",
 			err.Error())
 	}
-	langTemplate := config.Get("document.lang_path",
-		filepath.Join("{{.Root}}", "l10n", "{{.Lang}}", "client.json"))
-	tmpl, err := NewLangPath(langTemplate, docRoot, "en")
+	ctmpl, err := template.New("cLP").Parse(config.Get("document.lang_path_client",
+		filepath.Join("{{.Root}}", "l10n", "{{.Lang}}", "client.json")))
 	if err != nil {
-		logger.Error("handler", "Could not parse document.lang_path",
+		logger.Error("handler", "Could not generate template for document.lang_path_client",
 			util.Fields{"error": err.Error()})
-		log.Fatalf("Configuration error. document.lang_path: %s", err.Error())
+		log.Fatalf("Configuration error. document.lang_path_client: %s", err.Error())
+	}
+	cLP, err := NewLangPath(ctmpl, docRoot, "en")
+	if err != nil {
+		logger.Error("handler", "Could not parse document.lang_path_client",
+			util.Fields{"error": err.Error()})
+		log.Fatalf("Configuration error. document.lang_path_client: %s", err.Error())
 		return nil
+	}
+	stmpl, err := template.New("sLP").Parse(config.Get("document.lang_path_server",
+		filepath.Join("{{.Root}}", "l10n", "{{.Lang}}", "server.json")))
+	if err != nil {
+		logger.Error("handler", "Could not generate template for document.lang_path_server",
+			util.Fields{"error": err.Error()})
+		log.Fatalf("Configuration error. document.lang_path_server: %s", err.Error())
 	}
 
 	// Initialize the data store once. This creates tables and
@@ -1167,14 +1201,15 @@ func NewHandler(config *util.MzConfig, logger util.Logger, metrics util.Metrics)
 	store.Init()
 
 	h := &Handler{config: config,
-		logger:       logger,
-		logCat:       "handler",
-		metrics:      metrics,
-		store:        store,
-		maxCli:       maxCli,
-		maxBodyBytes: maxBodyBytes,
-		docRoot:      docRoot,
-		langPath:     tmpl,
+		logger:             logger,
+		logCat:             "handler",
+		metrics:            metrics,
+		store:              store,
+		maxCli:             maxCli,
+		maxBodyBytes:       maxBodyBytes,
+		docRoot:            docRoot,
+		clientLangPath:     cLP,
+		serverLangTemplate: stmpl,
 	}
 
 	// oh, go...
@@ -1942,7 +1977,7 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 		}
 		return -1
 	}, req.Header.Get("Accept-Language"))
-	r.logger.Debug("index", "Accept-Language",
+	r.logger.Debug("getLocLang", "Accept-Language",
 		util.Fields{"raw": raw})
 	if raw == "" {
 		return append(results, lang_loc{"en", 1.0})
@@ -1957,7 +1992,7 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 			ll.Pref, err = strconv.ParseFloat(strings.TrimLeft(bits[1],
 				"q="), 64)
 			if err != nil {
-				r.logger.Warn("index",
+				r.logger.Warn("getLocLang",
 					"error parsing Accept Language header",
 					util.Fields{"error": err.Error(),
 						"string": bits[1]})
@@ -1993,7 +2028,7 @@ func (r *Handler) Language(resp http.ResponseWriter, req *http.Request) {
 	resp.Header().Set("Content-Type", "application/json")
 
 	for _, lang := range r.getLocLang(req) {
-		err = r.langPath.Write(lang.Lang, resp)
+		err = r.clientLangPath.Write(lang.Lang, resp)
 		if err == nil {
 			return
 		}
@@ -2006,18 +2041,8 @@ func (r *Handler) Language(resp http.ResponseWriter, req *http.Request) {
 	return
 }
 
-func Localize(args ...interface{}) string {
-	ok := false
-	var s string
-
-	if len(args) == 1 {
-		s, ok = args[0].(string)
-	}
-	if !ok {
-		s = fmt.Sprint(args...)
-	}
-
-	return s
+func (self *Handler) Localize(arg string) string {
+	return self.serverLangPath.Get(arg)
 }
 
 func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
@@ -2046,7 +2071,23 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	tmpl, err := template.New("index.html").Funcs(template.FuncMap{"l": Localize}).ParseFiles(self.docRoot + "/index.html")
+	// Load the localization string map for this file
+	self.serverLangPath, err = NewLangPath(self.serverLangTemplate, self.docRoot, "en")
+	if err != nil {
+		self.logger.Error(self.logCat,
+			"Could not load server l10n file",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server Error", 500)
+		return
+	}
+	for _, lang := range self.getLocLang(req) {
+		if err = self.serverLangPath.Load(lang.Lang); err == nil {
+			self.logger.Info(self.logCat, "Loaded Language File",
+				util.Fields{"lang": lang.Lang})
+			break
+		}
+	}
+	tmpl, err := template.New("index.html").Funcs(template.FuncMap{"l": self.Localize}).ParseFiles(self.docRoot + "/index.html")
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not display index page",
 			util.Fields{"error": err.Error(),
