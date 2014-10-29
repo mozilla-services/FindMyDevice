@@ -131,6 +131,9 @@ func (r *memStore) GetDevicesForUser(userId, oldUserId string) (devices []Device
 // Store a command into the list of pending commands for a device.
 func (r *memStore) StoreCommand(devId, command, cType string) (err error) {
 
+	if _, ok := r.commands[devId]; !ok {
+		r.commands[devId] = make(map[int64]*cst)
+	}
 	r.commands[devId][time.Now().Unix()] = &cst{Command: command, CType: cType}
 	return nil
 }

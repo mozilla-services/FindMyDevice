@@ -24,6 +24,7 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/pprof"
+	"strconv"
 	"strings"
 	"syscall"
 )
@@ -33,6 +34,7 @@ var opts struct {
 	Profile    string `long:"profile"`
 	MemProfile string `long:"memprofile"`
 	LogLevel   int    `short:"l" long:"loglevel"`
+	LogFile    string `short:"o" long:"logfile"`
 
 	Ddlcreate    string `long:"ddlcreate" description:"Create a new version"`
 	Ddldowngrade string `long:"ddldowngrade" description:"Downgrade to a specific version"`
@@ -98,6 +100,9 @@ func main() {
 	config.Override("SERVER", SERVER)
 	config.Override("ddl.create", opts.Ddlcreate)
 	config.Override("ddl.downgrade", opts.Ddldowngrade)
+	if opts.LogFile != "" {
+		config.Override("logger.output", opts.LogFile)
+	}
 	if opts.Ddlupgrade {
 		config.SetDefaultFlag("ddl.upgrade", true)
 	}
@@ -164,6 +169,14 @@ func main() {
 		logger.Error("main", "Unable to connect to database. Have you configured it yet?", nil)
 		return
 	}
+	if hawkCount := config.Get("hawk.nonce_cache", "1000"); hawkCount != "1000" {
+		count, err := strconv.ParseInt(hawkCount, 10, 32)
+		if err != nil {
+			log.Printf("Could not read hawk.nonce_cache, defaulting to 1000")
+		} else {
+			wmf.InitHawkNonces(count)
+		}
+	}
 	handlers := wmf.NewHandler(config, logger, metrics)
 	if handlers == nil {
 		log.Fatalf("Could not start server. Please check config.ini")
@@ -188,6 +201,8 @@ func main() {
 		handlers.RestQueue)
 	RESTMux.HandleFunc(fmt.Sprintf("/%s/state/", verRoot),
 		handlers.State)
+	RESTMux.HandleFunc(fmt.Sprintf("/%s/l10n/client.json", verRoot),
+		handlers.Language)
 	// Static files (served by nginx in production)
 	if config.GetFlag("use_insecure_static") {
 		RESTMux.HandleFunc("/bower_components/",

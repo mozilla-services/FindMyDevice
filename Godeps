@@ -1,0 +1,20 @@
+# Dependency versions for required libraries
+# Unfortunately gpm bootstrap 0.0.1 fails to find packages correctly
+# Your best bet is to set the version numbers manually from
+#  cd .godeps/src/$(package)
+#  if [ -e .git ]; then;
+#    git log |head -1|sed "s/commit//"
+#  elif [ -e .hg ]; then;
+#    hg log |head -1 |sed "s/changeset:\s*//"
+#
+code.google.com/p/go-uuid/uuid 7dda39b2e7d5e265014674c5af696ba4186679e9
+code.google.com/p/go.net/websocket 28ff664507e453c4455b8c65e701bbe2b2ac980d
+code.google.com/p/goprotobuf/proto f5ac12b15e49095c60ae0acc6da0e28d47e2a29f
+code.google.com/p/gogoprotobuf 6c980277330804e94257ac7ef70a3adbe1641059
+github.com/cactus/go-statsd-client/statsd 5b5607a786a6be31226ca2063e49695712aebc6d
+github.com/gorilla/context 14f550f51af52180c2eefed15e5fd18d63c0a64a
+github.com/gorilla/securecookie 1b0c7f6e9ab3d7f500fd7d50c7ad835ff428139b
+github.com/gorilla/sessions aa5e036e6c44aec69a32eb41097001978b29ad31
+github.com/jessevdk/go-flags 7047cf7a8dc6f41e53365420ab62d415055232c6
+github.com/lib/pq ae7391529ced9c12f06bf01eae33dadb4c70e49f
+github.com/rafrombrc/gospec/src/gospec 2e46585948f47047b0c217d00fa24bbc4e370e6b

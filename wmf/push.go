@@ -15,6 +15,9 @@ import (
 
 func SendPush(devRec *storage.Device, config *util.MzConfig) error {
 	// wow, so very tempted to make sure this matches the known push server.
+	if config.GetFlag("push.disabled") {
+		return nil
+	}
 	bbody := []byte{}
 	body := bytes.NewReader(bbody)
 	/* If your server is not trustfully signed, the following will fail.

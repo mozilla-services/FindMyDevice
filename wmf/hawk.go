@@ -15,12 +15,14 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 var ErrNoAuth = errors.New("No Authorization Header")
 var ErrNotHawkAuth = errors.New("Not a Hawk Authorization Header")
 var ErrInvalidSignature = errors.New("Header does not match signature")
+var ErrReplayedNonce = errors.New("Nonce detected. Replay?")
 
 // minimal HAWK for now (e.g. no bewit because IAGNI)
 type Hawk struct {
@@ -57,6 +59,49 @@ func (self *Hawk) Clear() {
 	self.Time = ""
 	self.Path = ""
 	self.Port = ""
+}
+
+type nonceCache struct {
+	sync.RWMutex
+	order []string
+	hash  map[string]struct{}
+}
+
+var HawkNonces *nonceCache
+
+func InitHawkNonces(count int64) {
+	HawkNonces = &nonceCache{
+		order: make([]string, count),
+		hash:  make(map[string]struct{}),
+	}
+}
+
+func init() {
+	// In case we forget to initialize the hawk nonces.
+	InitHawkNonces(1000)
+}
+
+func (r *nonceCache) Contains(value string) bool {
+	r.Lock()
+	defer r.Unlock()
+	_, ok := r.hash[value]
+	return ok
+}
+
+func (r *nonceCache) Add(nonce string) bool {
+	if r.Contains(nonce) {
+		return false
+	}
+	r.Lock()
+	defer r.Unlock()
+	rl := len(r.order) - 1
+	if r.order[rl] != "" {
+		delete(r.hash, r.order[rl])
+	}
+	copy(r.order[1:], r.order[:rl])
+	r.order[0] = nonce
+	r.hash[nonce] = struct{}{}
+	return true
 }
 
 // Return a Hawk Authorization header
@@ -219,6 +264,9 @@ func (self *Hawk) ParseAuthHeader(req *http.Request, logger util.Logger) (err er
 			self.Time = val
 		case "nonce":
 			self.Nonce = val
+			if !HawkNonces.Add(val) {
+				return ErrReplayedNonce
+			}
 		case "ext":
 			self.Extra = val
 		case "hash":
