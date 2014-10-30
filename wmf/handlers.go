@@ -70,7 +70,6 @@ type Handler struct {
 	verify             func(string) (string, string, error)
 	docRoot            string
 	clientLangPath     *LangPath
-	serverLangPath     *LangPath
 	serverLangTemplate *template.Template
 }
 
@@ -263,7 +262,7 @@ func (r *LangPath) Load(lang string) (err error) {
 	return nil
 }
 
-func (r *LangPath) Get(key string) string {
+func (r *LangPath) Localize(key string) string {
 	if val, ok := r.hash[key]; ok {
 		return val
 	}
@@ -2041,10 +2040,6 @@ func (r *Handler) Language(resp http.ResponseWriter, req *http.Request) {
 	return
 }
 
-func (self *Handler) Localize(arg string) string {
-	return self.serverLangPath.Get(arg)
-}
-
 func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:Index"
 
@@ -2072,7 +2067,7 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	// Load the localization string map for this file
-	self.serverLangPath, err = NewLangPath(self.serverLangTemplate, self.docRoot, "en")
+	serverLangPath, err := NewLangPath(self.serverLangTemplate, self.docRoot, "en")
 	if err != nil {
 		self.logger.Error(self.logCat,
 			"Could not load server l10n file",
@@ -2081,13 +2076,13 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	for _, lang := range self.getLocLang(req) {
-		if err = self.serverLangPath.Load(lang.Lang); err == nil {
+		if err = serverLangPath.Load(lang.Lang); err == nil {
 			self.logger.Info(self.logCat, "Loaded Language File",
 				util.Fields{"lang": lang.Lang})
 			break
 		}
 	}
-	tmpl, err := template.New("index.html").Funcs(template.FuncMap{"l": self.Localize}).ParseFiles(self.docRoot + "/index.html")
+	tmpl, err := template.New("index.html").Funcs(template.FuncMap{"l": serverLangPath.Localize}).ParseFiles(self.docRoot + "/index.html")
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not display index page",
 			util.Fields{"error": err.Error(),

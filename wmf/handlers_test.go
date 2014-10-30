@@ -156,10 +156,10 @@ func Test_LangPath(t *testing.T) {
 	if err = lp.Load("en"); err != nil {
 		t.Fatalf("Could not load test data: %s", err.Error())
 	}
-	if lp.Get("foo") != "bar" {
+	if lp.Localize("foo") != "bar" {
 		t.Fatalf("Incorrect valid value returned")
 	}
-	if lp.Get("bar") != "bar" {
+	if lp.Localize("bar") != "bar" {
 		t.Fatalf("Incorrect invalid value returned")
 	}
 	// Obviously, this should return an error, not the data.
