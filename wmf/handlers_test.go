@@ -4,10 +4,14 @@
 package wmf
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+	"text/template"
 
 	"github.com/mozilla-services/FindMyDevice/util"
 	"github.com/mozilla-services/FindMyDevice/wmf/storage"
@@ -90,6 +94,80 @@ func Test_Handler_verifyFxAAssertion(t *testing.T) {
 		t.Logf("Returned userid: %s, email: %s", userid, email)
 		t.Errorf("Failed to validate mock assertion %s", err)
 	}
+}
+
+func Test_getLocLang(t *testing.T) {
+	config := util.NewMzConfig()
+	h := testHandler(config, t)
+
+	req, _ := http.NewRequest("GET", "http://localhost/1/l10n/client.json", nil)
+	req.Header.Add("Accept-Language", "foo-BA;q=0.8,bar-GO;q=0.9")
+
+	result := h.getLocLang(req)
+	t.Logf("results: %+v\n", result)
+	if len(result) == 0 {
+		t.Errorf("getLocLang failed to return any results")
+	}
+	if len(result) != 5 {
+		t.Errorf("getLocLang returned too few results")
+	}
+	if result[0].Lang != "bar_GO" {
+		t.Errorf("getLocLang failed to sort languages correctly: %s", result[0].Lang)
+	}
+	if result[4].Lang != "en" {
+		t.Errorf("getLocLang failed to include 'en'")
+	}
+
+	req, _ = http.NewRequest("GET", "http://localhost/1/l10n/client.json", nil)
+	req.Header.Add("Accept-Language", "{:;}() echo invalid!")
+	result = h.getLocLang(req)
+	t.Logf("results: %+v\n", result)
+	if result[0].Lang != "en" {
+		t.Errorf("getLocLang failed to gracefully handle invalid Accept-Language")
+	}
+}
+
+func Test_LangPath(t *testing.T) {
+	tmpDir := os.TempDir()
+	testTemplate := "{{.Root}}/{{.Lang}}_test.txt"
+	testTmpl, _ := template.New("test").Parse(testTemplate)
+	testText := "{\"foo\": \"bar\"}"
+	tf_name := filepath.Join(tmpDir, "en_test.txt")
+	tf, err := os.Create(tf_name)
+	if err != nil {
+		t.Fatalf("could not gen test file %s", err.Error())
+	}
+	defer os.Remove(tf_name)
+	tf.Write([]byte(testText))
+	tf.Close()
+
+	// this runs .path & .Check
+	lp, err := NewLangPath(testTmpl, tmpDir, "EN")
+	if err != nil {
+		t.Fatalf("Could not get LangPath: %s", err.Error)
+	}
+	buff := new(bytes.Buffer)
+	if err = lp.Write("en", buff); err != nil {
+		t.Fatalf("Could not write buffer: %s", err.Error)
+	}
+	if buff.String() != testText {
+		t.Fatalf("Data did not match: %s != %s", buff.String(), testText)
+	}
+	if err = lp.Load("en"); err != nil {
+		t.Fatalf("Could not load test data: %s", err.Error())
+	}
+	if lp.Localize("foo") != "bar" {
+		t.Fatalf("Incorrect valid value returned")
+	}
+	if lp.Localize("bar") != "bar" {
+		t.Fatalf("Incorrect invalid value returned")
+	}
+	// Obviously, this should return an error, not the data.
+	lp, err = NewLangPath(testTmpl, tmpDir, "/etc/hostname")
+	if err != ErrNoLanguage {
+		t.Fatalf("Incorrect error returned")
+	}
+
 }
 
 // TODO: Finish tests for
