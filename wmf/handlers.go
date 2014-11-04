@@ -2005,13 +2005,15 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 		// if there's a locale for the language
 		if lls := strings.SplitN(bits[0], "-", 2); len(lls) > 1 {
 			// normalize the lang-loc to lang_loc
-			ll.Lang = fmt.Sprintf("%s_%s", lls[0], lls[1])
+			ll.Lang = fmt.Sprintf("%s_%s",
+				strings.ToLower(lls[0]),
+				strings.ToUpper(lls[1]))
 			// and add it, plus a locale-less lang record, to the results.
 			results = append(results, ll,
-				lang_loc{Pref: ll.Pref, Lang: lls[0]})
+				lang_loc{Pref: ll.Pref, Lang: strings.ToLower(lls[0])})
 			continue
 		}
-		ll.Lang = bits[0]
+		ll.Lang = strings.ToLower(bits[0])
 		results = append(results, ll)
 	}
 	// Append the default to the end of the preferences

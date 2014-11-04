@@ -114,6 +114,9 @@ func Test_getLocLang(t *testing.T) {
 	if result[0].Lang != "es" {
 		t.Errorf("getLocLang failed to sort languages correctly: %s", result[0].Lang)
 	}
+	if result[1].Lang != "en_US" {
+		t.Errorf("getLocLang failed normalization to lower_UPPER")
+	}
 	if result[4].Lang != "en" {
 		t.Errorf("getLocLang failed to include 'en'")
 	}
