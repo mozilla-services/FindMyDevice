@@ -2004,7 +2004,8 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 		}
 		// if there's a locale for the language
 		if lls := strings.SplitN(bits[0], "-", 2); len(lls) > 1 {
-			// normalize the lang-loc to lang_loc
+			// normalize the lang-loc to lang_LOC
+			// I'd prefer one case, but the localizers prefer mixed form.
 			ll.Lang = fmt.Sprintf("%s_%s",
 				strings.ToLower(lls[0]),
 				strings.ToUpper(lls[1]))
