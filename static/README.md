@@ -1,6 +1,11 @@
 # Find My Device: Front-end
 
-The Find My Device front-end toolkit is powered by node, grunt, and bower, so you'll need to get yourself node >=0.10.0 with npm. It's also a good idea to have global installs of grunt (`npm install -g grunt`) and bower (`npm install -g bower`). Once you have those fine tools, `npm install` should get you going.
+The Find My Device front-end toolkit is powered by node, grunt, and
+bower, so you'll need to get yourself node >=0.10.0 with npm. It's
+also a good idea to have global installs of grunt (`npm install -g
+grunt && npm install -g grunt-cli`) and bower (`npm install -g
+bower`).  Once you have those fine tools, `npm install` should get you
+going.
 
 ## Development
 
