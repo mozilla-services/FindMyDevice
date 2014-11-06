@@ -101,7 +101,7 @@ func Test_getLocLang(t *testing.T) {
 	h := testHandler(config, t)
 
 	req, _ := http.NewRequest("GET", "http://localhost/1/l10n/client.json", nil)
-	req.Header.Add("Accept-Language", "foo-BA;q=0.8,bar-GO;q=0.9")
+	req.Header.Add("Accept-Language", "es,en-us;q=0.7,en;q=0.3")
 
 	result := h.getLocLang(req)
 	t.Logf("results: %+v\n", result)
@@ -111,8 +111,11 @@ func Test_getLocLang(t *testing.T) {
 	if len(result) != 5 {
 		t.Errorf("getLocLang returned too few results")
 	}
-	if result[0].Lang != "bar_GO" {
+	if result[0].Lang != "es" {
 		t.Errorf("getLocLang failed to sort languages correctly: %s", result[0].Lang)
+	}
+	if result[1].Lang != "en_US" {
+		t.Errorf("getLocLang failed normalization to lower_UPPER")
 	}
 	if result[4].Lang != "en" {
 		t.Errorf("getLocLang failed to include 'en'")

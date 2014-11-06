@@ -29,13 +29,12 @@ module.exports = function (grunt) {
       'join-existing': false,
       'keyword': 'l',
       'parsers': {
-        '.js': 'javascript',
-        '.html': 'handlebars'
+        '.html': 'handlebars',
+        '.js': 'javascript'
       }
     });
 
     clientWalker.on('end', function () {
-      console.log('walking the server');
       var serverWalker = extract({
         'input-dir': path.join(__dirname, '..', 'app'),
         // Exclude everything except static/app/index.html

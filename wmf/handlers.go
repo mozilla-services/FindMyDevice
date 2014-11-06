@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"runtime/debug"
 	"sort"
@@ -52,7 +53,7 @@ type LangPath struct {
 	tmpl *template.Template
 	Root string
 	Lang string
-	hash map[string]string
+	hash map[string]interface{}
 }
 
 // base handler for REST and Socket calls.
@@ -216,6 +217,9 @@ func (r *LangPath) pathExists(root, path string) bool {
 		return false
 	}
 	_, err = os.Stat(p)
+	if err == nil {
+		return true
+	}
 	return !os.IsNotExist(err)
 }
 
@@ -247,7 +251,7 @@ func (r *LangPath) Write(lang string, out io.Writer) (err error) {
 }
 
 func (r *LangPath) Load(lang string) (err error) {
-	r.hash = make(map[string]string)
+	r.hash = make(map[string]interface{})
 	path, err := r.Check(lang)
 	if err != nil {
 		return err
@@ -263,8 +267,8 @@ func (r *LangPath) Load(lang string) (err error) {
 }
 
 func (r *LangPath) Localize(key string) string {
-	if val, ok := r.hash[key]; ok {
-		return val
+	if val, ok := r.hash[key]; ok && reflect.TypeOf(val).Name() == "string" {
+		return val.(string)
 	}
 	return key
 }
@@ -2000,14 +2004,17 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 		}
 		// if there's a locale for the language
 		if lls := strings.SplitN(bits[0], "-", 2); len(lls) > 1 {
-			// normalize the lang-loc to lang_loc
-			ll.Lang = fmt.Sprintf("%s_%s", lls[0], lls[1])
+			// normalize the lang-loc to lang_LOC
+			// I'd prefer one case, but the localizers prefer mixed form.
+			ll.Lang = fmt.Sprintf("%s_%s",
+				strings.ToLower(lls[0]),
+				strings.ToUpper(lls[1]))
 			// and add it, plus a locale-less lang record, to the results.
 			results = append(results, ll,
-				lang_loc{Pref: ll.Pref, Lang: lls[0]})
+				lang_loc{Pref: ll.Pref, Lang: strings.ToLower(lls[0])})
 			continue
 		}
-		ll.Lang = bits[0]
+		ll.Lang = strings.ToLower(bits[0])
 		results = append(results, ll)
 	}
 	// Append the default to the end of the preferences
@@ -2019,6 +2026,8 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 	// and in that case, we will provide "en" before "fr". This is not
 	// expected to be a large audience.
 	sort.Sort(results)
+	r.logger.Debug("getLocLang", "Parsed Accept Languge",
+		util.Fields{"languages": fmt.Sprintf("%+v", results)})
 	return results
 }
 
@@ -2080,6 +2089,9 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 			self.logger.Info(self.logCat, "Loaded Language File",
 				util.Fields{"lang": lang.Lang})
 			break
+		} else {
+			self.logger.Warn(self.logCat, "Could not find lang path",
+				util.Fields{"err": err.Error()})
 		}
 	}
 	tmpl, err := template.New("index.html").Funcs(template.FuncMap{"l": serverLangPath.Localize}).ParseFiles(self.docRoot + "/index.html")
