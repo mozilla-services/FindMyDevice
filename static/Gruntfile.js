@@ -150,7 +150,8 @@ module.exports = function (grunt) {
             '.htaccess',
             'images/{,*/}*.{png,jpg,jpeg,webp,gif}',
             'styles/fonts/{,*/}*.*',
-            'index.html'
+            'index.html',
+            'l10n/**/*.json'
           ]
         },
         // Copy these files into tmp so that concat can find them
@@ -422,6 +423,7 @@ module.exports = function (grunt) {
   // BUILD TASK
   grunt.registerTask('build', [
     'clean:dist',
+    'l10n-create-json',
     'css',
     'useminPrepare',
     'copy',
