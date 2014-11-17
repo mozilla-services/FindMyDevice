@@ -2004,7 +2004,7 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 		} else {
 			ll.Pref = startingPref
 			if startingPref > 1.0 {
-				startingPref = startingPref - 1.0
+				startingPref -= 1.0
 			}
 		}
 		// if there's a locale for the language
