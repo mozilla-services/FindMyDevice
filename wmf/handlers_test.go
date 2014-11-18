@@ -533,7 +533,7 @@ func Test_LangPath(t *testing.T) {
 	tmpDir := os.TempDir()
 	testTemplate := "{{.Root}}/{{.Lang}}_test.txt"
 	testTmpl, _ := template.New("test").Parse(testTemplate)
-	testText := "{\"foo\": \"bar\"}"
+	testText := "{\"foo\": \"bar\", \"gorp\":\"\"}"
 	tf_name := filepath.Join(tmpDir, "en_test.txt")
 	tf, err := os.Create(tf_name)
 	if err != nil {
@@ -563,6 +563,9 @@ func Test_LangPath(t *testing.T) {
 	}
 	if lp.Localize("bar") != "bar" {
 		t.Fatalf("Incorrect invalid value returned")
+	}
+	if lp.Localize("gorp") != "gorp" {
+		t.Fatalf("Blank string did not return delocalized value")
 	}
 	// Obviously, this should return an error, not the data.
 	lp, err = NewLangPath(testTmpl, tmpDir, "/etc/hostname")

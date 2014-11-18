@@ -266,7 +266,7 @@ func (r *LangPath) Load(lang string) (err error) {
 }
 
 func (r *LangPath) Localize(key string) string {
-	if val, ok := r.hash[key]; ok && reflect.TypeOf(val).Name() == "string" {
+	if val, ok := r.hash[key]; ok && reflect.TypeOf(val).Name() == "string" && len(val.(string)) > 0 {
 		return val.(string)
 	}
 	return key
