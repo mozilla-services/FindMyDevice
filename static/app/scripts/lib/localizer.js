@@ -34,7 +34,8 @@ define([
     localize: function (input) {
       var output = this.dictionary[input];
 
-      return output ? output : input;
+      // null or empty string returns input
+      return output && output.trim().length ? output : input;
     }
   };
 
