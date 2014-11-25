@@ -1996,9 +1996,9 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 	if raw == "" {
 		return append(results, lang_loc{"en", 1.0})
 	}
+	var startingPref = 10.0
 	for _, pref := range strings.Split(raw, ",") {
 		ll := lang_loc{}
-		ll.Pref = 1.0
 
 		bits := strings.SplitN(pref, ";", 2)
 		// if there's a preference value...
@@ -2011,6 +2011,11 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 					util.Fields{"error": err.Error(),
 						"string": bits[1]})
 				continue
+			}
+		} else {
+			ll.Pref = startingPref
+			if startingPref > 1.0 {
+				startingPref -= 1.0
 			}
 		}
 		// if there's a locale for the language
