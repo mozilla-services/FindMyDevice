@@ -1,0 +1,27 @@
+/* Fira Sans */
+@include font-face(
+  $font-family: $default-font-family,
+  $path: '#{$font-base}/FiraSans/FiraSans-Regular'
+);
+
+/* Fira Sans Bold */
+@include font-face(
+  $font-family: $default-font-family,
+  $path: '#{$font-base}/FiraSans/FiraSans-Bold',
+  $font-weight: bold
+);
+
+/* Fira Sans Italic */
+@include font-face(
+  $font-family: $default-font-family,
+  $path: '#{$font-base}/FiraSans/FiraSans-BookItalic',
+  $font-style: italic
+);
+
+/* Fira Sans Bold Italic */
+@include font-face(
+  $font-family: $default-font-family,
+  $path: '#{$font-base}/FiraSans/FiraSans-BoldItalic',
+  $font-style: italic,
+  $font-weight: bold
+);

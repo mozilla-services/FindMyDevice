@@ -19,32 +19,23 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
-	// "io/ioutil"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
+	"reflect"
 	"runtime"
 	"runtime/debug"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 )
-
-// base handler for REST and Socket calls.
-type Handler struct {
-	config  *util.MzConfig
-	logger  *util.HekaLogger
-	metrics *util.Metrics
-	devId   string
-	logCat  string
-	accepts []string
-	hawk    *Hawk
-	store   *storage.Storage
-	maxCli  int64
-}
 
 const (
 	SESSION_NAME      = "user"
@@ -57,6 +48,31 @@ const (
 	SESSION_CSRFTOKEN = "csrftoken"
 	SESSION_DEVICEID  = "deviceid"
 )
+
+type LangPath struct {
+	tmpl *template.Template
+	Root string
+	Lang string
+	hash map[string]interface{}
+}
+
+// base handler for REST and Socket calls.
+type Handler struct {
+	config             *util.MzConfig
+	logger             util.Logger
+	metrics            util.Metrics
+	devId              string
+	logCat             string
+	accepts            []string
+	hawk               *Hawk
+	store              storage.Storage
+	maxCli             int64
+	maxBodyBytes       int64
+	verify             func(string) (string, string, error)
+	docRoot            string
+	clientLangPath     *LangPath
+	serverLangTemplate *template.Template
+}
 
 // Generic reply structure (useful for JSON responses)
 type replyType map[string]interface{}
@@ -88,72 +104,172 @@ var (
 	ErrInvalidReply  = errors.New("Invalid Command Response")
 	ErrAuthorization = errors.New("Needs Authorization")
 	ErrNoUser        = errors.New("No User")
-	ErrOauth         = errors.New("OAuth Error")
+	ErrOAuth         = errors.New("OAuth Error")
 	ErrNoClient      = errors.New("No Client for Update")
 	ErrTooManyClient = errors.New("Too Many Clients for device")
 	ErrDeviceDeleted = errors.New("Device deleted")
+	ErrNoLanguage    = errors.New("No Language json file found")
 )
 
 // package globals
 var (
-	muClient sync.RWMutex
-	// using a map of maps here because it's less hassle than iterating
-	// over a list. Need to investigate if there's significant memory loss
-	Clients      = make(map[string]map[string]*WWS)
 	sessionStore *sessions.CookieStore
+	Clients      *ClientBox
 )
+
+type ClientBox struct {
+	sync.RWMutex
+	clients map[string]map[string]WWS
+	Max     int64
+}
+
+// apply bin64 padd
+func pad(in string) string {
+	return in + "===="[:len(in)%4]
+}
+
+func NewClientBox() *ClientBox {
+	return &ClientBox{clients: make(map[string]map[string]WWS)}
+}
 
 // Client Mapping functions
 // Add a new trackable client.
-func addClient(id, instance string, sock *WWS, maxInstances int64) error {
-	fmt.Printf("+++ Adding client for %s:%s\n", id, instance)
-	defer muClient.Unlock()
-	muClient.Lock()
-	if clients, ok := Clients[id]; ok {
-		if maxInstances > 0 && len(clients) > int(maxInstances) {
+func (c *ClientBox) Add(id, instance string, sock WWS) error {
+	defer c.Unlock()
+	c.Lock()
+	if clients, ok := c.clients[id]; ok {
+		// if we know the ID, check to see if we have the instance.
+		if c.Max > 0 && len(clients) >= int(c.Max) {
 			return ErrTooManyClient
 		}
-		if _, ok := clients[instance]; !ok {
-			Clients[id][instance] = sock
-			return nil
-		} else {
-			fmt.Printf("+++ !!! Instance clash %s::%s\n", id, instance)
+		if _, ok := clients[instance]; ok {
 			return ErrTooManyClient
 		}
+
+		c.clients[id][instance] = sock
+		return nil
 	} else {
-		Clients[id] = make(map[string]*WWS)
-		Clients[id][instance] = sock
+		c.clients[id] = make(map[string]WWS)
+		c.clients[id][instance] = sock
 	}
 	return nil
 }
 
 // remove a trackable client, returns if tracking should stop
-func rmClient(id, instance string) (bool, error) {
-	defer muClient.Unlock()
-	muClient.Lock()
-	if clients, ok := Clients[id]; ok {
+func (c *ClientBox) Del(id, instance string) (bool, error) {
+	defer c.Unlock()
+	c.Lock()
+	if clients, ok := c.clients[id]; ok {
 		// remove the instance
 		if cli, ok := clients[instance]; ok {
-			fmt.Printf("--- removing instance %s::%s\n", id, instance)
 			// Forcing client connection closed
-			if cli.Socket.IsClientConn() {
-				cli.Socket.Close()
+			if cli.Socket().IsClientConn() {
+				cli.Socket().Close()
 			}
 			delete(clients, instance)
 			if len(clients) == 0 {
-				fmt.Printf("--- Purging instances for %s\n", id)
-				delete(Clients, id)
+				delete(c.clients, id)
 				return true, nil
-			} else {
-				Clients[id] = clients
 			}
+			c.clients[id] = clients
 			return false, nil
 		}
-		fmt.Printf("--- !!! No instance of %s::%s\n", id, instance)
 		return true, ErrNoClient
 	}
-	fmt.Printf("--- !!! No clients for %s!\n", id)
 	return true, ErrNoClient
+}
+
+func (c *ClientBox) Clients(id string) (map[string]WWS, bool) {
+	defer c.Unlock()
+	c.Lock()
+	// must call separately to get bool
+	r, ok := c.clients[id]
+	return r, ok
+}
+
+func init() {
+	Clients = NewClientBox()
+}
+
+// Language Path
+func NewLangPath(tmpl *template.Template, docroot, defaultLanguage string) (*LangPath, error) {
+	r := &LangPath{Root: docroot, tmpl: tmpl}
+	if _, err := r.Check(defaultLanguage); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func (r *LangPath) path(lang string) (string, error) {
+	buffer := new(bytes.Buffer)
+	// Normalize paths to lower case.
+	r.Lang = strings.ToLower(lang)
+	if err := r.tmpl.Execute(buffer, r); err != nil {
+		return "", err
+	}
+	return buffer.String(), nil
+}
+
+func (r *LangPath) pathExists(root, path string) bool {
+	p, err := filepath.Abs(filepath.Clean(path))
+	if !strings.HasPrefix(p, root) {
+		return false
+	}
+	_, err = os.Stat(p)
+	if err == nil {
+		return true
+	}
+	return !os.IsNotExist(err)
+}
+
+func (r *LangPath) Check(lang string) (string, error) {
+	path, err := r.path(lang)
+	if err != nil {
+		return "", err
+	}
+	if !r.pathExists(r.Root, path) {
+		return "", ErrNoLanguage
+	}
+	return path, nil
+}
+
+func (r *LangPath) Write(lang string, out io.Writer) (err error) {
+	path, err := r.Check(lang)
+	if err != nil {
+		return err
+	}
+	in, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *LangPath) Load(lang string) (err error) {
+	r.hash = make(map[string]interface{})
+	path, err := r.Check(lang)
+	if err != nil {
+		return err
+	}
+	in, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	if err = json.NewDecoder(in).Decode(&r.hash); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *LangPath) Localize(key string) string {
+	if val, ok := r.hash[key]; ok && reflect.TypeOf(val).Name() == "string" && len(val.(string)) > 0 {
+		return val.(string)
+	}
+	return key
 }
 
 //Handler private functions
@@ -171,8 +287,7 @@ func (self *Handler) extractFromAssertion(assertion string) (userid, email strin
 	}
 	data := bits[1]
 	// pad to byte boundry
-	data = data + "===="[:len(data)%4]
-	decoded, err := base64.StdEncoding.DecodeString(data)
+	decoded, err := base64.StdEncoding.DecodeString(pad(data))
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not decode assertion",
 			util.Fields{"assertion frame": data,
@@ -211,13 +326,14 @@ func (self *Handler) extractAudience(assertion string) (audience string) {
 	bits := strings.Split(assertion, ".")
 	// Classic? persona has 3 chunks, modified has 5.
 	if len(bits) == 5 {
-		if data, err := base64.StdEncoding.DecodeString(bits[3] + "===="[:len(bits[3])%4]); err == nil {
+		if data, err := base64.StdEncoding.DecodeString(pad(bits[3])); err == nil {
 			dj := make(replyType)
 			if err = json.Unmarshal(data, &dj); err == nil {
 				if v, ok := dj["audience"]; ok {
 					// fxa
 					return v.(string)
-				} else if v, ok := dj["aud"]; ok {
+				}
+				if v, ok := dj["aud"]; ok {
 					// persona
 					return v.(string)
 				}
@@ -229,6 +345,9 @@ func (self *Handler) extractAudience(assertion string) (audience string) {
 
 // verify a Persona assertion using the config values
 // part of Handler for config & logging reasons
+// Persona support is deprecated and may eventually go away. It is
+// still provided for educational reasons and in case you want to use this
+// with a private Persona service.
 func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email string, err error) {
 	var ok bool
 	var audience string
@@ -241,7 +360,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 
 	// ******** DO NOT ENABLE auth.disabled FLAG IN PRODUCTION!! ******
 	if self.config.GetFlag("auth.disabled") {
-		self.logger.Warn(self.logCat, "!!! Skipping validation...", nil)
+		self.logger.Warn(self.logCat, "!!! Skipping persona validation...", nil)
 		if len(assertion) == 0 {
 			return "user1", "user@example.com", nil
 		}
@@ -294,7 +413,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 	// Handle the verifier response
 	buffer, raw, err := parseBody(res.Body)
 	if isOk, ok := buffer["status"]; !ok || isOk != "okay" {
-		var errStr string
+		var errStr = "Unknown reason"
 		if err != nil {
 			errStr = err.Error()
 		} else if _, ok = buffer["reason"]; ok {
@@ -328,7 +447,7 @@ func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email str
 }
 
 func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string, err error) {
-	if assLen := len(assertion); assLen != len(strings.Map(assertionFilter, assertion)) {
+	if len(assertion) != len(strings.Map(assertionFilter, assertion)) {
 		self.logger.Error(self.logCat, "Assertion contains invalid characters.",
 			util.Fields{"assertion": assertion})
 		return "", "", ErrAuthorization
@@ -336,7 +455,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 
 	// ******** DO NOT ENABLE auth.disabled FLAG IN PRODUCTION!! ******
 	if self.config.GetFlag("auth.disabled") {
-		self.logger.Warn(self.logCat, "!!! Skipping validation...", nil)
+		self.logger.Warn(self.logCat, "!!! Skipping fxa validation...", nil)
 		return self.extractFromAssertion(assertion)
 
 	}
@@ -411,7 +530,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 		if status == "failure" {
 			self.logger.Error(self.logCat, "FxA verification failed",
 				util.Fields{"error": buff["reason"].(string)})
-			return "", "", ErrOauth
+			return "", "", ErrOAuth
 		}
 	}
 	// the response has either been a redirect or a validated assertion.
@@ -431,41 +550,41 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 		}
 	}
 	// get the "redirect" url. We're not going to redirect, just get the code.
-	if redir, ok := buff["redirect"]; !ok {
+	redir, ok := buff["redirect"]
+	if !ok {
 		self.logger.Error(self.logCat, "FxA verification did not return redirect",
 			nil)
 		return "", "", err
-	} else {
-		if vurl, err := url.Parse(redir.(string)); err != nil {
-			self.logger.Error(self.logCat, "FxA redirect url invalid",
-				util.Fields{"error": err.Error(), "url": redir.(string)})
-			return "", "", err
-		} else {
-			code := vurl.Query().Get("code")
-			if len(code) == 0 {
-				self.logger.Error(self.logCat, "FxA code not present",
-					util.Fields{"url": redir.(string)})
-				return "", "", ErrOauth
-			}
-			//Convert code to access token.
-			accessToken, err := self.getAccessToken(code)
-
-			if err != nil {
-				return "", "", ErrOauth
-			}
-			// If we ever need more, probably want to use "profile".
-			// this will fetch a user's complete profile.
-			userid, err := self.getUserData(accessToken, "uid")
-			if err != nil {
-				return "", "", ErrOauth
-			}
-			email, err := self.getUserData(accessToken, "email")
-			if err != nil {
-				return "", "", ErrOauth
-			}
-			return userid, email, nil
-		}
 	}
+	vurl, err := url.Parse(redir.(string))
+	if err != nil {
+		self.logger.Error(self.logCat, "FxA redirect url invalid",
+			util.Fields{"error": err.Error(), "url": redir.(string)})
+		return "", "", err
+	}
+	code := vurl.Query().Get("code")
+	if len(code) == 0 {
+		self.logger.Error(self.logCat, "FxA code not present",
+			util.Fields{"url": redir.(string)})
+		return "", "", ErrOAuth
+	}
+	//Convert code to access token.
+	accessToken, err := self.getAccessToken(code)
+
+	if err != nil {
+		return "", "", ErrOAuth
+	}
+	// If we ever need more, probably want to use "profile".
+	// this will fetch a user's complete profile.
+	userid, err = self.getUserData(accessToken, "uid")
+	if err != nil {
+		return "", "", ErrOAuth
+	}
+	email, err = self.getUserData(accessToken, "email")
+	if err != nil {
+		return "", "", ErrOAuth
+	}
+	return userid, email, nil
 }
 
 func (self *Handler) clearSession(sess *sessions.Session) (err error) {
@@ -517,25 +636,24 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 						"user": data.UserId})
 				return nil, err
 			}
+			return data, nil
 		}
-		if sessionInfo.DeviceId != "" {
-			data.Device, err = store.GetDeviceInfo(sessionInfo.DeviceId)
-			if err != nil {
-				self.logger.Error(self.logCat, "Could not get device info",
-					util.Fields{"error": err.Error(),
-						"deviceid": sessionInfo.DeviceId})
-				return nil, err
-			}
-			data.Device.PreviousPositions, err = store.GetPositions(sessionInfo.DeviceId)
-			if err != nil {
-				self.logger.Error(self.logCat,
-					"Could not get device's position information",
-					util.Fields{"error": err.Error(),
-						"userId":   data.UserId,
-						"email":    sessionInfo.Email,
-						"deviceId": sessionInfo.DeviceId})
-				return nil, err
-			}
+		data.Device, err = store.GetDeviceInfo(sessionInfo.DeviceId)
+		if err != nil {
+			self.logger.Error(self.logCat, "Could not get device info",
+				util.Fields{"error": err.Error(),
+					"deviceid": sessionInfo.DeviceId})
+			return nil, err
+		}
+		data.Device.PreviousPositions, err = store.GetPositions(sessionInfo.DeviceId)
+		if err != nil {
+			self.logger.Error(self.logCat,
+				"Could not get device's position information",
+				util.Fields{"error": err.Error(),
+					"userId":   data.UserId,
+					"email":    sessionInfo.Email,
+					"deviceId": sessionInfo.DeviceId})
+			return nil, err
 		}
 	}
 	return data, nil
@@ -598,11 +716,7 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 	// Nothing in the session,
 	var auth string
 	if auth = req.FormValue("assertion"); auth != "" {
-		if self.config.GetFlag("auth.persona") {
-			userid, email, err = self.verifyPersonaAssertion(auth)
-		} else {
-			userid, email, err = self.verifyFxAAssertion(auth)
-		}
+		userid, email, err = self.verify(auth)
 	}
 	if err != nil {
 		// error logged in verify
@@ -661,7 +775,7 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	return info, nil
 }
 
-func (self *Handler) stopTracking(devId string, store *storage.Storage) (err error) {
+func (self *Handler) stopTracking(devId string, store storage.Storage) (err error) {
 	noTrack := storage.Unstructured{"t": replyType{"d": 0}}
 	jnt, err := json.Marshal(noTrack)
 	if err != nil {
@@ -685,7 +799,7 @@ func (self *Handler) stopTracking(devId string, store *storage.Storage) (err err
 
 // log the device's position reply
 func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, logPosition bool) (err error) {
-	var location storage.Position
+	var location = new(storage.Position)
 	var hasPasscode bool
 
 	store := self.store
@@ -735,7 +849,7 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 	location.Cmd = storage.Unstructured{cmd: args}
 
 	// this defer also catches and logs panics from the i.Socket.Write()
-	defer func(logger *util.HekaLogger, logCat, devId string) {
+	defer func(logger util.Logger, logCat, devId string) {
 		if r := recover(); r != nil {
 			err := r.(error)
 			logger.Error(logCat,
@@ -745,14 +859,12 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 		}
 	}(self.logger, self.logCat, devId)
 
-	muClient.RLock()
-	clients, ok := Clients[devId]
-	muClient.RUnlock()
+	clients, ok := Clients.Clients(devId)
 
 	if ok {
 		js, _ := json.Marshal(location)
 		for _, i := range clients {
-			i.Socket.Write(js)
+			i.Socket().Write(js)
 		}
 	} else {
 		self.logger.Warn(self.logCat,
@@ -823,12 +935,11 @@ func (self *Handler) verifyHawkHeader(req *http.Request, body []byte, devRec *st
 	// Get the remote signature from the header
 	err = rhawk.ParseAuthHeader(req, self.logger)
 	if err != nil {
-		self.logger.Error(self.logCat, "Could not parse Hawk header",
+		self.logger.Error(self.logCat, "Invalid Hawk header",
 			util.Fields{"error": err.Error()})
 		return false
 	}
 
-	// Generate the comparator signature from what we know.
 	lhawk.Nonce = rhawk.Nonce
 	lhawk.Time = rhawk.Time
 	// getting intermittent sig clashes. I'm copying time, but i don't know if the
@@ -877,7 +988,6 @@ func (self *Handler) genSig(userId, deviceId string) (ret string, err error) {
 
 // Check the simple WS signature against the second to last item
 func (self *Handler) checkSig(req *http.Request, userId, devId string) (ok bool) {
-
 	bits := strings.Split(req.URL.Path, "/")
 	// remember, leading "/" counts.
 	gotsig := bits[len(bits)-2]
@@ -890,7 +1000,7 @@ func (self *Handler) checkSig(req *http.Request, userId, devId string) (ok bool)
 		util.Fields{"testSig": testsig,
 			"gotSig": gotsig})
 
-	if self.config.GetFlag("auth.disable_ws_check") {
+	if self.config.GetFlag("auth.no_ws_check") {
 		return true
 	}
 	return testsig == gotsig
@@ -913,7 +1023,7 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not get oauth token",
 			util.Fields{"code": code, "error": err.Error()})
-		return "", ErrOauth
+		return "", ErrOAuth
 	}
 	req.Header.Add("Content-Type", "application/json")
 	cli := http.DefaultClient
@@ -928,13 +1038,13 @@ func (self *Handler) getAccessToken(code string) (accessToken string, err error)
 		self.logger.Error(self.logCat, "FxA Access token failure",
 			util.Fields{"code": strconv.FormatFloat(code.(float64), 'f', 1, 64),
 				"body": raw})
-		return "", ErrOauth
+		return "", ErrOAuth
 	}
 	token, ok := reply["access_token"]
 	if !ok {
 		self.logger.Error(self.logCat, "OAuth Access token missing from reply",
 			util.Fields{"code": code})
-		return "", ErrOauth
+		return "", ErrOAuth
 	}
 	return token.(string), nil
 }
@@ -1000,7 +1110,7 @@ func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (r
 	if token = req.Header.Get("X-CSRFTOKEN"); len(token) == 0 {
 		self.logger.Warn(self.logCat, "token fail",
 			util.Fields{"error": "No token in Request"})
-		return self.config.GetFlag("auth.allow_tokenless")
+		return self.config.GetFlag("auth.no_csrftoken")
 	}
 
 	// check to see if the "tok" field matches
@@ -1012,8 +1122,16 @@ func (self *Handler) checkToken(session *sessions.Session, req *http.Request) (r
 
 //Handler Public Functions
 
-func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Metrics) *Handler {
-	store, err := storage.Open(config, logger, metrics)
+func NewHandler(config *util.MzConfig, logger util.Logger, metrics util.Metrics) *Handler {
+	stype := config.Get("db.store", "postgres")
+	storeType, ok := storage.AvailableStores[stype]
+	if !ok {
+		logger.Critical("Handler", "Unknown storage type specified",
+			util.Fields{"type": stype})
+		return nil
+	}
+
+	store, err := storeType(config, logger, metrics)
 	if err != nil {
 		logger.Error("Handler", "Could not open storage",
 			util.Fields{"error": err.Error()})
@@ -1041,25 +1159,73 @@ func NewHandler(config *util.MzConfig, logger *util.HekaLogger, metrics *util.Me
 	sessionStore.Options = &sessions.Options{
 		Domain:   config.Get("session.domain", "localhost"),
 		Path:     "/",
-		Secure:   !config.GetFlag("auth.allow_insecure_cookie"),
+		Secure:   !config.GetFlag("auth.no_secure_cookie"),
 		HttpOnly: true,
 		// Do not set a max age by default.
 		// This confuses gorilla, which winds up setting two "user" cookies.
 		//MaxAge: 3600 * 24,
 	}
 	maxCli, _ := strconv.ParseInt(config.Get("ws.max_clients", "0"), 10, 64)
+	maxBodyBytes, _ := strconv.ParseInt(config.Get("rest.max_body_bytes", "1048576"), 10, 64)
+
+	logger.Info("handler", fmt.Sprintf("Attempting to read %d bytes", maxBodyBytes), nil)
+
+	// get the document root, and build the lang_path template here, rather than constantly
+	// later
+	docRoot, err := filepath.Abs(config.Get("document.root",
+		filepath.Join(".", "static", "app")))
+	if err != nil {
+		logger.Error("handler", "Could not resolve document.root",
+			util.Fields{"error": err.Error()})
+		log.Fatalf("Configuration error. Could not resolve document root: %s ",
+			err.Error())
+	}
+	ctmpl, err := template.New("cLP").Parse(config.Get("document.lang_path_client",
+		filepath.Join("{{.Root}}", "l10n", "{{.Lang}}", "client.json")))
+	if err != nil {
+		logger.Error("handler", "Could not generate template for document.lang_path_client",
+			util.Fields{"error": err.Error()})
+		log.Fatalf("Configuration error. document.lang_path_client: %s", err.Error())
+	}
+	cLP, err := NewLangPath(ctmpl, docRoot, "en")
+	if err != nil {
+		logger.Error("handler", "Could not parse document.lang_path_client",
+			util.Fields{"error": err.Error()})
+		log.Fatalf("Configuration error. document.lang_path_client: %s", err.Error())
+		return nil
+	}
+	stmpl, err := template.New("sLP").Parse(config.Get("document.lang_path_server",
+		filepath.Join("{{.Root}}", "l10n", "{{.Lang}}", "server.json")))
+	if err != nil {
+		logger.Error("handler", "Could not generate template for document.lang_path_server",
+			util.Fields{"error": err.Error()})
+		log.Fatalf("Configuration error. document.lang_path_server: %s", err.Error())
+	}
 
 	// Initialize the data store once. This creates tables and
 	// applies required changes.
 	store.Init()
 
-	return &Handler{config: config,
-		logger:  logger,
-		logCat:  "handler",
-		metrics: metrics,
-		store:   store,
-		maxCli:  maxCli,
+	h := &Handler{config: config,
+		logger:             logger,
+		logCat:             "handler",
+		metrics:            metrics,
+		store:              store,
+		maxCli:             maxCli,
+		maxBodyBytes:       maxBodyBytes,
+		docRoot:            docRoot,
+		clientLangPath:     cLP,
+		serverLangTemplate: stmpl,
 	}
+
+	// oh, go...
+	if config.GetFlag("auth.persona") {
+		h.verify = h.verifyPersonaAssertion
+	} else {
+		h.verify = h.verifyFxAAssertion
+	}
+
+	return h
 }
 
 // Register a new device
@@ -1087,148 +1253,144 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 
 	store := self.store
 
+	req.Body = http.MaxBytesReader(resp, req.Body, self.maxBodyBytes)
 	buffer, raw, err = parseBody(req.Body)
 	if err != nil {
 		http.Error(resp, "No body", http.StatusBadRequest)
-	} else {
-		loggedIn = false
+		return
+	}
+	loggedIn = false
 
-		if val, ok := buffer["deviceid"]; !ok || len(val.(string)) == 0 {
-			deviceid, _ = util.GenUUID4()
-		} else {
-			// User provided a deviceid in the PATH, screen and see if we
-			// have any info about it.
-			deviceid = strings.Map(deviceIdFilter, val.(string))
-			if len(deviceid) > 32 {
-				deviceid = deviceid[:32]
-			}
-			devRec, err = store.GetDeviceInfo(deviceid)
-			if err != nil {
-				self.logger.Warn(self.logCat, "Could not get info for deviceid",
-					util.Fields{"deviceid": deviceid,
-						"error": err.Error()})
-			}
+	if val, ok := buffer["deviceid"]; !ok || len(val.(string)) == 0 {
+		deviceid, _ = util.GenUUID4()
+	} else {
+		// User provided a deviceid in the PATH, screen and see if we
+		// have any info about it.
+		deviceid = strings.Map(deviceIdFilter, val.(string))
+		if len(deviceid) > 32 {
+			deviceid = deviceid[:32]
 		}
-		// If there's an assertion, validate it and pull user info.
-		if assertion, ok := buffer["assert"]; ok {
-			if self.config.GetFlag("auth.persona") {
-				userid, email, err = self.verifyPersonaAssertion(assertion.(string))
-			} else {
-				userid, email, err = self.verifyFxAAssertion(assertion.(string))
-			}
-			if err != nil || userid == "" {
-				http.Error(resp, "Unauthorized", 401)
-				return
-			}
-			self.logger.Debug(self.logCat, "Got user "+email, nil)
-			loggedIn = true
-		} else {
-			// Huh, no assertion. Check the HAWK header to see if the
-			// user is valid or not. If so, get the user registered for
-			// this device.
-			self.logger.Warn(self.logCat, "Missing 'assert' value",
-				util.Fields{"body": raw})
-			// Use HAWK + deviceid to determine if this is a re-registration.
-			if hv := self.verifyHawkHeader(req,
-				[]byte(raw),
-				devRec); devRec != nil && hv {
-				self.logger.Info(self.logCat,
-					"Hawk Verified, getting user info ...\n",
-					nil)
-				if userid, user, err = store.GetUserFromDevice(deviceid); err == nil {
-					self.logger.Debug(self.logCat,
-						"Got user info ",
-						util.Fields{"userId": userid,
-							"name":     user,
-							"deviceId": deviceid})
-					loggedIn = true
-				} else {
-					self.logger.Error(self.logCat,
-						"No user associated with valid device!!",
-						util.Fields{"deviceId": deviceid})
-				}
-			} else {
-				self.logger.Warn(self.logCat,
-					"Failed Hawk Header Check",
-					util.Fields{"deviceId": deviceid})
-			}
+		devRec, err = store.GetDeviceInfo(deviceid)
+		if err != nil {
+			self.logger.Warn(self.logCat, "Could not get info for deviceid",
+				util.Fields{"deviceid": deviceid,
+					"error": err.Error()})
 		}
-		if !loggedIn {
-			self.logger.Error(self.logCat, "Device Not logged in",
-				util.Fields{"deviceId": deviceid})
+	}
+	// If there's an assertion, validate it and pull user info.
+	if assertion, ok := buffer["assert"]; ok {
+		userid, email, err = self.verify(assertion.(string))
+		if err != nil || userid == "" {
 			http.Error(resp, "Unauthorized", 401)
 			return
 		}
-		// If there's a pushUrl specified, make sure it's not empty.
-		if val, ok := buffer["pushurl"]; !ok || val == nil || len(val.(string)) == 0 {
-			self.logger.Error(self.logCat, "Missing SimplePush url", nil)
-			http.Error(resp, "Bad Data", 400)
-			return
-		} else {
-			pushUrl = val.(string)
-		}
-		//ALWAYS generate a new secret on registration!
-		secret = GenNonce(16)
-		if val, ok := buffer["has_passcode"]; !ok {
-			hasPasscode = true
-		} else {
-			hasPasscode, err = strconv.ParseBool(val.(string))
-			if err != nil {
-				hasPasscode = false
+		self.logger.Debug(self.logCat, "Got user "+email, nil)
+		loggedIn = true
+	} else {
+		// Huh, no assertion. Check the HAWK header to see if the
+		// user is valid or not. If so, get the user registered for
+		// this device.
+		self.logger.Warn(self.logCat, "Missing 'assert' value",
+			util.Fields{"body": raw})
+		// Use HAWK + deviceid to determine if this is a re-registration.
+		if hv := self.verifyHawkHeader(req,
+			[]byte(raw),
+			devRec); devRec != nil && hv {
+			self.logger.Info(self.logCat,
+				"Hawk Verified, getting user info ...\n",
+				nil)
+			if userid, user, err = store.GetUserFromDevice(deviceid); err == nil {
+				self.logger.Debug(self.logCat,
+					"Got user info ",
+					util.Fields{"userId": userid,
+						"name":     user,
+						"deviceId": deviceid})
+				loggedIn = true
+			} else {
+				self.logger.Error(self.logCat,
+					"No user associated with valid device!!",
+					util.Fields{"deviceId": deviceid})
 			}
-		}
-		if self.config.GetFlag("ek.ignore_passcode_state") {
-			// This overrides the passcode state reported by the device.
-			// This is a work around for a device lock screen bug that
-			// caches the last pass code, even if the user has disabled
-			// the device pass code.
-			hasPasscode = false
-		}
-		if val, ok := buffer["accepts"]; ok {
-			// collapse the array to a string
-			if l := len(val.([]interface{})); l > 0 {
-				acc := make([]byte, l)
-				for n, ke := range val.([]interface{}) {
-					acc[n] = ke.(string)[0]
-				}
-				accepts = strings.ToLower(string(acc))
-			}
-		}
-		if len(accepts) == 0 {
-			accepts = "elrth"
-		}
-		if !strings.Contains("h", accepts) {
-			accepts = accepts + "h"
-		}
-
-		// create the new device record
-		var devId string
-		if user == "" {
-			user = strings.SplitN(email, "@", 2)[0]
-		}
-		if devId, err = store.RegisterDevice(
-			userid,
-			storage.Device{
-				ID:          deviceid,
-				Name:        user,
-				Secret:      secret,
-				PushUrl:     pushUrl,
-				HasPasscode: hasPasscode,
-				Accepts:     accepts,
-			}); err != nil {
-			self.logger.Error(self.logCat, "Error Registering device", nil)
-			http.Error(resp, "Bad Request", 400)
-			return
 		} else {
-			if devId != deviceid {
-				self.logger.Error(self.logCat, "Different deviceID returned",
-					util.Fields{"original": deviceid, "new": devId})
-				http.Error(resp, "Server error", 500)
-				return
-			}
-			self.devId = deviceid
+			self.logger.Warn(self.logCat,
+				"Failed Hawk Header Check",
+				util.Fields{"deviceId": deviceid})
 		}
 	}
+	if !loggedIn {
+		self.logger.Error(self.logCat, "Device Not logged in",
+			util.Fields{"deviceId": deviceid})
+		http.Error(resp, "Unauthorized", 401)
+		return
+	}
+	// If there's a pushUrl specified, make sure it's not empty.
+	if val, ok := buffer["pushurl"]; !ok || val == nil || len(val.(string)) == 0 {
+		self.logger.Error(self.logCat, "Missing SimplePush url", nil)
+		http.Error(resp, "Bad Data", 400)
+		return
+	} else {
+		pushUrl = val.(string)
+	}
+	//ALWAYS generate a new secret on registration!
+	secret = GenNonce(16)
+	if val, ok := buffer["has_passcode"]; !ok {
+		hasPasscode = true
+	} else {
+		hasPasscode, err = strconv.ParseBool(val.(string))
+		if err != nil {
+			hasPasscode = false
+		}
+	}
+	if self.config.GetFlag("ek.ignore_passcode_state") {
+		// This overrides the passcode state reported by the device.
+		// This is a work around for a device lock screen bug that
+		// caches the last pass code, even if the user has disabled
+		// the device pass code.
+		hasPasscode = false
+	}
+	if val, ok := buffer["accepts"]; ok {
+		// collapse the array to a string
+		if l := len(val.([]interface{})); l > 0 {
+			acc := make([]byte, l)
+			for n, ke := range val.([]interface{}) {
+				acc[n] = ke.(string)[0]
+			}
+			accepts = strings.ToLower(string(acc))
+		}
+	}
+	if len(accepts) == 0 {
+		accepts = "elrth"
+	}
+	if !strings.Contains("h", accepts) {
+		accepts = accepts + "h"
+	}
+
+	// create the new device record
+	var devId string
+	if user == "" {
+		user = strings.SplitN(email, "@", 2)[0]
+	}
+	if devId, err = store.RegisterDevice(
+		userid,
+		&storage.Device{
+			ID:          deviceid,
+			Name:        user,
+			Secret:      secret,
+			PushUrl:     pushUrl,
+			HasPasscode: hasPasscode,
+			Accepts:     accepts,
+		}); err != nil {
+		self.logger.Error(self.logCat, "Error Registering device", nil)
+		http.Error(resp, "Bad Request", 400)
+		return
+	}
+	if devId != deviceid {
+		self.logger.Error(self.logCat, "Different deviceID returned",
+			util.Fields{"original": deviceid, "new": devId})
+		http.Error(resp, "Server error", 500)
+		return
+	}
+	self.devId = deviceid
 	self.metrics.Increment("device.registration")
 	self.updatePage(self.devId, "register", buffer, false)
 	output, err := json.Marshal(util.Fields{"deviceid": self.devId,
@@ -1251,7 +1413,6 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 // Handle the Cmd response from the device and pass next command if available.
 func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	var err error
-	var l int
 
 	self.logCat = "handler:Cmd"
 	resp.Header().Set("Content-Type", "application/json")
@@ -1286,14 +1447,16 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	//decode the body
-	var body = make([]byte, req.ContentLength)
-	l, err = req.Body.Read(body)
-	if err != nil && err != io.EOF {
+	self.logger.Info(self.logCat, fmt.Sprintf("Attempting to read %d bytes", self.maxBodyBytes), nil)
+	req.Body = http.MaxBytesReader(resp, req.Body, self.maxBodyBytes)
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
 		self.logger.Error(self.logCat, "Could not read body",
 			util.Fields{"error": err.Error()})
 		http.Error(resp, "Invalid", 400)
 		return
 	}
+	l := len(body)
 	//validate the Hawk header
 	if self.config.GetFlag("hawk.disabled") == false {
 		if !self.verifyHawkHeader(req, body, devRec) {
@@ -1349,7 +1512,6 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			case "t":
 				err = self.updatePage(deviceId, c, margs, true)
 			case "x":
-				fmt.Printf("xxx %+v\n", margs[c])
 				if margs[c].(bool) == false {
 					self.logger.Debug(self.logCat,
 						"FMD Disabled on device, clearing commands",
@@ -1357,11 +1519,21 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 					store.PurgeCommands(deviceId)
 				}
 				err = self.updatePage(deviceId, c, margs, false)
-			case "q":
-				// User has quit, nuke what we know.
-				if self.config.GetFlag("cmd.q.allow") {
-					err = store.DeleteDevice(deviceId)
+			case "e":
+				// erase requested.
+				self.logger.Debug(self.logCat,
+					"Deleting device",
+					util.Fields{"deviceId": devRec.ID})
+				if err = store.DeleteDevice(devRec.ID); err != nil {
+					self.logger.Warn(self.logCat, "Could not delete device",
+						util.Fields{"error": err.Error(),
+							"deviceId": devRec.ID,
+							"userId":   devRec.User})
+					http.Error(resp, "\"Server Error\"",
+						http.StatusServiceUnavailable)
+					return
 				}
+				self.updatePage(deviceId, c, margs, false)
 			default:
 				err = self.updatePage(deviceId, c, margs, false)
 			}
@@ -1391,6 +1563,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				"deviceId": devRec.ID,
 				"userId":   devRec.User})
 		http.Error(resp, "\"Server Error\"", http.StatusServiceUnavailable)
+		return
 	}
 	if output == nil || len(output) < 2 {
 		output = []byte("{}")
@@ -1400,17 +1573,6 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 		"", devRec.Secret)
 	resp.Header().Add("Authorization", authHeader)
 	self.metrics.Increment("cmd.send." + ctype)
-	if ctype == "e" {
-		self.logger.Debug(self.logCat,
-			"Deleting device",
-			util.Fields{"deviceId": devRec.ID})
-		if err = store.DeleteDevice(devRec.ID); err != nil {
-			self.logger.Warn(self.logCat, "Could not delete device",
-				util.Fields{"error": err.Error(),
-					"deviceId": devRec.ID,
-					"userId":   devRec.User})
-		}
-	}
 	if self.config.GetFlag("debug.show_output") {
 		self.logger.Debug(self.logCat,
 			">>>output",
@@ -1424,6 +1586,7 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 	var v interface{}
 	var vs string
 	var ok bool
+	var logout bool
 	status = http.StatusOK
 	store := self.store
 
@@ -1500,9 +1663,8 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 		}
 	case "e": // erase
 		rargs = replyType{}
-		// Delete the device
-		return http.StatusOK, ErrDeviceDeleted
-
+		logout = true
+		// erase requested, log the user off soon.
 	default:
 		self.logger.Warn(self.logCat, "Invalid Command",
 			util.Fields{"cmd": string(cmd),
@@ -1551,6 +1713,9 @@ func (self *Handler) Queue(devRec *storage.Device, cmd string, args, rep *replyT
 				"userId":   devRec.User})
 		return http.StatusServiceUnavailable, errors.New("\"Server Error\"")
 	}
+	if logout {
+		err = ErrDeviceDeleted
+	}
 	return
 }
 
@@ -1559,7 +1724,6 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	/* Queue commands for the device.
 	 */
 	var err error
-	var lbody int
 	store := self.store
 	rep := make(replyType)
 
@@ -1657,14 +1821,15 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	//decode the body
-	var body = make([]byte, req.ContentLength)
-	lbody, err = req.Body.Read(body)
-	if err != nil && err != io.EOF {
+	req.Body = http.MaxBytesReader(resp, req.Body, self.maxBodyBytes)
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
 		self.logger.Error(self.logCat, "Could not read body",
 			util.Fields{"error": err.Error()})
 		http.Error(resp, "Invalid", 400)
 		return
 	}
+	lbody := len(body)
 	self.logger.Info(self.logCat, "Handling cmd from UI",
 		util.Fields{
 			"cmd":    string(body),
@@ -1690,16 +1855,9 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 			case nil:
 				break
 			case ErrDeviceDeleted:
-				// remove the deviceId
-				if err = store.DeleteDevice(devRec.ID); err != nil {
-					self.logger.Warn(self.logCat,
-						"Could not remove device",
-						util.Fields{"deviceId": devRec.ID,
-							"userId": devRec.User,
-							"error":  err.Error()})
-				}
-				// remove device from session
-				session.Values[SESSION_DEVICEID] = ""
+				self.logger.Info(self.logCat, "Clearing session", nil)
+				self.clearSession(session)
+				session.Options.MaxAge = -1
 				session.Save(req, resp)
 			default:
 				self.logger.Error(self.logCat, "Error processing command",
@@ -1751,6 +1909,13 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 
 	deviceList, err := store.GetDevicesForUser(data.UserId, self.genHash(email))
 	if err != nil {
+		if err == storage.ErrUnknownDevice {
+			self.logger.Info(self.logCat,
+				"No devices for user",
+				util.Fields{"userid": data.UserId})
+			http.Error(resp, "{}", 204)
+			return
+		}
 		self.logger.Error(self.logCat,
 			"Could not get devices for user",
 			util.Fields{"error": err.Error()})
@@ -1798,10 +1963,111 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 
 // user login functions
 
+type lang_loc struct {
+	Lang string
+	Pref float64
+}
+
+type LanguagePrefs []lang_loc
+
+func (r LanguagePrefs) Len() int           { return len(r) }
+func (r LanguagePrefs) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
+func (r LanguagePrefs) Less(i, j int) bool { return r[i].Pref > r[j].Pref }
+
+func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
+	var err error
+	// Filter the Accept-Language Header for just what we need.
+	raw := strings.Map(func(r rune) rune {
+		if r < ',' || r > 'z' {
+			return -1
+		}
+		if r >= ',' && r <= '.' ||
+			r >= '0' && r <= '9' ||
+			r >= ':' && r <= ';' ||
+			r == '=' ||
+			r >= 'A' && r <= 'Z' ||
+			r >= 'a' && r <= 'z' {
+			return r
+		}
+		return -1
+	}, req.Header.Get("Accept-Language"))
+	r.logger.Debug("getLocLang", "Accept-Language",
+		util.Fields{"raw": raw})
+	if raw == "" {
+		return append(results, lang_loc{"en", 1.0})
+	}
+	var startingPref = 10.0
+	for _, pref := range strings.Split(raw, ",") {
+		ll := lang_loc{}
+
+		bits := strings.SplitN(pref, ";", 2)
+		// if there's a preference value...
+		if len(bits) > 1 {
+			ll.Pref, err = strconv.ParseFloat(strings.TrimLeft(bits[1],
+				"q="), 64)
+			if err != nil {
+				r.logger.Warn("getLocLang",
+					"error parsing Accept Language header",
+					util.Fields{"error": err.Error(),
+						"string": bits[1]})
+				continue
+			}
+		} else {
+			ll.Pref = startingPref
+			if startingPref > 1.0 {
+				startingPref -= 1.0
+			}
+		}
+		// if there's a locale for the language
+		if lls := strings.SplitN(bits[0], "-", 2); len(lls) > 1 {
+			// normalize the lang-loc to lang_LOC
+			// I'd prefer one case, but the localizers prefer mixed form.
+			ll.Lang = fmt.Sprintf("%s_%s",
+				strings.ToLower(lls[0]),
+				strings.ToUpper(lls[1]))
+			// and add it, plus a locale-less lang record, to the results.
+			results = append(results, ll,
+				lang_loc{Pref: ll.Pref, Lang: strings.ToLower(lls[0])})
+			continue
+		}
+		ll.Lang = strings.ToLower(bits[0])
+		results = append(results, ll)
+	}
+	// Append the default to the end of the preferences
+	results = append(results, lang_loc{"en", 0.01})
+	// note, it's possible for there to be duplicate languages specified.
+	// e.g. "en" to appear twice. Sice we stop at the first successful find,
+	// this should not be a problem. There's always the risk that a
+	// non-normative specifies preference for "en-UK:q=0.8;fr:q=0.7;en:q=0.5",
+	// and in that case, we will provide "en" before "fr". This is not
+	// expected to be a large audience.
+	sort.Sort(results)
+	r.logger.Debug("getLocLang", "Parsed Accept Languge",
+		util.Fields{"languages": fmt.Sprintf("%+v", results)})
+	return results
+}
+
+func (r *Handler) Language(resp http.ResponseWriter, req *http.Request) {
+	var err error
+	resp.Header().Set("Content-Type", "application/json")
+
+	for _, lang := range r.getLocLang(req) {
+		err = r.clientLangPath.Write(lang.Lang, resp)
+		if err == nil {
+			return
+		}
+	}
+	// Nothing found?
+	r.logger.Critical(r.logCat,
+		"Could not get ANY localized data! Check config for document.lang_path",
+		nil)
+	http.Error(resp, "Server error", 500)
+	return
+}
+
 func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:Index"
 
-	docRoot := self.config.Get("document_root", "./static/app")
 	if strings.Index(req.URL.Path, "/static") == 0 {
 		self.Static(resp, req)
 		return
@@ -1825,13 +2091,33 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	tmpl, err := template.New("index.html").ParseFiles(docRoot + "/index.html")
+	// Load the localization string map for this file
+	serverLangPath, err := NewLangPath(self.serverLangTemplate, self.docRoot, "en")
+	if err != nil {
+		self.logger.Error(self.logCat,
+			"Could not load server l10n file",
+			util.Fields{"error": err.Error()})
+		http.Error(resp, "Server Error", 500)
+		return
+	}
+	for _, lang := range self.getLocLang(req) {
+		if err = serverLangPath.Load(lang.Lang); err == nil {
+			self.logger.Info(self.logCat, "Loaded Language File",
+				util.Fields{"lang": lang.Lang})
+			break
+		} else {
+			self.logger.Warn(self.logCat, "Could not find lang path",
+				util.Fields{"err": err.Error()})
+		}
+	}
+	tmpl, err := template.New("index.html").Funcs(template.FuncMap{"l": serverLangPath.Localize}).ParseFiles(self.docRoot + "/index.html")
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not display index page",
 			util.Fields{"error": err.Error(),
 				"user": initData.UserId})
 		http.Error(resp, "Server error", 500)
 	}
+
 	if sessionInfo != nil {
 		session.Values[SESSION_USERID] = sessionInfo.UserId
 		session.Values[SESSION_EMAIL] = sessionInfo.Email
@@ -1993,9 +2279,7 @@ func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	docRoot := self.config.Get("document_root", "static/app/")
-
-	http.ServeFile(resp, req, docRoot+req.URL.Path)
+	http.ServeFile(resp, req, self.docRoot+req.URL.Path)
 }
 
 // Display the current metrics as a JSON snapshot
@@ -2124,11 +2408,15 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	rand.Read(ib)
 	instance := hex.EncodeToString(ib)
 	self.devId = getDevFromUrl(ws.Request().URL)
-	userid, ok := session.Values[SESSION_USERID]
-	if !ok || !self.checkSig(ws.Request(), userid.(string), self.devId) {
-		self.logger.Error(self.logCat, "Unauthorized access.",
-			nil)
-		return
+	if !self.config.GetFlag("auth.no_sig_check") {
+		userid, ok := session.Values[SESSION_USERID]
+		if !ok || !self.checkSig(ws.Request(), userid.(string), self.devId) {
+			self.logger.Error(self.logCat, "Unauthorized access.",
+				nil)
+			return
+		}
+	} else {
+		self.logger.Warn(self.logCat, "WARNING:: IGNORING SIGNATURE", nil)
 	}
 	devRec, err := store.GetDeviceInfo(self.devId)
 	if err != nil {
@@ -2139,15 +2427,15 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		return
 	}
 
-	sock := &WWS{
-		Socket:  ws,
-		Handler: self,
-		Device:  devRec,
-		Logger:  self.logger,
-		Born:    time.Now(),
-		Quit:    false}
+	sock := &WWSs{
+		socket:  ws,
+		handler: self,
+		device:  devRec,
+		logger:  self.logger,
+		born:    time.Now(),
+	}
 
-	defer func(logger *util.HekaLogger) {
+	defer func(logger util.Logger) {
 		if r := recover(); r != nil {
 			debug.PrintStack()
 			if logger != nil {
@@ -2158,7 +2446,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 				log.Printf("Socket Unknown Error: %s\n", r.(error).Error())
 			}
 		}
-	}(sock.Logger)
+	}(sock.Logger())
 
 	if self.devId == "" {
 		self.logger.Error(self.logCat, "No deviceID found",
@@ -2169,7 +2457,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	}
 
 	self.metrics.Increment("page.socket")
-	if err := addClient(self.devId, instance, sock, self.maxCli); err != nil {
+	if err := Clients.Add(self.devId, instance, sock); err != nil {
 		self.logger.Error(self.logCat,
 			"Could not add WebUI client",
 			util.Fields{"deviceId": self.devId,
@@ -2179,16 +2467,26 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 		socketError(ws, "Too Many Connections")
 		return
 	}
-	defer func(self *Handler, sock *WWS, instance string) {
+	self.logger.Debug(self.logCat,
+		"Added client",
+		util.Fields{"deviceId": self.devId,
+			"userId":   devRec.User,
+			"instance": instance})
+	defer func(self *Handler, sock WWS, instance string) {
 		self.metrics.Decrement("page.socket")
-		self.metrics.Timer("page.socket", int64(time.Since(sock.Born).Seconds()))
-		if stopTrack, err := rmClient(self.devId, instance); err != nil {
+		self.metrics.Timer("page.socket", int64(time.Since(sock.Born()).Seconds()))
+		if stopTrack, err := Clients.Del(self.devId, instance); err != nil {
 			self.logger.Error(self.logCat,
 				"Could not clean up closed instance!",
 				util.Fields{"error": err.Error(),
 					"userId":   devRec.User,
 					"deviceId": self.devId})
 		} else {
+			self.logger.Debug(self.logCat,
+				"Removed client",
+				util.Fields{"deviceId": self.devId,
+					"userId":   devRec.User,
+					"instance": instance})
 			if stopTrack {
 				self.stopTracking(self.devId, store)
 			}
@@ -2272,9 +2570,10 @@ func (self *Handler) Validate(resp http.ResponseWriter, req *http.Request) {
 
 	// Looking for the body of the request to contain a JSON object with
 	// {assert: ... }
+	req.Body = http.MaxBytesReader(resp, req.Body, self.maxBodyBytes)
 	if buffer, raw, err := parseBody(req.Body); err == nil {
 		if assert, ok := buffer["assert"]; ok {
-			if userid, _, err := self.verifyFxAAssertion(assert.(string)); err == nil {
+			if userid, _, err := self.verify(assert.(string)); err == nil {
 				reply["valid"] = true
 				reply["uid"] = userid
 			} else {

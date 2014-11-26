@@ -21,7 +21,8 @@ define([
     initialize: function () {
       // Redirect to root on any 401 errors.
       $(document).ajaxError(function (event, jqxhr, settings, exception) {
-        if (jqxhr.status === 401) {
+        // Ignore all l10n errors
+        if (jqxhr.status === 401 && !settings.url.match(/l10n/)) {
           window.location = '/';
         }
       });

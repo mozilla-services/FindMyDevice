@@ -1,10 +1,30 @@
 # Find My Device: Front-end
 
-The Find My Device front-end toolkit is powered by node, grunt, and bower, so you'll need to get yourself node >=0.10.0 with npm. It's also a good idea to have global installs of grunt (`npm install -g grunt`) and bower (`npm install -g bower`). Once you have those fine tools, `npm install` should get you going.
+The Find My Device front-end toolkit is powered by node, grunt, and
+bower, so you'll need to get yourself node >=0.10.0 with npm. It's
+also a good idea to have global installs of grunt (`npm install -g
+grunt && npm install -g grunt-cli`) and bower (`npm install -g
+bower`).  Once you have those fine tools, `npm install` should get you
+going.
 
 ## Development
 
 When developing, it is recommended that you use `grunt watch` to transform `.scss` files into `.css` files. The `css` files are stored in git to make server side development simpler. Please commit both when making any style changes.
+
+## Localization
+
+### Extracting strings
+
+- `grunt l10n-extract` will create `./locale/templates`
+- `client.pot` and `server.pot` can then be merged into the [FindMyDevice-l10n](https://github.com/mozilla-services/FindMyDevice-l10n) repository.
+
+### Importing strings
+
+- Strings are fetched from the [FindMyDevice-l10n](https://github.com/mozilla-services/FindMyDevice-l10n) repo using bower.
+- `grunt build` will copy and convert the `.po` files into an easily consumable json format.
+- The converted json files can be found in `app/l10n` and `dist/l10n`.
+- `l10n/*/server.json` contains strings for the server side (`index.html`).
+- `l10n/*/client.json` contains strings for the front-end app (mustache templates and js files).
 
 ## Testing
 

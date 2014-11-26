@@ -15,16 +15,18 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 var ErrNoAuth = errors.New("No Authorization Header")
 var ErrNotHawkAuth = errors.New("Not a Hawk Authorization Header")
 var ErrInvalidSignature = errors.New("Header does not match signature")
+var ErrReplayedNonce = errors.New("Nonce detected. Replay?")
 
 // minimal HAWK for now (e.g. no bewit because IAGNI)
 type Hawk struct {
-	logger    *util.HekaLogger
+	logger    util.Logger
 	config    *util.MzConfig
 	header    string
 	Id        string
@@ -59,16 +61,62 @@ func (self *Hawk) Clear() {
 	self.Port = ""
 }
 
+type nonceCache struct {
+	sync.RWMutex
+	order []string
+	hash  map[string]struct{}
+}
+
+var HawkNonces *nonceCache
+
+func InitHawkNonces(count int64) {
+	HawkNonces = &nonceCache{
+		order: make([]string, count),
+		hash:  make(map[string]struct{}),
+	}
+}
+
+func init() {
+	// In case we forget to initialize the hawk nonces.
+	InitHawkNonces(1000)
+}
+
+func (r *nonceCache) Contains(value string) bool {
+	r.Lock()
+	defer r.Unlock()
+	_, ok := r.hash[value]
+	return ok
+}
+
+func (r *nonceCache) Add(nonce string) bool {
+	if r.Contains(nonce) {
+		return false
+	}
+	r.Lock()
+	defer r.Unlock()
+	rl := len(r.order) - 1
+	if r.order[rl] != "" {
+		delete(r.hash, r.order[rl])
+	}
+	copy(r.order[1:], r.order[:rl])
+	r.order[0] = nonce
+	r.hash[nonce] = struct{}{}
+	return true
+}
+
 // Return a Hawk Authorization header
 func (self *Hawk) AsHeader(req *http.Request, id, body, extra, secret string) string {
 	if self.Signature == "" {
 		self.GenerateSignature(req, extra, body, secret)
 	}
+	if extra == "" && len(self.Extra) > 0 {
+		extra = self.Extra
+	}
 	rep := fmt.Sprintf("Hawk id=\"%s\", ts=\"%s\", nonce=\"%s\", ext=\"%s\", hash=\"%s\", mac=\"%s\"",
 		id,
 		self.Time,
 		self.Nonce,
-		self.Extra,
+		extra,
 		self.Hash,
 		self.Signature)
 	return rep
@@ -167,6 +215,7 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 	if self.Hash == "" {
 		self.Hash = self.genHash(req, body)
 	}
+	self.Extra = extra
 
 	marshalStr := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n",
 		"hawk.1.header",
@@ -177,7 +226,7 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 		strings.ToLower(self.Host),
 		self.Port,
 		self.Hash,
-		extra)
+		self.Extra)
 
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(marshalStr))
@@ -192,7 +241,7 @@ func (self *Hawk) GenerateSignature(req *http.Request, extra, body, secret strin
 }
 
 // Initialize self from the AuthHeader
-func (self *Hawk) ParseAuthHeader(req *http.Request, logger *util.HekaLogger) (err error) {
+func (self *Hawk) ParseAuthHeader(req *http.Request, logger util.Logger) (err error) {
 
 	auth := req.Header.Get("Authorization")
 	if auth == "" {
@@ -215,6 +264,9 @@ func (self *Hawk) ParseAuthHeader(req *http.Request, logger *util.HekaLogger) (e
 			self.Time = val
 		case "nonce":
 			self.Nonce = val
+			if !HawkNonces.Add(val) {
+				return ErrReplayedNonce
+			}
 		case "ext":
 			self.Extra = val
 		case "hash":

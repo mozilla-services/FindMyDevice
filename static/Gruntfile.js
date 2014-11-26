@@ -28,13 +28,17 @@ module.exports = function (grunt) {
   // load all grunt tasks
   require('load-grunt-tasks')(grunt);
 
-  // Load npm tasks
+  // load npm tasks
   grunt.loadNpmTasks('intern');
 
   // configurable paths
   var yeomanConfig = {
     app: 'app',
     dist: 'dist',
+    strings: {
+      src: 'app/bower_components/FindMyDevice-l10n/locale',
+      dest: 'locale'
+    },
     test: 'test',
     tmp: '.tmp'
   };
@@ -125,6 +129,16 @@ module.exports = function (grunt) {
 
     // COPY TASK
     copy: {
+      strings: {
+        files: [{
+          expand: true,
+          cwd: '<%= yeoman.strings.src %>',
+          dest: '<%= yeoman.strings.dest %>',
+          src: [
+            '**/*.po'
+          ]
+        }]
+      },
       dist: {
         files: [{
           expand: true,
@@ -135,7 +149,9 @@ module.exports = function (grunt) {
             '*.{ico,txt}',
             '.htaccess',
             'images/{,*/}*.{png,jpg,jpeg,webp,gif}',
-            'styles/fonts/{,*/}*.*'
+            'styles/fonts/{,*/}*.*',
+            'index.html',
+            'l10n/**/*.json'
           ]
         },
         // Copy these files into tmp so that concat can find them
@@ -180,8 +196,10 @@ module.exports = function (grunt) {
       dist: {
         files: {
           '<%= yeoman.dist %>/styles/main.css': [
-            '<%= yeoman.tmp %>/styles/{,*/}*.css',
-            '<%= yeoman.app %>/styles/{,*/}*.css'
+            '<%= yeoman.tmp %>/styles/main.css'
+          ],
+          '<%= yeoman.dist %>/styles/home.css': [
+            '<%= yeoman.tmp %>/styles/home.css'
           ]
         }
       }
@@ -328,12 +346,14 @@ module.exports = function (grunt) {
       },
       dist: {
         files: {
-          '<%= yeoman.tmp %>/styles/main.css': '<%= yeoman.app %>/styles/main.scss'
+          '<%= yeoman.tmp %>/styles/main.css': '<%= yeoman.app %>/styles/main.scss',
+          '<%= yeoman.tmp %>/styles/home.css': '<%= yeoman.app %>/styles/home.scss'
         }
       },
       dev: {
         files: {
-          '<%= yeoman.app %>/styles/main.css': '<%= yeoman.app %>/styles/main.scss'
+          '<%= yeoman.app %>/styles/main.css': '<%= yeoman.app %>/styles/main.scss',
+          '<%= yeoman.app %>/styles/home.css': '<%= yeoman.app %>/styles/home.scss'
         }
       }
     },
@@ -403,9 +423,9 @@ module.exports = function (grunt) {
   // BUILD TASK
   grunt.registerTask('build', [
     'clean:dist',
+    'l10n-create-json',
     'css',
     'useminPrepare',
-    'htmlmin',
     'copy',
     'concat',
     'cssmin',
@@ -423,7 +443,6 @@ module.exports = function (grunt) {
   // DEFAULT TASK
   grunt.registerTask('default', [
     'lint:prebuild',
-    'validate-package',
     'build',
     'lint:postbuild',
     'test'
@@ -441,7 +460,11 @@ module.exports = function (grunt) {
         ]);
       case 'postbuild':
         return grunt.task.run([
-          'htmllint'
+          //'htmllint'
+        ]);
+      default:
+        return grunt.task.run([
+          'lint:prebuild'
         ]);
     }
   });
@@ -483,4 +506,7 @@ module.exports = function (grunt) {
 
   // TEST TASK
   grunt.registerTask('test', [ 'intern' ]);
+
+  // load grunt tasks from ./grunttasks
+  grunt.loadTasks('grunttasks');
 };

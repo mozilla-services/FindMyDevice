@@ -39,14 +39,15 @@ require([
   'jquery',
   'backbone',
   'router',
-  'collections/devices'
-], function ($, Backbone, Router, Devices) {
+  'collections/devices',
+  'lib/localizer'
+], function ($, Backbone, Router, Devices, Localizer) {
   // Bring on the globals
   window.devices = new Devices();
 
   // Fetch devices from the server
-  window.devices.fetch().then(function () {
-    // Now that we have devices we can start
+  $.when(window.devices.fetch(), Localizer.fetch()).always(function () {
+    // Now that we have devices and strings we can start
     Backbone.history.start();
   });
 });
