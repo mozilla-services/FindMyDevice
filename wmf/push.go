@@ -8,9 +8,11 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"github.com/mozilla-services/FindMyDevice/util"
 	"github.com/mozilla-services/FindMyDevice/wmf/storage"
 	"net/http"
+	"time"
 )
 
 func SendPush(devRec *storage.Device, config *util.MzConfig) error {
@@ -18,7 +20,9 @@ func SendPush(devRec *storage.Device, config *util.MzConfig) error {
 	if config.GetFlag("push.disabled") {
 		return nil
 	}
-	bbody := []byte{}
+	/* Must provide a version value for some push servers. This value
+	   is meaningless to FMD. */
+	bbody := []byte(fmt.Sprintf("version=%d", time.Now().UTC().Unix()))
 	body := bytes.NewReader(bbody)
 	/* If your server is not trustfully signed, the following will fail.
 	   If partners are unable/unwilling to trustfully sign servers,
