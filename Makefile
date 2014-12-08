@@ -24,12 +24,27 @@ $(DEPS):
 install: config.ini $(DEPS)
 	@echo "installed"
 
-build: install
+npm-installed:
+	cd $(HERE)/static; npm install -g grunt && npm install -g grunt-cli && npm install -g bower && npm install --silent
+	touch $(HERE)/npm-installed
+
+FindMyDevice:
 	$(GO) build -o $(EXEC) github.com/mozilla-services/FindMyDevice
+
+build: npm-installed install FindMyDevice
+
+build-prod: build
+	cd static; grunt build
 
 clean:
 	rm -f $(EXEC)
 	rm -rf $(DEPS)
+	rm -rf $(HERE)/static/dist
+	rm -rf $(HERE)/static/node_modules
+	rm -rf $(HERE)/static/style
+	rm -rf $(HERE)/static/OpenLayers-*
+	rm -rf $(HERE)/static/openlayers*
+	rm $(HERE)/npm-installed
 
 test:
 	$(GO) test github.com/mozilla-services/FindMyDevice/wmf -cover
