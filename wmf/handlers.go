@@ -645,16 +645,6 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 					"deviceid": sessionInfo.DeviceId})
 			return nil, err
 		}
-		data.Device.PreviousPositions, err = store.GetPositions(sessionInfo.DeviceId)
-		if err != nil {
-			self.logger.Error(self.logCat,
-				"Could not get device's position information",
-				util.Fields{"error": err.Error(),
-					"userId":   data.UserId,
-					"email":    sessionInfo.Email,
-					"deviceId": sessionInfo.DeviceId})
-			return nil, err
-		}
 	}
 	return data, nil
 }
@@ -838,13 +828,6 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 				}
 			}
 		}
-		if logPosition {
-			if err = store.SetDeviceLocation(devId, location); err != nil {
-				return err
-			}
-			// because go sql locking.
-			store.GcDatabase(devId, "")
-		}
 	}
 	location.Cmd = storage.Unstructured{cmd: args}
 
@@ -867,8 +850,19 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 			i.Socket().Write(js)
 		}
 	} else {
+		/*
+			        // If we decide to store the position for later recovery.
+			        // (we're not currently using this)
+					if logPosition {
+						if err = store.SetDeviceLocation(devId, location); err != nil {
+							return err
+						}
+						// because go sql locking.
+						store.GcDatabase(devId, "")
+					}
+		*/
 		self.logger.Warn(self.logCat,
-			"No clients for device",
+			"No UI clients for device",
 			util.Fields{"deviceid": devId})
 	}
 	return nil
@@ -976,13 +970,6 @@ func (self *Handler) genSig(userId, deviceId string) (ret string, err error) {
 		return "", errors.New("Invalid")
 	}
 	sig := self.genHash(userId + deviceId)
-	/*
-		        Other things we may want to add in...
-			   fmt.Printf("@@@ Remote Addr: %s, %s, %s\n",
-			       req.RemoteAddr,
-			       req.Header.Get("X-Real-IP"),
-			       req.Header.Get("X-Forwarded-For"))
-	*/
 	return sig, nil
 }
 
@@ -1394,8 +1381,7 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	self.metrics.Increment("device.registration")
 	self.updatePage(self.devId, "register", buffer, false)
 	output, err := json.Marshal(util.Fields{"deviceid": self.devId,
-		"secret": secret,
-		//"email":    email,
+		"secret":   secret,
 		"clientid": userid,
 	})
 	if err != nil {
@@ -1770,7 +1756,8 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 
 	devRec, err := store.GetDeviceInfo(deviceId)
 	if err != nil || devRec == nil {
-		fields := util.Fields{"deviceId": deviceId}
+		fields := util.Fields{"deviceId": deviceId,
+			"err": fmt.Sprintf("%s", err)}
 		if err != nil {
 			fields["error"] = err.Error()
 		}
@@ -1930,9 +1917,10 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			continue
 		}
+		name := strings.Split(email, "@")[0]
 		reply = append(reply, devList{
 			ID:   d.ID,
-			Name: d.Name,
+			Name: name,
 			URL: fmt.Sprintf("%s://%s/%s/ws/%s/%s",
 				self.config.Get("ws.proto",
 					self.config.Get("ws_proto", "wss")),
@@ -2418,6 +2406,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	} else {
 		self.logger.Warn(self.logCat, "WARNING:: IGNORING SIGNATURE", nil)
 	}
+
 	devRec, err := store.GetDeviceInfo(self.devId)
 	if err != nil {
 		self.logger.Error(self.logCat, "Invalid Device for socket",

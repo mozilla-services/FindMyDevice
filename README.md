@@ -2,9 +2,8 @@
 
 [![Build Status: Travis](https://travis-ci.org/mozilla-services/FindMyDevice.svg?branch=dev)](https://travis-ci.org/mozilla-services/FindMyDevice)
 
-This server is still under development.
-
-**Note:** The most stable version of this server is the *master* branch. "dev"
+**Note:** The most stable version of this server is the *master*
+branch. "dev"
 is marked as default to prevent accidental pushes to the master branch.
 
 [Server API Reference Documentation](https://wiki.mozilla.org/Services/WheresMyFox#Server_API_Reference.2FDocumentation)
@@ -19,12 +18,11 @@ You will need:
 
 ## How to install:
 
-1. Run `./install.bash` (will generate "./FindMyDevice")
+1. Run `make` (will generate "./FindMyDevice")
   - For Production level installs, you will need to also run:
-    `grunt build` in the ./static/ library. This will create a
-    ./static/dist/ directory containing prebuilt items.
-2. Copy [config-example.ini](config-sample.ini) to config.ini
-3. Modify config.ini to reflect your system and preferences.
+    `make build-prod`This will create a ./static/dist/ directory
+    containing prebuilt items.
+2. Modify config.ini to reflect your system and preferences.
 
 ## Running:
 
@@ -48,7 +46,7 @@ changes.
 All DDL changes are kept in subdirectories under `sql/patches` with a SHA1 hash and the change description in the directory name.
 
 Each patch directory contains :
-    - upgrade.sql 
+    - upgrade.sql
     - downgrade.sql.orig (optional)
     - prev.txt
     - description.txt

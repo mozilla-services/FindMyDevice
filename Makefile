@@ -15,6 +15,9 @@ config.ini:
 		cp config-sample.ini config.ini; \
 		echo "\n!! Sample config copied to config.ini !!"; \
 		echo "!! Some modification required           !!\n"; \
+	else \
+		echo "!! Using existing config.ini file       !!\n";\
+		echo "!! Be sure to check for new changes     !!\n";\
 	fi
 
 $(DEPS):
