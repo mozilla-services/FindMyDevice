@@ -12,6 +12,7 @@ code.google.com/p/go.net/websocket 28ff664507e453c4455b8c65e701bbe2b2ac980d
 code.google.com/p/goprotobuf/proto f5ac12b15e49095c60ae0acc6da0e28d47e2a29f
 code.google.com/p/gogoprotobuf 6c980277330804e94257ac7ef70a3adbe1641059
 github.com/cactus/go-statsd-client/statsd 5b5607a786a6be31226ca2063e49695712aebc6d
+golang.org/x/tools/cmd/cover 0ea69b51f7d843942e31d2eead54090a8824ae42
 github.com/gorilla/context 14f550f51af52180c2eefed15e5fd18d63c0a64a
 github.com/gorilla/securecookie 1b0c7f6e9ab3d7f500fd7d50c7ad835ff428139b
 github.com/gorilla/sessions aa5e036e6c44aec69a32eb41097001978b29ad31
