@@ -40,7 +40,7 @@ func Test_ClientBox_Del(t *testing.T) {
 	c.Add("000", "001", &WWSs{socket: &MockWSConn{}})
 
 	if f, err := c.Del("000", "000"); f == true || err != nil {
-		t.Errorf("Could not delete id: %s, %s", err)
+		t.Errorf("Could not delete id: %s, %s", "000", err)
 	}
 	cc, ok := c.Clients("000")
 	if !ok {
@@ -274,7 +274,7 @@ func Test_Handler_getSessionInfo(t *testing.T) {
 	freq, _ := http.NewRequest("GET", "http://box/"+devid, nil)
 	err = fakeCookies(freq, email, uid, token, csrftoken)
 	if err != nil {
-		t.Error("%s:%s", name, err.Error())
+		t.Errorf("%s:%s", name, err.Error())
 	}
 	session, _ := sessionStore.Get(freq, SESSION_NAME)
 	info, err := h.getSessionInfo(nil, freq, session)
@@ -283,7 +283,7 @@ func Test_Handler_getSessionInfo(t *testing.T) {
 		info.Email != email ||
 		info.AccessToken != token ||
 		info.CSRFToken != csrftoken {
-		t.Errorf("%s: returned session info contained invalid data")
+		t.Errorf("%#v: returned session info contained invalid data", info)
 	}
 }
 
@@ -305,7 +305,7 @@ func Test_Handler_Cmd(t *testing.T) {
 	h, store := testHandler(config, t)
 	devId, err := store.RegisterDevice(uid, &storage.Device{Name: "test", User: uid})
 	if err != nil {
-		t.Error("%s: %s", name, err.Error())
+		t.Errorf("%s: %s", name, err.Error())
 	}
 	// create a fake tracking record.
 	track, _ := json.Marshal(struct {
@@ -361,7 +361,7 @@ func Test_Handler_Queue(t *testing.T) {
 
 	status, err := h.Queue(dev, "t", rargs, &rep)
 	if status != 200 || err != nil {
-		t.Error("%s: Command Queue failed with status %s: %s", status, err)
+		t.Errorf("Command Queue failed with status %d: %s", status, err)
 	}
 	cmd, ctype, err := store.GetPending(devid)
 	if err != nil {
@@ -389,7 +389,7 @@ func Test_Handler_RestQueue(t *testing.T) {
 	h, store := testHandler(config, t)
 	devId, err := store.RegisterDevice(uid, &storage.Device{Name: "test", User: uid, Accepts: "trle"})
 	if err != nil {
-		t.Error("%s: %s", name, err.Error())
+		t.Errorf("%s: %s", name, err.Error())
 	}
 	// create a fake tracking record.
 	track, _ := json.Marshal(struct {
@@ -430,13 +430,13 @@ func Test_Handler_checkToken(t *testing.T) {
 	h, _ := testHandler(config, t)
 	session, _ := sessionStore.Get(freq, SESSION_NAME)
 	if h.checkToken(session, freq) {
-		t.Error("%s: Failed to reject tokenless request", name)
+		t.Errorf("%s: Failed to reject tokenless request", name)
 	}
 	freq.Header.Add("X-CSRFTOKEN", csrftoken)
 	fakeCookies(freq, email, uid, token, csrftoken)
 	session, _ = sessionStore.Get(freq, SESSION_NAME)
 	if !h.checkToken(session, freq) {
-		t.Error("%s: Failed to accept tokened request", name)
+		t.Errorf("%s: Failed to accept tokened request", name)
 	}
 
 	freq, _ = http.NewRequest("POST", "http://box/"+devId, nil)
@@ -444,7 +444,7 @@ func Test_Handler_checkToken(t *testing.T) {
 	fakeCookies(freq, email, uid, token, csrftoken)
 	session, _ = sessionStore.Get(freq, SESSION_NAME)
 	if h.checkToken(session, freq) {
-		t.Error("%s: Failed to reject invalid token", name)
+		t.Errorf("%s: Failed to reject invalid token", name)
 	}
 }
 
@@ -482,7 +482,7 @@ func Test_Handler_UserDevices(t *testing.T) {
 	h.UserDevices(fresp, freq)
 	t.Logf("%s: %+v  %+v", name, freq, fresp)
 	if fresp.Code != 200 {
-		t.Errorf("%s: Incorrect status returned")
+		t.Errorf("%d: Incorrect status returned", fresp.Code)
 	}
 	ret := make(map[string]interface{})
 	err := json.Unmarshal(fresp.Body.Bytes(), &ret)
@@ -491,7 +491,7 @@ func Test_Handler_UserDevices(t *testing.T) {
 	}
 	item := ret["devices"].([]interface{})[0].(map[string]interface{})
 	if _, ok := item["URL"]; !ok || item["ID"].(string) != devid {
-		t.Error("%s: Incorrect return", name)
+		t.Errorf("%s: Incorrect return", name)
 	}
 }
 
@@ -546,11 +546,11 @@ func Test_LangPath(t *testing.T) {
 	// this runs .path & .Check
 	lp, err := NewLangPath(testTmpl, tmpDir, "EN")
 	if err != nil {
-		t.Fatalf("Could not get LangPath: %s", err.Error)
+		t.Fatalf("Could not get LangPath: %s", err.Error())
 	}
 	buff := new(bytes.Buffer)
 	if err = lp.Write("en", buff); err != nil {
-		t.Fatalf("Could not write buffer: %s", err.Error)
+		t.Fatalf("Could not write buffer: %s", err.Error())
 	}
 	if buff.String() != testText {
 		t.Fatalf("Data did not match: %s != %s", buff.String(), testText)
