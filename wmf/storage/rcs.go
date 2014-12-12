@@ -218,7 +218,7 @@ func (self *DBRcs) Downgrade(patch_root, version string) (err error) {
 		return fmt.Errorf("No previous version [%v] can be found", version)
 	}
 
-	fmt.Printf("Processing downgrade from  [%s] to [%s]\n", curr_db_ver, version)
+	fmt.Printf("Processing downgrade from [%s] to [%s]\n", curr_db_ver, version)
 
 	// walk the nodes from back to front
 	var found_current bool
@@ -231,7 +231,7 @@ func (self *DBRcs) Downgrade(patch_root, version string) (err error) {
 			}
 		}
 
-		fmt.Printf("Processing downgrade from [%v] to [%v]: [%+v]\n", node.version, node.prev)
+		fmt.Printf("Processing downgrade from [%v] to [%v]\n", node.version, node.prev)
 
 		// Process this node
 		curr_patch_dir, err = GetPatchDirectory(patch_root, node.version)
