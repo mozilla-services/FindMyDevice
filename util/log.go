@@ -117,7 +117,7 @@ func NewLogger(conf *MzConfig) *Log {
 	default:
 		output, err = os.Create(outFile)
 		if err != nil {
-			panic(fmt.Sprintf("Could not open logging file %s, %s", outFile, err.Error))
+			panic(fmt.Sprintf("Could not open logging file %s, %s", outFile, err.Error()))
 		}
 	}
 

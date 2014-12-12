@@ -530,7 +530,7 @@ func (self *pgStore) SetDeviceLock(devId string, state bool) (err error) {
 		self.logger.Error(self.logCat, "Could not set device lock state",
 			util.Fields{"error": err.Error(),
 				"device": devId,
-				"state":  fmt.Sprintf("%b", state)})
+				"state":  fmt.Sprintf("%t", state)})
 		return err
 	}
 	return nil

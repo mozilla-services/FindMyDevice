@@ -53,7 +53,7 @@ func Test_Clear(t *testing.T) {
 		h.Time != "" ||
 		h.Path != "" ||
 		h.Port != "" {
-		t.Error("Did not clear HAWK object sufficiently:%+v", h)
+		t.Errorf("Did not clear HAWK object sufficiently: %+v", h)
 	}
 }
 
@@ -64,7 +64,7 @@ func Test_AsHeader(t *testing.T) {
 	fh.Signature = ""
 	head := fh.AsHeader(fr, "0123456789", "body", "extra", "secret")
 	if m, _ := regexp.Match("Hawk id=\"0123456789\", ts=\"\\d+\", nonce=\".{8}\", ext=\"extra\", hash=\"[a-zA-Z0-9=]+\", mac=\"[a-zA-Z0-9\\+/=]+\"", []byte(head)); !m {
-		t.Error("Invalid header returned: %s", head)
+		t.Errorf("Invalid header returned: %s", head)
 	}
 }
 

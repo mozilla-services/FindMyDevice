@@ -103,18 +103,18 @@ func Test_getDevFromUrl(t *testing.T) {
 	}
 	u, _ = url.Parse("http://box/0123456789abcdef/")
 	if r = getDevFromUrl(u); r != "0123456789abcdef" {
-		t.Error("Failed to find slashed deviceid. %s", r)
+		t.Errorf("Failed to find slashed deviceid: %s", r)
 	}
 	u, _ = url.Parse("http://box/0123456789abcdef")
 	if r = getDevFromUrl(u); r != "0123456789abcdef" {
-		t.Error("Failed to find deviceid. %s", r)
+		t.Errorf("Failed to find deviceid: %s", r)
 	}
 	u, _ = url.Parse("http://box/1234567890123456789012345678901234567890")
 	if r = getDevFromUrl(u); r != "12345678901234567890123456789012" {
-		t.Error("Failed to truncate to 32 characters:%s", r)
+		t.Errorf("Failed to truncate to 32 characters: %s", r)
 	}
 	u, _ = url.Parse("http://box/DeadBeefWRONG")
 	if r = getDevFromUrl(u); r != "DeadBeef" {
-		t.Error("Failed to trim bad characters:%s", r)
+		t.Errorf("Failed to trim bad characters: %s", r)
 	}
 }
