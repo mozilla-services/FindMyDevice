@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -564,6 +565,34 @@ func Test_LangPath(t *testing.T) {
 		t.Fatalf("Incorrect error returned")
 	}
 
+}
+
+func Test_Signin(t *testing.T) {
+	config := util.NewMzConfig()
+	h, _ := testHandler(config, t)
+	result := map[string]string{
+		"http://localhost/signin/":               "signin",
+		"http://localhost/signin/?action=signup": "signup",
+		"http://localhost/signin/?action=banana": "signin",
+	}
+
+	for sign_url, action := range result {
+
+		req, _ := http.NewRequest("GET", sign_url, nil)
+		fresp := httptest.NewRecorder()
+		h.Signin(fresp, req)
+		if fresp.Code != 302 {
+			t.Error("Signin response not a 302")
+		}
+		redir, err := url.Parse(fresp.Header().Get("Location"))
+		if err != nil {
+			t.Errorf("Returned Location URL is unparsable: %s", err)
+		}
+		if redir.Query().Get("action") != action {
+			t.Error("Returned URL for %s did not specify action as '%s'",
+				sign_url, action)
+		}
+	}
 }
 
 // TODO: Finish tests for

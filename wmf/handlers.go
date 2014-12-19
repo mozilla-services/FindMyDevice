@@ -2089,6 +2089,8 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	for _, lang := range self.getLocLang(req) {
+		self.logger.Debug(self.logCat, "Checking lang",
+			util.Fields{"lang": lang.Lang})
 		if err = serverLangPath.Load(lang.Lang); err == nil {
 			self.logger.Info(self.logCat, "Loaded Language File",
 				util.Fields{"lang": lang.Lang})
@@ -2432,7 +2434,9 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 					util.Fields{"error": r.(error).Error()})
 			} else {
 				socketError(ws, "Unknown Error")
-				log.Printf("Socket Unknown Error: %s\n", r.(error).Error())
+				self.logger.Info(self.logCat,
+					"Socket Unknown Error",
+					util.Fields{"error": r.(error).Error()})
 			}
 		}
 	}(sock.Logger())
@@ -2487,6 +2491,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 	var err error
 	store := self.store
+	var action string
 
 	session, _ := sessionStore.Get(req, SESSION_LOGIN)
 	if session.Values["nonce"], err = store.GetNonce(); err != nil {
@@ -2500,8 +2505,12 @@ func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 	if self.config.GetFlag("auth.persona") {
 		prefix = "persona"
 	}
+	action = "signin"
+	if strings.ToLower(req.FormValue("action")) == "signup" {
+		action = "signup"
+	}
 	redirUrlTemplate := self.config.Get(prefix+".login_url",
-		"{{.Host}}?client_id={{.ClientId}}&scope=profile:email%20profile:uid&state={{.State}}&action=signin")
+		"{{.Host}}?client_id={{.ClientId}}&scope=profile:email%20profile:uid&state={{.State}}&action={{.Action}}")
 	tmpl, err := template.New("Login").Parse(redirUrlTemplate)
 	if err != nil {
 		self.logger.Error(self.logCat,
@@ -2519,10 +2528,12 @@ func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 		Host     string
 		ClientId string
 		State    string
+		Action   string
 	}{
 		self.config.Get(prefix+".login", "http://localhost/"),
 		self.config.Get(prefix+".client_id", ""),
 		strings.SplitN(session.Values["nonce"].(string), ".", 2)[0],
+		action,
 	})
 	if err != nil {
 		self.logger.Error(self.logCat,
