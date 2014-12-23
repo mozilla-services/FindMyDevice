@@ -17,6 +17,10 @@ You will need:
 - [golang](http://golang.org/) 1.3 or greater
 - [Node.js](http://nodejs.org/) 0.10.x or greater and [npm](http://npmjs.org/)
 
+For development, you may also need:
+- [Protocol Buffers](https://github.com/google/protobuf/) (notably,
+  `protoc`
+
 ## How to install:
 
 1. Run `./install.bash` (will generate "./FindMyDevice")
@@ -48,7 +52,7 @@ changes.
 All DDL changes are kept in subdirectories under `sql/patches` with a SHA1 hash and the change description in the directory name.
 
 Each patch directory contains :
-    - upgrade.sql 
+    - upgrade.sql
     - downgrade.sql.orig (optional)
     - prev.txt
     - description.txt
