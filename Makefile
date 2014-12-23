@@ -24,7 +24,15 @@ $(DEPS):
 install: config.ini $(DEPS)
 	@echo "installed"
 
-build: install
+#Usually, not required, but if protobuf changes, moves, etc, this will rebuild.
+util/pblog.pb.go:
+	protoc -I$(DEPS)/src/github.com/gogo/protobuf \
+	    -I$(DEPS)/src/github.com/gogo/protobuf/protobuf \
+	    -I$(DEPS) \
+	    --gogo_out=$(DEPS) \
+	    util/pblog.proto
+
+build: install util/pblog.pb.go
 	$(GO) build -o $(EXEC) github.com/mozilla-services/FindMyDevice
 
 clean:
