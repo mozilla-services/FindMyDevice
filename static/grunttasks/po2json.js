@@ -31,7 +31,8 @@ module.exports = function (grunt) {
          **/
         var matches = /^locale\/([^\/]+)\/LC_MESSAGES\/(.*)$/.exec(file);
 
-        var locale = matches[1];
+        // Lowercase locale names for server side simplicity
+        var locale = matches[1].toLowerCase();
         var filename = matches[2];
 
         // get rid of the .po extension, replace with .json
