@@ -91,6 +91,7 @@ type Logger interface {
 	Log(level int32, mtype, payload string, field Fields) error
 	Info(mtype, payload string, field Fields) error
 	Debug(mtype, payload string, field Fields) error
+	Notice(mtype, payload string, field Fields) error
 	Warn(mtype, payload string, field Fields) error
 	Error(mtype, payload string, field Fields) error
 	Critical(mtype, payload string, field Fields) error
@@ -169,6 +170,10 @@ func (r *Log) Info(mtype, msg string, fields Fields) (err error) {
 	return r.Log(INFO, mtype, msg, fields)
 }
 
+func (r *Log) Notice(mtype, msg string, fields Fields) (err error) {
+	return r.Log(NOTICE, mtype, msg, fields)
+}
+
 func (r *Log) Warn(mtype, msg string, fields Fields) (err error) {
 	return r.Log(WARNING, mtype, msg, fields)
 }
@@ -229,6 +234,10 @@ func (r *TestLog) Info(mtype, msg string, fields Fields) error {
 
 func (r *TestLog) Debug(mtype, msg string, fields Fields) error {
 	return r.Log(DEBUG, mtype, msg, fields)
+}
+
+func (r *TestLog) Notice(mtype, msg string, fields Fields) error {
+	return r.Log(NOTICE, mtype, msg, fields)
 }
 
 func (r *TestLog) Warn(mtype, msg string, fields Fields) error {

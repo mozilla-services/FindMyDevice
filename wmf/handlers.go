@@ -645,20 +645,6 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 					"deviceid": sessionInfo.DeviceId})
 			return nil, err
 		}
-		/*
-			        // if we decide to store the position for later recvovery.
-			        // (We're not currently using this
-					data.Device.PreviousPositions, err = store.GetPositions(sessionInfo.DeviceId)
-					if err != nil {
-						self.logger.Error(self.logCat,
-							"Could not get device's position information",
-							util.Fields{"error": err.Error(),
-								"userId":   data.UserId,
-								"email":    sessionInfo.Email,
-								"deviceId": sessionInfo.DeviceId})
-						return nil, err
-					}
-		*/
 	}
 	return data, nil
 }
@@ -842,17 +828,6 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 				}
 			}
 		}
-		/*
-			// if we decide to store the position for later recvovery.
-			// (We're not currently using this
-			if logPosition {
-				if err = store.SetDeviceLocation(devId, location); err != nil {
-					return err
-				}
-				// because go sql locking.
-				store.GcDatabase(devId, "")
-			}
-		*/
 	}
 	location.Cmd = storage.Unstructured{cmd: args}
 
@@ -1394,8 +1369,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	self.devId = deviceid
 	self.metrics.Increment("device.registration")
 	// Add specific logging message for tracking where the registration occurred.
-	self.logger.Info("metrics", "GEOIP new Device registration",
-		util.Fields{"ip_for_geo": util.RemoteAddr(req)})
+	self.logger.Notice("metrics", "GEOIP new Device registration",
+		util.Fields{"ip_for_geo": util.RemoteAddr(req),
+			"user_agent": req.UserAgent()})
 	self.updatePage(self.devId, "register", buffer, false)
 	output, err := json.Marshal(util.Fields{"deviceid": self.devId,
 		"secret":   secret,
@@ -1774,7 +1750,8 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 
 	devRec, err := store.GetDeviceInfo(deviceId)
 	if err != nil || devRec == nil {
-		fields := util.Fields{"deviceId": deviceId}
+		fields := util.Fields{"deviceId": deviceId,
+			"err": fmt.Sprintf("%s", err)}
 		if err != nil {
 			fields["error"] = err.Error()
 		}

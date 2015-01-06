@@ -34,6 +34,7 @@ util/pblog.pb.go:
 	    -I$(DEPS) \
 	    --gogo_out=$(DEPS) \
 	    util/pblog.proto
+
 npm-installed:
 	cd $(HERE)/static; npm install -g grunt && npm install -g grunt-cli && npm install -g bower && npm install --silent
 	touch $(HERE)/npm-installed
