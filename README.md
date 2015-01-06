@@ -2,10 +2,9 @@
 
 [![Build Status: Travis](https://travis-ci.org/mozilla-services/FindMyDevice.svg?branch=dev)](https://travis-ci.org/mozilla-services/FindMyDevice)
 
-This server is still under development.
-
-**Note:** The most stable version of this server is the *master* branch. "dev"
-is marked as default to prevent accidental pushes to the master branch.
+**Note:** The most stable version of this server is the *master*
+branch. "dev" is marked as default to prevent accidental pushes to the
+master branch.
 
 [Server API Reference Documentation](https://wiki.mozilla.org/Services/WheresMyFox#Server_API_Reference.2FDocumentation)
 
@@ -23,12 +22,11 @@ For development, you may also need:
 
 ## How to install:
 
-1. Run `./install.bash` (will generate "./FindMyDevice")
+1. Run `make` (will generate "./FindMyDevice")
   - For Production level installs, you will need to also run:
-    `grunt build` in the ./static/ library. This will create a
-    ./static/dist/ directory containing prebuilt items.
-2. Copy [config-example.ini](config-sample.ini) to config.ini
-3. Modify config.ini to reflect your system and preferences.
+    `make build-prod` This will create a ./static/dist/ directory
+    containing prebuild items.
+2. Modify config.ini to reflect your system and preferences.
 
 ## Running:
 
