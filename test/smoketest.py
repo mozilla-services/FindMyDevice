@@ -209,7 +209,8 @@ def send(urlStr, data, cred, method="POST"):
     """ Generic function that wraps data and sends it to the server
     """
     session = requests.Session()
-    headers = {"content-type": "application/json"}
+    headers = {"content-type": "application/json",
+            "User-Agent": "Test/1.0 (Python) Script/0.1"}
     datas = json.dumps(data)
     if cred.get("secret") is not None:
         # generate HAWK auth header
