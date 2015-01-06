@@ -645,16 +645,6 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 					"deviceid": sessionInfo.DeviceId})
 			return nil, err
 		}
-		data.Device.PreviousPositions, err = store.GetPositions(sessionInfo.DeviceId)
-		if err != nil {
-			self.logger.Error(self.logCat,
-				"Could not get device's position information",
-				util.Fields{"error": err.Error(),
-					"userId":   data.UserId,
-					"email":    sessionInfo.Email,
-					"deviceId": sessionInfo.DeviceId})
-			return nil, err
-		}
 	}
 	return data, nil
 }
@@ -838,13 +828,6 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 				}
 			}
 		}
-		if logPosition {
-			if err = store.SetDeviceLocation(devId, location); err != nil {
-				return err
-			}
-			// because go sql locking.
-			store.GcDatabase(devId, "")
-		}
 	}
 	location.Cmd = storage.Unstructured{cmd: args}
 
@@ -868,7 +851,7 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 		}
 	} else {
 		self.logger.Warn(self.logCat,
-			"No clients for device",
+			"No UI clients for device",
 			util.Fields{"deviceid": devId})
 	}
 	return nil
@@ -976,13 +959,6 @@ func (self *Handler) genSig(userId, deviceId string) (ret string, err error) {
 		return "", errors.New("Invalid")
 	}
 	sig := self.genHash(userId + deviceId)
-	/*
-		        Other things we may want to add in...
-			   fmt.Printf("@@@ Remote Addr: %s, %s, %s\n",
-			       req.RemoteAddr,
-			       req.Header.Get("X-Real-IP"),
-			       req.Header.Get("X-Forwarded-For"))
-	*/
 	return sig, nil
 }
 
@@ -1392,10 +1368,13 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	}
 	self.devId = deviceid
 	self.metrics.Increment("device.registration")
+	// Add specific logging message for tracking where the registration occurred.
+	self.logger.Notice("metrics", "GEOIP new Device registration",
+		util.Fields{"ip_for_geo": util.RemoteAddr(req),
+			"user_agent": req.UserAgent()})
 	self.updatePage(self.devId, "register", buffer, false)
 	output, err := json.Marshal(util.Fields{"deviceid": self.devId,
-		"secret": secret,
-		//"email":    email,
+		"secret":   secret,
 		"clientid": userid,
 	})
 	if err != nil {
@@ -1433,7 +1412,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			self.logger.Error(self.logCat,
 				"Unknown device requesting cmd",
 				util.Fields{
-					"deviceId": deviceId})
+					"deviceId": deviceId,
+					"err":      fmt.Sprintf("%s", err)})
 			http.Error(resp, "Unauthorized", 401)
 		default:
 			self.logger.Error(self.logCat,
@@ -1770,7 +1750,8 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 
 	devRec, err := store.GetDeviceInfo(deviceId)
 	if err != nil || devRec == nil {
-		fields := util.Fields{"deviceId": deviceId}
+		fields := util.Fields{"deviceId": deviceId,
+			"err": fmt.Sprintf("%s", err)}
 		if err != nil {
 			fields["error"] = err.Error()
 		}
@@ -1930,9 +1911,10 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			continue
 		}
+		name := strings.Split(email, "@")[0]
 		reply = append(reply, devList{
 			ID:   d.ID,
-			Name: d.Name,
+			Name: name,
 			URL: fmt.Sprintf("%s://%s/%s/ws/%s/%s",
 				self.config.Get("ws.proto",
 					self.config.Get("ws_proto", "wss")),
@@ -2101,6 +2083,8 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	for _, lang := range self.getLocLang(req) {
+		self.logger.Debug(self.logCat, "Checking lang",
+			util.Fields{"lang": lang.Lang})
 		if err = serverLangPath.Load(lang.Lang); err == nil {
 			self.logger.Info(self.logCat, "Loaded Language File",
 				util.Fields{"lang": lang.Lang})
@@ -2418,6 +2402,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	} else {
 		self.logger.Warn(self.logCat, "WARNING:: IGNORING SIGNATURE", nil)
 	}
+
 	devRec, err := store.GetDeviceInfo(self.devId)
 	if err != nil {
 		self.logger.Error(self.logCat, "Invalid Device for socket",
@@ -2443,7 +2428,9 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 					util.Fields{"error": r.(error).Error()})
 			} else {
 				socketError(ws, "Unknown Error")
-				log.Printf("Socket Unknown Error: %s\n", r.(error).Error())
+				self.logger.Info(self.logCat,
+					"Socket Unknown Error",
+					util.Fields{"error": r.(error).Error()})
 			}
 		}
 	}(sock.Logger())
@@ -2497,6 +2484,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 
 func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 	var err error
+	var action string
 	store := self.store
 
 	session, _ := sessionStore.Get(req, SESSION_LOGIN)
@@ -2511,8 +2499,12 @@ func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 	if self.config.GetFlag("auth.persona") {
 		prefix = "persona"
 	}
+	action = "signin"
+	if strings.ToLower(req.FormValue("action")) == "signup" {
+		action = "signup"
+	}
 	redirUrlTemplate := self.config.Get(prefix+".login_url",
-		"{{.Host}}?client_id={{.ClientId}}&scope=profile:email%20profile:uid&state={{.State}}&action=signin")
+		"{{.Host}}?client_id={{.ClientId}}&scope=profile:email%20profile:uid&state={{.State}}&action={{.Action}}")
 	tmpl, err := template.New("Login").Parse(redirUrlTemplate)
 	if err != nil {
 		self.logger.Error(self.logCat,
@@ -2530,10 +2522,12 @@ func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 		Host     string
 		ClientId string
 		State    string
+		Action   string
 	}{
 		self.config.Get(prefix+".login", "http://localhost/"),
 		self.config.Get(prefix+".client_id", ""),
 		strings.SplitN(session.Values["nonce"].(string), ".", 2)[0],
+		action,
 	})
 	if err != nil {
 		self.logger.Error(self.logCat,
