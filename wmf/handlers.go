@@ -1393,6 +1393,9 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	}
 	self.devId = deviceid
 	self.metrics.Increment("device.registration")
+	// Add specific logging message for tracking where the registration occurred.
+	self.logger.Info("metrics", "GEOIP new Device registration",
+		util.Fields{"ip_for_geo": util.RemoteAddr(req)})
 	self.updatePage(self.devId, "register", buffer, false)
 	output, err := json.Marshal(util.Fields{"deviceid": self.devId,
 		"secret":   secret,

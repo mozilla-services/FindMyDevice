@@ -5,6 +5,7 @@
 package util
 
 import (
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -145,6 +146,17 @@ func (self *Metric) Timer(metric string, value int64) {
 	if self.statsd != nil {
 		self.statsd.Timing(metric, value, 1.0)
 	}
+}
+
+func RemoteAddr(req *http.Request) string {
+	var addr string
+	if addr = req.Header.Get("X-Fowarded-For"); len(addr) > 1 {
+		return addr
+	}
+	if addr = req.Header.Get("X-Real-IP"); len(addr) > 1 {
+		return addr
+	}
+	return req.RemoteAddr
 }
 
 //===
