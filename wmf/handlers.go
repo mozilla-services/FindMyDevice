@@ -606,6 +606,8 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 	data = &initDataStruct{}
 	self.logCat = "handler:initData"
 
+	self.SecureHeaders(resp)
+
 	store := self.store
 
 	// Get this from the config file?
@@ -654,6 +656,7 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 
 	var session *sessions.Session
 
+	self.SecureHeaders(resp)
 	// because oauth may not always be present.
 	if em := self.config.Get("auth.force_user", ""); len(em) > 0 {
 		i := strings.Split(em, " ")
@@ -735,6 +738,7 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	var accessToken string
 	var csrfToken string
 
+	self.SecureHeaders(resp)
 	dev := getDevFromUrl(req.URL)
 	userid, email, err = self.getUser(resp, req)
 	if err != nil {
@@ -1222,8 +1226,8 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var raw string
 
 	self.logCat = "handler:Register"
+	self.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	// Do not set a session here. Use HAWK and URL to validate future
 	// calls from the device.
 
@@ -1394,8 +1398,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	var err error
 
 	self.logCat = "handler:Cmd"
+	self.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	store := self.store
 
 	deviceId := getDevFromUrl(req.URL)
@@ -1707,8 +1711,8 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	store := self.store
 	rep := make(replyType)
 
+	self.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	self.logCat = "handler:Queue"
 
 	session, err := sessionStore.Get(req, SESSION_NAME)
@@ -1863,6 +1867,8 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 
 func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:userDevices"
+	self.SecureHeaders(resp)
+
 	type devList struct {
 		ID   string
 		Name string
@@ -2031,6 +2037,7 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 
 func (r *Handler) Language(resp http.ResponseWriter, req *http.Request) {
 	var err error
+	r.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
 
 	for _, lang := range r.getLocLang(req) {
@@ -2047,8 +2054,22 @@ func (r *Handler) Language(resp http.ResponseWriter, req *http.Request) {
 	return
 }
 
+func (self *Handler) SecureHeaders(resp http.ResponseWriter) {
+	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
+	resp.Header().Set("X-Frame-Options", "deny")
+	resp.Header().Set("Frame-Options", "deny")
+	resp.Header().Set("X-XSS-Protection", "1; mode=block")
+	resp.Header().Set("X-Content-Type-Options", "nosniff")
+	resp.Header().Set("X-Content-Security-Policy", "Content-Security-Policy: default-src 'self'")
+	resp.Header().Set("Content-Security-Policy", "Content-Security-Policy: default-src 'self'")
+	resp.Header().Set("X-WebKit-CSP", "Content-Security-Policy: default-src 'self'")
+}
+
 func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:Index"
+
+	// Add mandatory security headers
+	self.SecureHeaders(resp)
 
 	if strings.Index(req.URL.Path, "/static") == 0 {
 		self.Static(resp, req)
@@ -2113,7 +2134,6 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 				util.Fields{"error": err.Error()})
 		}
 	}
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	if err = tmpl.Execute(resp, initData); err != nil {
 		self.logger.Error(self.logCat,
 			"Could not execute template",
@@ -2129,6 +2149,7 @@ func (self *Handler) InitDataJson(resp http.ResponseWriter, req *http.Request) {
 
 	var err error
 
+	self.SecureHeaders(resp)
 	session, err := sessionStore.Get(req, SESSION_NAME)
 	if err != nil {
 		self.logger.Error(self.logCat,
@@ -2185,8 +2206,8 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	// get session info
 	self.logCat = "handler:State"
 
+	self.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 
 	store := self.store
 
@@ -2239,6 +2260,7 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:Status"
 
+	self.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
 	reply := replyType{
 		"status":     "ok",
@@ -2259,6 +2281,7 @@ func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
 	/* This should be handled by something like an nginx rule
 	 */
 
+	self.SecureHeaders(resp)
 	if !self.config.GetFlag("use_insecure_static") {
 		return
 	}
@@ -2270,6 +2293,7 @@ func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
 func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 	snapshot := self.metrics.Snapshot()
 
+	self.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
 	output, err := json.Marshal(snapshot)
 	if err != nil {
@@ -2299,7 +2323,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 	self.logCat = "oauth"
 
 	// Get the session so that we can save it.
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
+	self.SecureHeaders(resp)
 	session, _ := sessionStore.Get(req, SESSION_NAME)
 	loginSession, _ := sessionStore.Get(req, SESSION_LOGIN)
 
@@ -2487,6 +2511,8 @@ func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 	var action string
 	store := self.store
 
+	self.SecureHeaders(resp)
+
 	session, _ := sessionStore.Get(req, SESSION_LOGIN)
 	if session.Values["nonce"], err = store.GetNonce(); err != nil {
 		self.logger.Error(self.logCat,
@@ -2550,6 +2576,7 @@ func (self *Handler) Signout(resp http.ResponseWriter, req *http.Request) {
 		session.Options.MaxAge = -1
 		session.Save(req, resp)
 	}
+	self.SecureHeaders(resp)
 	self.metrics.Increment("page.signout.success")
 	http.Redirect(resp, req, "/", http.StatusFound)
 }
@@ -2559,8 +2586,8 @@ func (self *Handler) Validate(resp http.ResponseWriter, req *http.Request) {
 	var reply = util.JsMap{"valid": false}
 
 	self.logCat = "handler:Validate"
+	self.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 
 	// Looking for the body of the request to contain a JSON object with
 	// {assert: ... }
