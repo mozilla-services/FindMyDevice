@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -477,8 +478,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 				util.Fields{"error": err.Error(),
 					"audience": args["audience"]})
 		} else {
-			args["audience"] = fmt.Sprintf("%s://%s/", audUrl.Scheme,
-				audUrl.Host)
+			args["audience"] = audUrl.Scheme + "://" + audUrl.Host + "/"
 		}
 	}
 	if args["audience"] == "" {
@@ -1417,7 +1417,7 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 				"Unknown device requesting cmd",
 				util.Fields{
 					"deviceId": deviceId,
-					"err":      fmt.Sprintf("%s", err)})
+					"err":      err.Error()})
 			http.Error(resp, "Unauthorized", 401)
 		default:
 			self.logger.Error(self.logCat,
@@ -1755,7 +1755,7 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	devRec, err := store.GetDeviceInfo(deviceId)
 	if err != nil || devRec == nil {
 		fields := util.Fields{"deviceId": deviceId,
-			"err": fmt.Sprintf("%s", err)}
+			"err": err.Error()}
 		if err != nil {
 			fields["error"] = err.Error()
 		}
@@ -2010,9 +2010,8 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 		if lls := strings.SplitN(bits[0], "-", 2); len(lls) > 1 {
 			// normalize the lang-loc to lang_LOC
 			// I'd prefer one case, but the localizers prefer mixed form.
-			ll.Lang = fmt.Sprintf("%s_%s",
-				strings.ToLower(lls[0]),
-				strings.ToUpper(lls[1]))
+			ll.Lang =
+				strings.ToLower(lls[0]) + "_" + strings.ToUpper(lls[1])
 			// and add it, plus a locale-less lang record, to the results.
 			results = append(results, ll,
 				lang_loc{Pref: ll.Pref, Lang: strings.ToLower(lls[0])})
@@ -2055,14 +2054,16 @@ func (r *Handler) Language(resp http.ResponseWriter, req *http.Request) {
 }
 
 func (self *Handler) SecureHeaders(resp http.ResponseWriter) {
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
-	resp.Header().Set("X-Frame-Options", "deny")
-	resp.Header().Set("Frame-Options", "deny")
-	resp.Header().Set("X-XSS-Protection", "1; mode=block")
-	resp.Header().Set("X-Content-Type-Options", "nosniff")
-	resp.Header().Set("X-Content-Security-Policy", "Content-Security-Policy: default-src 'self'")
-	resp.Header().Set("Content-Security-Policy", "Content-Security-Policy: default-src 'self'")
-	resp.Header().Set("X-WebKit-CSP", "Content-Security-Policy: default-src 'self'")
+	if resp != nil {
+		resp.Header().Set("Strict-Transport-Security", "max-age=86400")
+		resp.Header().Set("X-Frame-Options", "deny")
+		resp.Header().Set("Frame-Options", "deny")
+		resp.Header().Set("X-XSS-Protection", "1; mode=block")
+		resp.Header().Set("X-Content-Type-Options", "nosniff")
+		resp.Header().Set("X-Content-Security-Policy", "Content-Security-Policy: default-src 'self'")
+		resp.Header().Set("Content-Security-Policy", "Content-Security-Policy: default-src 'self'")
+		resp.Header().Set("X-WebKit-CSP", "Content-Security-Policy: default-src 'self'")
+	}
 }
 
 func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
@@ -2285,8 +2286,10 @@ func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
 	if !self.config.GetFlag("use_insecure_static") {
 		return
 	}
-
-	http.ServeFile(resp, req, self.docRoot+req.URL.Path)
+	filePath := path.Clean(self.docRoot + req.URL.Path)
+	fmt.Printf(">>> Path %s\n", filePath)
+	http.ServeFile(resp, req, filePath)
+	return
 }
 
 // Display the current metrics as a JSON snapshot

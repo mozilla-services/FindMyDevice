@@ -233,6 +233,9 @@ func Test_Handler_getUser(t *testing.T) {
 	var uid = "123456abcdef"
 
 	makeSession()
+
+	fresp := httptest.NewRecorder()
+
 	h, _ := testHandler(util.NewMzConfig(), t)
 
 	freq, err := http.NewRequest("GET", "http://box/", nil)
@@ -244,7 +247,7 @@ func Test_Handler_getUser(t *testing.T) {
 		t.Errorf("%s: %s", name, err.Error())
 	}
 
-	tuid, temail, err := h.getUser(nil, freq)
+	tuid, temail, err := h.getUser(fresp, freq)
 
 	if err != nil {
 		t.Errorf("%s: %s", name, err.Error())
@@ -255,7 +258,22 @@ func Test_Handler_getUser(t *testing.T) {
 	if temail != email {
 		t.Errorf("%s: email mismatch", email)
 	}
-
+	// check the headers
+	headers := fresp.Header()
+	hv := map[string]string{
+		"X-Frame-Options":           "deny",
+		"X-Xss-Protection":          "1; mode=block",
+		"X-Content-Type-Options":    "nosniff",
+		"X-Content-Security-Policy": "Content-Security-Policy: default-src 'self'",
+		"Content-Security-Policy":   "Content-Security-Policy: default-src 'self'",
+		"X-Webkit-Csp":              "Content-Security-Policy: default-src 'self'",
+		"Frame-Options":             "deny",
+	}
+	for k, v := range hv {
+		if j := headers.Get(k); j != v {
+			t.Errorf("Invalid header %s != %s (%s)", k, v, j)
+		}
+	}
 	// TODO: Test w/ fake assertion (or use Test_Handler_Verify)
 }
 
@@ -596,4 +614,16 @@ func Test_Signin(t *testing.T) {
 
 // TODO: Finish tests for
 // getUser - stub out session? (sigh, why do I have to keep doing this...)
+
+func Test_Static(t *testing.T) {
+	config := util.NewMzConfig()
+	h, _ := testHandler(config, t)
+	fresp := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "../../../../../etc/passwd", nil)
+	h.Static(fresp, req)
+	if fresp.Body.Len() > 0 {
+		t.Error("Static failed to return blank password file")
+	}
+}
+
 // et al...
