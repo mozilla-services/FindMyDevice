@@ -2055,7 +2055,7 @@ func (r *Handler) Language(resp http.ResponseWriter, req *http.Request) {
 
 func (self *Handler) SecureHeaders(resp http.ResponseWriter) {
 	if resp != nil {
-		resp.Header().Set("Strict-Transport-Security", "max-age=86400")
+		resp.Header().Set("Strict-Transport-Security", "max-age=15552000")
 		resp.Header().Set("X-Frame-Options", "deny")
 		resp.Header().Set("Frame-Options", "deny")
 		resp.Header().Set("X-XSS-Protection", "1; mode=block")
