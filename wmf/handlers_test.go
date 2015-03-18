@@ -264,9 +264,9 @@ func Test_Handler_getUser(t *testing.T) {
 		"X-Frame-Options":           "deny",
 		"X-Xss-Protection":          "1; mode=block",
 		"X-Content-Type-Options":    "nosniff",
-		"X-Content-Security-Policy": "Content-Security-Policy: default-src 'self'",
-		"Content-Security-Policy":   "Content-Security-Policy: default-src 'self'",
-		"X-Webkit-Csp":              "Content-Security-Policy: default-src 'self'",
+		"X-Content-Security-Policy": "default-src 'self'",
+		"Content-Security-Policy":   "default-src 'self'",
+		"X-Webkit-Csp":              "default-src 'self'",
 		"Frame-Options":             "deny",
 	}
 	for k, v := range hv {

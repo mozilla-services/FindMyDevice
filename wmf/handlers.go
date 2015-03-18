@@ -2060,9 +2060,9 @@ func (self *Handler) SecureHeaders(resp http.ResponseWriter) {
 		resp.Header().Set("Frame-Options", "deny")
 		resp.Header().Set("X-XSS-Protection", "1; mode=block")
 		resp.Header().Set("X-Content-Type-Options", "nosniff")
-		resp.Header().Set("X-Content-Security-Policy", "Content-Security-Policy: default-src 'self'")
-		resp.Header().Set("Content-Security-Policy", "Content-Security-Policy: default-src 'self'")
-		resp.Header().Set("X-WebKit-CSP", "Content-Security-Policy: default-src 'self'")
+		resp.Header().Set("X-Content-Security-Policy", "default-src 'self'")
+		resp.Header().Set("Content-Security-Policy", "default-src 'self'")
+		resp.Header().Set("X-WebKit-CSP", "default-src 'self'")
 	}
 }
 
