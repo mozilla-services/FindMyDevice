@@ -2287,7 +2287,6 @@ func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	filePath := path.Clean(self.docRoot + req.URL.Path)
-	fmt.Printf(">>> Path %s\n", filePath)
 	http.ServeFile(resp, req, filePath)
 	return
 }
