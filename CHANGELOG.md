@@ -1,3 +1,6 @@
+###1.4.4 (2015-03-20)
+* **server:** Added frame buster headers
+
 ###1.4.3 (2014-12-22)
 
 #### Bug Fixes
