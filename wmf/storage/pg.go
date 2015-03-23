@@ -267,7 +267,7 @@ func (self *pgStore) RegisterDevice(userid string, dev *Device) (devId string, e
 				"device": fmt.Sprintf("%+v", dev)})
 		return "", err
 	}
-	rows2, err := dbh.Query("insert into userToDeviceMap (userId, deviceId, name, date) values ($1, $2, $3, now());", userid, dev.ID, dev.Name)
+	rows2, err := dbh.Query("insert into userToDeviceMap (userId, deviceId, name, date) values ($1, $2, $3, now());", userid, dev.ID, "")
 	defer rows2.Close()
 	if err != nil {
 		switch {
@@ -290,7 +290,7 @@ func (self *pgStore) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 
 	// collect the data for a given device for display
 
-	var deviceId, userId, pushUrl, name, secret, lestr, accesstoken []uint8
+	var deviceId, userId, pushUrl, secret, lestr, accesstoken []uint8
 	var lastexchange float64
 	var hasPasscode, loggedIn bool
 	var statement, accepts string
@@ -298,7 +298,7 @@ func (self *pgStore) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 	dbh := self.db
 
 	// verify that the device belongs to the user
-	statement = "select d.deviceId, u.userId, coalesce(u.name,d.deviceId), d.lockable, d.loggedin, d.pushUrl, d.accepts, d.hawksecret, extract(epoch from d.lastexchange), d.accesstoken from userToDeviceMap as u, deviceInfo as d where u.deviceId=$1 and u.deviceId=d.deviceId;"
+	statement = "select d.deviceId, u.userId, d.lockable, d.loggedin, d.pushUrl, d.accepts, d.hawksecret, extract(epoch from d.lastexchange), d.accesstoken from userToDeviceMap as u, deviceInfo as d where u.deviceId=$1 and u.deviceId=d.deviceId;"
 	stmt, err := dbh.Prepare(statement)
 	if err != nil {
 		self.logger.Error(self.logCat, "Could not query device info",
@@ -306,7 +306,7 @@ func (self *pgStore) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 		return nil, err
 	}
 	defer stmt.Close()
-	err = stmt.QueryRow(devId).Scan(&deviceId, &userId, &name, &hasPasscode,
+	err = stmt.QueryRow(devId).Scan(&deviceId, &userId, &hasPasscode,
 		&loggedIn, &pushUrl, &accepts, &secret, &lestr, &accesstoken)
 	switch {
 	case err == sql.ErrNoRows:
@@ -324,7 +324,6 @@ func (self *pgStore) GetDeviceInfo(devId string) (devInfo *Device, err error) {
 	reply := &Device{
 		ID:           string(deviceId),
 		User:         string(userId),
-		Name:         string(name),
 		Secret:       string(secret),
 		HasPasscode:  hasPasscode,
 		LoggedIn:     bloggedIn,
@@ -530,7 +529,7 @@ func (self *pgStore) SetDeviceLock(devId string, state bool) (err error) {
 		self.logger.Error(self.logCat, "Could not set device lock state",
 			util.Fields{"error": err.Error(),
 				"device": devId,
-				"state":  fmt.Sprintf("%b", state)})
+				"state":  fmt.Sprintf("%t", state)})
 		return err
 	}
 	return nil

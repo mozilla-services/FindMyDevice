@@ -91,6 +91,7 @@ type Logger interface {
 	Log(level int32, mtype, payload string, field Fields) error
 	Info(mtype, payload string, field Fields) error
 	Debug(mtype, payload string, field Fields) error
+	Notice(mtype, payload string, field Fields) error
 	Warn(mtype, payload string, field Fields) error
 	Error(mtype, payload string, field Fields) error
 	Critical(mtype, payload string, field Fields) error
@@ -117,7 +118,7 @@ func NewLogger(conf *MzConfig) *Log {
 	default:
 		output, err = os.Create(outFile)
 		if err != nil {
-			panic(fmt.Sprintf("Could not open logging file %s, %s", outFile, err.Error))
+			panic(fmt.Sprintf("Could not open logging file %s, %s", outFile, err.Error()))
 		}
 	}
 
@@ -167,6 +168,10 @@ func (r *Log) Debug(mtype, msg string, fields Fields) (err error) {
 
 func (r *Log) Info(mtype, msg string, fields Fields) (err error) {
 	return r.Log(INFO, mtype, msg, fields)
+}
+
+func (r *Log) Notice(mtype, msg string, fields Fields) (err error) {
+	return r.Log(NOTICE, mtype, msg, fields)
 }
 
 func (r *Log) Warn(mtype, msg string, fields Fields) (err error) {
@@ -229,6 +234,10 @@ func (r *TestLog) Info(mtype, msg string, fields Fields) error {
 
 func (r *TestLog) Debug(mtype, msg string, fields Fields) error {
 	return r.Log(DEBUG, mtype, msg, fields)
+}
+
+func (r *TestLog) Notice(mtype, msg string, fields Fields) error {
+	return r.Log(NOTICE, mtype, msg, fields)
 }
 
 func (r *TestLog) Warn(mtype, msg string, fields Fields) error {

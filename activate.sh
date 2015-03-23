@@ -1,2 +1,2 @@
-export GOPATH="${PWD}/Godeps/_workspace"
+export GOPATH="${PWD}/.godeps:${PWD}"
 export GOBIN=$PWD

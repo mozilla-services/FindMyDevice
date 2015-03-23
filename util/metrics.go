@@ -5,6 +5,7 @@
 package util
 
 import (
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -101,7 +102,7 @@ func (self *Metric) IncrementBy(metric string, count int) {
 	atomic.AddInt64(&m, int64(count))
 	self.dict[metric] = m
 	if self.logger != nil {
-		self.logger.Info("metrics", "counter."+metric,
+		self.logger.Notice("metrics", "counter."+metric,
 			Fields{"value": strconv.FormatInt(m, 10),
 				"type": "counter"})
 	}
@@ -138,13 +139,24 @@ func (self *Metric) Timer(metric string, value int64) {
 	}
 
 	if self.logger != nil {
-		self.logger.Info("metrics", "timer."+metric,
+		self.logger.Notice("metrics", "timer."+metric,
 			Fields{"value": strconv.FormatInt(value, 10),
 				"type": "timer"})
 	}
 	if self.statsd != nil {
 		self.statsd.Timing(metric, value, 1.0)
 	}
+}
+
+func RemoteAddr(req *http.Request) string {
+	var addr string
+	if addr = req.Header.Get("X-Fowarded-For"); len(addr) > 1 {
+		return addr
+	}
+	if addr = req.Header.Get("X-Real-IP"); len(addr) > 1 {
+		return addr
+	}
+	return req.RemoteAddr
 }
 
 //===

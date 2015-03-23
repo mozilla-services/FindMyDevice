@@ -23,15 +23,12 @@ type Storage interface {
 	Init() error
 	RegisterDevice(string, *Device) (string, error)
 	GetDeviceInfo(string) (*Device, error)
-	GetPositions(string) ([]Position, error)
 	GetPending(string) (string, string, error)
 	GetUserFromDevice(string) (string, string, error)
 	GetDevicesForUser(string, string) ([]DeviceList, error)
 	StoreCommand(string, string, string) error
 	SetAccessToken(string, string) error
 	SetDeviceLock(string, bool) error
-	SetDeviceLocation(string, *Position) error
-	GcDatabase(string, string) error
 	PurgePosition(string) error
 	Touch(string) error
 	DeleteDevice(string) error

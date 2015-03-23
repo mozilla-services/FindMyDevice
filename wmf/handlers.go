@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -477,8 +478,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 				util.Fields{"error": err.Error(),
 					"audience": args["audience"]})
 		} else {
-			args["audience"] = fmt.Sprintf("%s://%s/", audUrl.Scheme,
-				audUrl.Host)
+			args["audience"] = audUrl.Scheme + "://" + audUrl.Host + "/"
 		}
 	}
 	if args["audience"] == "" {
@@ -606,6 +606,8 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 	data = &initDataStruct{}
 	self.logCat = "handler:initData"
 
+	self.SecureHeaders(resp)
+
 	store := self.store
 
 	// Get this from the config file?
@@ -645,16 +647,6 @@ func (self *Handler) initData(resp http.ResponseWriter, req *http.Request, sessi
 					"deviceid": sessionInfo.DeviceId})
 			return nil, err
 		}
-		data.Device.PreviousPositions, err = store.GetPositions(sessionInfo.DeviceId)
-		if err != nil {
-			self.logger.Error(self.logCat,
-				"Could not get device's position information",
-				util.Fields{"error": err.Error(),
-					"userId":   data.UserId,
-					"email":    sessionInfo.Email,
-					"deviceId": sessionInfo.DeviceId})
-			return nil, err
-		}
 	}
 	return data, nil
 }
@@ -664,6 +656,7 @@ func (self *Handler) getUser(resp http.ResponseWriter, req *http.Request) (useri
 
 	var session *sessions.Session
 
+	self.SecureHeaders(resp)
 	// because oauth may not always be present.
 	if em := self.config.Get("auth.force_user", ""); len(em) > 0 {
 		i := strings.Split(em, " ")
@@ -745,6 +738,7 @@ func (self *Handler) getSessionInfo(resp http.ResponseWriter, req *http.Request,
 	var accessToken string
 	var csrfToken string
 
+	self.SecureHeaders(resp)
 	dev := getDevFromUrl(req.URL)
 	userid, email, err = self.getUser(resp, req)
 	if err != nil {
@@ -838,13 +832,6 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 				}
 			}
 		}
-		if logPosition {
-			if err = store.SetDeviceLocation(devId, location); err != nil {
-				return err
-			}
-			// because go sql locking.
-			store.GcDatabase(devId, "")
-		}
 	}
 	location.Cmd = storage.Unstructured{cmd: args}
 
@@ -868,7 +855,7 @@ func (self *Handler) updatePage(devId, cmd string, args map[string]interface{}, 
 		}
 	} else {
 		self.logger.Warn(self.logCat,
-			"No clients for device",
+			"No UI clients for device",
 			util.Fields{"deviceid": devId})
 	}
 	return nil
@@ -976,13 +963,6 @@ func (self *Handler) genSig(userId, deviceId string) (ret string, err error) {
 		return "", errors.New("Invalid")
 	}
 	sig := self.genHash(userId + deviceId)
-	/*
-		        Other things we may want to add in...
-			   fmt.Printf("@@@ Remote Addr: %s, %s, %s\n",
-			       req.RemoteAddr,
-			       req.Header.Get("X-Real-IP"),
-			       req.Header.Get("X-Forwarded-For"))
-	*/
 	return sig, nil
 }
 
@@ -1246,8 +1226,8 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	var raw string
 
 	self.logCat = "handler:Register"
+	self.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	// Do not set a session here. Use HAWK and URL to validate future
 	// calls from the device.
 
@@ -1392,10 +1372,13 @@ func (self *Handler) Register(resp http.ResponseWriter, req *http.Request) {
 	}
 	self.devId = deviceid
 	self.metrics.Increment("device.registration")
+	// Add specific logging message for tracking where the registration occurred.
+	self.logger.Notice("metrics", "GEOIP new Device registration",
+		util.Fields{"ip_for_geo": util.RemoteAddr(req),
+			"user_agent": req.UserAgent()})
 	self.updatePage(self.devId, "register", buffer, false)
 	output, err := json.Marshal(util.Fields{"deviceid": self.devId,
-		"secret": secret,
-		//"email":    email,
+		"secret":   secret,
 		"clientid": userid,
 	})
 	if err != nil {
@@ -1415,8 +1398,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 	var err error
 
 	self.logCat = "handler:Cmd"
+	self.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	store := self.store
 
 	deviceId := getDevFromUrl(req.URL)
@@ -1433,7 +1416,8 @@ func (self *Handler) Cmd(resp http.ResponseWriter, req *http.Request) {
 			self.logger.Error(self.logCat,
 				"Unknown device requesting cmd",
 				util.Fields{
-					"deviceId": deviceId})
+					"deviceId": deviceId,
+					"err":      err.Error()})
 			http.Error(resp, "Unauthorized", 401)
 		default:
 			self.logger.Error(self.logCat,
@@ -1727,8 +1711,8 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 	store := self.store
 	rep := make(replyType)
 
+	self.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	self.logCat = "handler:Queue"
 
 	session, err := sessionStore.Get(req, SESSION_NAME)
@@ -1770,7 +1754,8 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 
 	devRec, err := store.GetDeviceInfo(deviceId)
 	if err != nil || devRec == nil {
-		fields := util.Fields{"deviceId": deviceId}
+		fields := util.Fields{"deviceId": deviceId,
+			"err": err.Error()}
 		if err != nil {
 			fields["error"] = err.Error()
 		}
@@ -1882,6 +1867,8 @@ func (self *Handler) RestQueue(resp http.ResponseWriter, req *http.Request) {
 
 func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:userDevices"
+	self.SecureHeaders(resp)
+
 	type devList struct {
 		ID   string
 		Name string
@@ -1930,9 +1917,10 @@ func (self *Handler) UserDevices(resp http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			continue
 		}
+		name := strings.Split(email, "@")[0]
 		reply = append(reply, devList{
 			ID:   d.ID,
-			Name: d.Name,
+			Name: name,
 			URL: fmt.Sprintf("%s://%s/%s/ws/%s/%s",
 				self.config.Get("ws.proto",
 					self.config.Get("ws_proto", "wss")),
@@ -2022,9 +2010,8 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 		if lls := strings.SplitN(bits[0], "-", 2); len(lls) > 1 {
 			// normalize the lang-loc to lang_LOC
 			// I'd prefer one case, but the localizers prefer mixed form.
-			ll.Lang = fmt.Sprintf("%s_%s",
-				strings.ToLower(lls[0]),
-				strings.ToUpper(lls[1]))
+			ll.Lang =
+				strings.ToLower(lls[0]) + "_" + strings.ToUpper(lls[1])
 			// and add it, plus a locale-less lang record, to the results.
 			results = append(results, ll,
 				lang_loc{Pref: ll.Pref, Lang: strings.ToLower(lls[0])})
@@ -2049,6 +2036,7 @@ func (r *Handler) getLocLang(req *http.Request) (results LanguagePrefs) {
 
 func (r *Handler) Language(resp http.ResponseWriter, req *http.Request) {
 	var err error
+	r.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
 
 	for _, lang := range r.getLocLang(req) {
@@ -2065,8 +2053,24 @@ func (r *Handler) Language(resp http.ResponseWriter, req *http.Request) {
 	return
 }
 
+func (self *Handler) SecureHeaders(resp http.ResponseWriter) {
+	if resp != nil {
+		resp.Header().Set("Strict-Transport-Security", "max-age=15552000")
+		resp.Header().Set("X-Frame-Options", "deny")
+		resp.Header().Set("Frame-Options", "deny")
+		resp.Header().Set("X-XSS-Protection", "1; mode=block")
+		resp.Header().Set("X-Content-Type-Options", "nosniff")
+		resp.Header().Set("X-Content-Security-Policy", "default-src 'self'")
+		resp.Header().Set("Content-Security-Policy", "default-src 'self'")
+		resp.Header().Set("X-WebKit-CSP", "default-src 'self'")
+	}
+}
+
 func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:Index"
+
+	// Add mandatory security headers
+	self.SecureHeaders(resp)
 
 	if strings.Index(req.URL.Path, "/static") == 0 {
 		self.Static(resp, req)
@@ -2101,6 +2105,8 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	for _, lang := range self.getLocLang(req) {
+		self.logger.Debug(self.logCat, "Checking lang",
+			util.Fields{"lang": lang.Lang})
 		if err = serverLangPath.Load(lang.Lang); err == nil {
 			self.logger.Info(self.logCat, "Loaded Language File",
 				util.Fields{"lang": lang.Lang})
@@ -2129,7 +2135,6 @@ func (self *Handler) Index(resp http.ResponseWriter, req *http.Request) {
 				util.Fields{"error": err.Error()})
 		}
 	}
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 	if err = tmpl.Execute(resp, initData); err != nil {
 		self.logger.Error(self.logCat,
 			"Could not execute template",
@@ -2145,6 +2150,7 @@ func (self *Handler) InitDataJson(resp http.ResponseWriter, req *http.Request) {
 
 	var err error
 
+	self.SecureHeaders(resp)
 	session, err := sessionStore.Get(req, SESSION_NAME)
 	if err != nil {
 		self.logger.Error(self.logCat,
@@ -2201,8 +2207,8 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 	// get session info
 	self.logCat = "handler:State"
 
+	self.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 
 	store := self.store
 
@@ -2255,6 +2261,7 @@ func (self *Handler) State(resp http.ResponseWriter, req *http.Request) {
 func (self *Handler) Status(resp http.ResponseWriter, req *http.Request) {
 	self.logCat = "handler:Status"
 
+	self.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
 	reply := replyType{
 		"status":     "ok",
@@ -2275,17 +2282,20 @@ func (self *Handler) Static(resp http.ResponseWriter, req *http.Request) {
 	/* This should be handled by something like an nginx rule
 	 */
 
+	self.SecureHeaders(resp)
 	if !self.config.GetFlag("use_insecure_static") {
 		return
 	}
-
-	http.ServeFile(resp, req, self.docRoot+req.URL.Path)
+	filePath := path.Clean(self.docRoot + req.URL.Path)
+	http.ServeFile(resp, req, filePath)
+	return
 }
 
 // Display the current metrics as a JSON snapshot
 func (self *Handler) Metrics(resp http.ResponseWriter, req *http.Request) {
 	snapshot := self.metrics.Snapshot()
 
+	self.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
 	output, err := json.Marshal(snapshot)
 	if err != nil {
@@ -2315,7 +2325,7 @@ func (self *Handler) OAuthCallback(resp http.ResponseWriter, req *http.Request) 
 	self.logCat = "oauth"
 
 	// Get the session so that we can save it.
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
+	self.SecureHeaders(resp)
 	session, _ := sessionStore.Get(req, SESSION_NAME)
 	loginSession, _ := sessionStore.Get(req, SESSION_LOGIN)
 
@@ -2418,6 +2428,7 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 	} else {
 		self.logger.Warn(self.logCat, "WARNING:: IGNORING SIGNATURE", nil)
 	}
+
 	devRec, err := store.GetDeviceInfo(self.devId)
 	if err != nil {
 		self.logger.Error(self.logCat, "Invalid Device for socket",
@@ -2443,7 +2454,9 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 					util.Fields{"error": r.(error).Error()})
 			} else {
 				socketError(ws, "Unknown Error")
-				log.Printf("Socket Unknown Error: %s\n", r.(error).Error())
+				self.logger.Info(self.logCat,
+					"Socket Unknown Error",
+					util.Fields{"error": r.(error).Error()})
 			}
 		}
 	}(sock.Logger())
@@ -2497,7 +2510,10 @@ func (self *Handler) WSSocketHandler(ws *websocket.Conn) {
 
 func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 	var err error
+	var action string
 	store := self.store
+
+	self.SecureHeaders(resp)
 
 	session, _ := sessionStore.Get(req, SESSION_LOGIN)
 	if session.Values["nonce"], err = store.GetNonce(); err != nil {
@@ -2511,8 +2527,12 @@ func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 	if self.config.GetFlag("auth.persona") {
 		prefix = "persona"
 	}
+	action = "signin"
+	if strings.ToLower(req.FormValue("action")) == "signup" {
+		action = "signup"
+	}
 	redirUrlTemplate := self.config.Get(prefix+".login_url",
-		"{{.Host}}?client_id={{.ClientId}}&scope=profile:email%20profile:uid&state={{.State}}&action=signin")
+		"{{.Host}}?client_id={{.ClientId}}&scope=profile:email%20profile:uid&state={{.State}}&action={{.Action}}")
 	tmpl, err := template.New("Login").Parse(redirUrlTemplate)
 	if err != nil {
 		self.logger.Error(self.logCat,
@@ -2530,10 +2550,12 @@ func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 		Host     string
 		ClientId string
 		State    string
+		Action   string
 	}{
 		self.config.Get(prefix+".login", "http://localhost/"),
 		self.config.Get(prefix+".client_id", ""),
 		strings.SplitN(session.Values["nonce"].(string), ".", 2)[0],
+		action,
 	})
 	if err != nil {
 		self.logger.Error(self.logCat,
@@ -2556,6 +2578,7 @@ func (self *Handler) Signout(resp http.ResponseWriter, req *http.Request) {
 		session.Options.MaxAge = -1
 		session.Save(req, resp)
 	}
+	self.SecureHeaders(resp)
 	self.metrics.Increment("page.signout.success")
 	http.Redirect(resp, req, "/", http.StatusFound)
 }
@@ -2565,8 +2588,8 @@ func (self *Handler) Validate(resp http.ResponseWriter, req *http.Request) {
 	var reply = util.JsMap{"valid": false}
 
 	self.logCat = "handler:Validate"
+	self.SecureHeaders(resp)
 	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Strict-Transport-Security", "max-age=86400")
 
 	// Looking for the body of the request to contain a JSON object with
 	// {assert: ... }

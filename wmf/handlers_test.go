@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,7 +41,7 @@ func Test_ClientBox_Del(t *testing.T) {
 	c.Add("000", "001", &WWSs{socket: &MockWSConn{}})
 
 	if f, err := c.Del("000", "000"); f == true || err != nil {
-		t.Errorf("Could not delete id: %s, %s", err)
+		t.Errorf("Could not delete id: %s, %s", "000", err)
 	}
 	cc, ok := c.Clients("000")
 	if !ok {
@@ -138,7 +139,6 @@ func Test_Handler_initData(t *testing.T) {
 		ID:   tuid,
 		User: "TestUserID",
 	})
-	store.SetDeviceLocation(tuid, &storage.Position{})
 
 	freq, _ := http.NewRequest("GET", "http://localhost/", nil)
 	fresp := httptest.NewRecorder()
@@ -233,6 +233,9 @@ func Test_Handler_getUser(t *testing.T) {
 	var uid = "123456abcdef"
 
 	makeSession()
+
+	fresp := httptest.NewRecorder()
+
 	h, _ := testHandler(util.NewMzConfig(), t)
 
 	freq, err := http.NewRequest("GET", "http://box/", nil)
@@ -244,7 +247,7 @@ func Test_Handler_getUser(t *testing.T) {
 		t.Errorf("%s: %s", name, err.Error())
 	}
 
-	tuid, temail, err := h.getUser(nil, freq)
+	tuid, temail, err := h.getUser(fresp, freq)
 
 	if err != nil {
 		t.Errorf("%s: %s", name, err.Error())
@@ -255,7 +258,22 @@ func Test_Handler_getUser(t *testing.T) {
 	if temail != email {
 		t.Errorf("%s: email mismatch", email)
 	}
-
+	// check the headers
+	headers := fresp.Header()
+	hv := map[string]string{
+		"X-Frame-Options":           "deny",
+		"X-Xss-Protection":          "1; mode=block",
+		"X-Content-Type-Options":    "nosniff",
+		"X-Content-Security-Policy": "default-src 'self'",
+		"Content-Security-Policy":   "default-src 'self'",
+		"X-Webkit-Csp":              "default-src 'self'",
+		"Frame-Options":             "deny",
+	}
+	for k, v := range hv {
+		if j := headers.Get(k); j != v {
+			t.Errorf("Invalid header %s != %s (%s)", k, v, j)
+		}
+	}
 	// TODO: Test w/ fake assertion (or use Test_Handler_Verify)
 }
 
@@ -274,7 +292,7 @@ func Test_Handler_getSessionInfo(t *testing.T) {
 	freq, _ := http.NewRequest("GET", "http://box/"+devid, nil)
 	err = fakeCookies(freq, email, uid, token, csrftoken)
 	if err != nil {
-		t.Error("%s:%s", name, err.Error())
+		t.Errorf("%s:%s", name, err.Error())
 	}
 	session, _ := sessionStore.Get(freq, SESSION_NAME)
 	info, err := h.getSessionInfo(nil, freq, session)
@@ -283,7 +301,7 @@ func Test_Handler_getSessionInfo(t *testing.T) {
 		info.Email != email ||
 		info.AccessToken != token ||
 		info.CSRFToken != csrftoken {
-		t.Errorf("%s: returned session info contained invalid data")
+		t.Errorf("%#v: returned session info contained invalid data", info)
 	}
 }
 
@@ -305,7 +323,7 @@ func Test_Handler_Cmd(t *testing.T) {
 	h, store := testHandler(config, t)
 	devId, err := store.RegisterDevice(uid, &storage.Device{Name: "test", User: uid})
 	if err != nil {
-		t.Error("%s: %s", name, err.Error())
+		t.Errorf("%s: %s", name, err.Error())
 	}
 	// create a fake tracking record.
 	track, _ := json.Marshal(struct {
@@ -332,15 +350,6 @@ func Test_Handler_Cmd(t *testing.T) {
 	if fresp.Body.String() != "{}" {
 		t.Errorf("%s: returned command did not match expectations. %s", name, fresp.Body.String())
 	}
-	positions, err := store.GetPositions(devId)
-	if err != nil {
-		t.Errorf("%s: %s", name, err.Error())
-	}
-	if p := positions[0]; p.Latitude != lat ||
-		p.Longitude != lon ||
-		p.Time != ti {
-		t.Errorf("%s: Position not recorded correctly %+v", name, p)
-	}
 
 	//TODO test other commands as well.
 }
@@ -361,7 +370,7 @@ func Test_Handler_Queue(t *testing.T) {
 
 	status, err := h.Queue(dev, "t", rargs, &rep)
 	if status != 200 || err != nil {
-		t.Error("%s: Command Queue failed with status %s: %s", status, err)
+		t.Errorf("Command Queue failed with status %d: %s", status, err)
 	}
 	cmd, ctype, err := store.GetPending(devid)
 	if err != nil {
@@ -389,7 +398,7 @@ func Test_Handler_RestQueue(t *testing.T) {
 	h, store := testHandler(config, t)
 	devId, err := store.RegisterDevice(uid, &storage.Device{Name: "test", User: uid, Accepts: "trle"})
 	if err != nil {
-		t.Error("%s: %s", name, err.Error())
+		t.Errorf("%s: %s", name, err.Error())
 	}
 	// create a fake tracking record.
 	track, _ := json.Marshal(struct {
@@ -430,13 +439,13 @@ func Test_Handler_checkToken(t *testing.T) {
 	h, _ := testHandler(config, t)
 	session, _ := sessionStore.Get(freq, SESSION_NAME)
 	if h.checkToken(session, freq) {
-		t.Error("%s: Failed to reject tokenless request", name)
+		t.Errorf("%s: Failed to reject tokenless request", name)
 	}
 	freq.Header.Add("X-CSRFTOKEN", csrftoken)
 	fakeCookies(freq, email, uid, token, csrftoken)
 	session, _ = sessionStore.Get(freq, SESSION_NAME)
 	if !h.checkToken(session, freq) {
-		t.Error("%s: Failed to accept tokened request", name)
+		t.Errorf("%s: Failed to accept tokened request", name)
 	}
 
 	freq, _ = http.NewRequest("POST", "http://box/"+devId, nil)
@@ -444,7 +453,7 @@ func Test_Handler_checkToken(t *testing.T) {
 	fakeCookies(freq, email, uid, token, csrftoken)
 	session, _ = sessionStore.Get(freq, SESSION_NAME)
 	if h.checkToken(session, freq) {
-		t.Error("%s: Failed to reject invalid token", name)
+		t.Errorf("%s: Failed to reject invalid token", name)
 	}
 }
 
@@ -482,7 +491,7 @@ func Test_Handler_UserDevices(t *testing.T) {
 	h.UserDevices(fresp, freq)
 	t.Logf("%s: %+v  %+v", name, freq, fresp)
 	if fresp.Code != 200 {
-		t.Errorf("%s: Incorrect status returned")
+		t.Errorf("%d: Incorrect status returned", fresp.Code)
 	}
 	ret := make(map[string]interface{})
 	err := json.Unmarshal(fresp.Body.Bytes(), &ret)
@@ -491,7 +500,7 @@ func Test_Handler_UserDevices(t *testing.T) {
 	}
 	item := ret["devices"].([]interface{})[0].(map[string]interface{})
 	if _, ok := item["URL"]; !ok || item["ID"].(string) != devid {
-		t.Error("%s: Incorrect return", name)
+		t.Errorf("%s: Incorrect return", name)
 	}
 }
 
@@ -546,11 +555,11 @@ func Test_LangPath(t *testing.T) {
 	// this runs .path & .Check
 	lp, err := NewLangPath(testTmpl, tmpDir, "EN")
 	if err != nil {
-		t.Fatalf("Could not get LangPath: %s", err.Error)
+		t.Fatalf("Could not get LangPath: %s", err.Error())
 	}
 	buff := new(bytes.Buffer)
 	if err = lp.Write("en", buff); err != nil {
-		t.Fatalf("Could not write buffer: %s", err.Error)
+		t.Fatalf("Could not write buffer: %s", err.Error())
 	}
 	if buff.String() != testText {
 		t.Fatalf("Data did not match: %s != %s", buff.String(), testText)
@@ -575,6 +584,46 @@ func Test_LangPath(t *testing.T) {
 
 }
 
+func Test_Signin(t *testing.T) {
+	config := util.NewMzConfig()
+	h, _ := testHandler(config, t)
+	result := map[string]string{
+		"http://localhost/signin/":               "signin",
+		"http://localhost/signin/?action=signup": "signup",
+		"http://localhost/signin/?action=banana": "signin",
+	}
+
+	for sign_url, action := range result {
+
+		req, _ := http.NewRequest("GET", sign_url, nil)
+		fresp := httptest.NewRecorder()
+		h.Signin(fresp, req)
+		if fresp.Code != 302 {
+			t.Error("Signin response not a 302")
+		}
+		redir, err := url.Parse(fresp.Header().Get("Location"))
+		if err != nil {
+			t.Errorf("Returned Location URL is unparsable: %s", err)
+		}
+		if redir.Query().Get("action") != action {
+			t.Error("Returned URL for %s did not specify action as '%s'",
+				sign_url, action)
+		}
+	}
+}
+
 // TODO: Finish tests for
 // getUser - stub out session? (sigh, why do I have to keep doing this...)
+
+func Test_Static(t *testing.T) {
+	config := util.NewMzConfig()
+	h, _ := testHandler(config, t)
+	fresp := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "../../../../../etc/passwd", nil)
+	h.Static(fresp, req)
+	if fresp.Body.Len() > 0 {
+		t.Error("Static failed to return blank password file")
+	}
+}
+
 // et al...
