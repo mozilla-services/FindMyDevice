@@ -2055,14 +2055,20 @@ func (r *Handler) Language(resp http.ResponseWriter, req *http.Request) {
 
 func (self *Handler) SecureHeaders(resp http.ResponseWriter) {
 	if resp != nil {
+		csp_includes := "default-src 'self' " +
+			"*.tiles.mapbox.com " +
+			"find.firefox.com "
 		resp.Header().Set("Strict-Transport-Security", "max-age=15552000")
 		resp.Header().Set("X-Frame-Options", "deny")
 		resp.Header().Set("Frame-Options", "deny")
 		resp.Header().Set("X-XSS-Protection", "1; mode=block")
 		resp.Header().Set("X-Content-Type-Options", "nosniff")
-		resp.Header().Set("X-Content-Security-Policy", "default-src 'self'")
-		resp.Header().Set("Content-Security-Policy", "default-src 'self'")
-		resp.Header().Set("X-WebKit-CSP", "default-src 'self'")
+		resp.Header().Set("X-Content-Security-Policy",
+			csp_includes)
+		resp.Header().Set("Content-Security-Policy",
+			csp_includes)
+		resp.Header().Set("X-WebKit-CSP",
+			csp_includes)
 	}
 }
 
