@@ -44,7 +44,11 @@ var opts struct {
 
 const (
 	// VERSION is the version number for system.
+<<<<<<< HEAD
 	VERSION = "1.4.5"
+=======
+	VERSION = "1.4.4"
+>>>>>>> 8338521dbcc47f97f306005c4ae34da8f14ed89f
 	SERVER  = "FindMyDevice"
 )
 
