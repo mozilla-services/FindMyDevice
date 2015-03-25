@@ -261,13 +261,13 @@ func Test_Handler_getUser(t *testing.T) {
 	// check the headers
 	headers := fresp.Header()
 	hv := map[string]string{
-		"X-Frame-Options":           "deny",
-		"X-Xss-Protection":          "1; mode=block",
-		"X-Content-Type-Options":    "nosniff",
-		"X-Content-Security-Policy": "default-src 'self'",
-		"Content-Security-Policy":   "default-src 'self'",
-		"X-Webkit-Csp":              "default-src 'self'",
-		"Frame-Options":             "deny",
+		"X-Frame-Options":        "deny",
+		"X-Xss-Protection":       "1; mode=block",
+		"X-Content-Type-Options": "nosniff",
+		//	"X-Content-Security-Policy": "default-src 'self'",
+		//	"Content-Security-Policy":   "default-src 'self'",
+		//	"X-Webkit-Csp":              "default-src 'self'",
+		"Frame-Options": "deny",
 	}
 	for k, v := range hv {
 		if j := headers.Get(k); j != v {
