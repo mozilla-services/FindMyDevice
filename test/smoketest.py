@@ -19,12 +19,12 @@ import hashlib
 import hmac
 import json
 import os
+import pdb
 import random
 import requests
 import sys
 import time
 import urlparse
-import pdb
 
 import websocket
 
@@ -174,7 +174,7 @@ def paddId():
     return "00000000"[:8 - len(r)] + r
 
 
-def registerNew(config, cred):
+def registerNew(config, cred, deviceId=None):
     """ Register a new fake device
     """
     tmpl = config.get("urls", "reg")
@@ -184,25 +184,25 @@ def registerNew(config, cred):
     assertion = config.get("main", "assertion")
     # divy up based on scheme.
     # New Assertion?
-    if (True):
-        uniqueId = "deadbeef%sdecafbad%s" % (paddId(), paddId())
+    if deviceId is None:
+        deviceId = "deadbeef%sdecafbad%s" % (paddId(), paddId())
+
         regObj = {"assert": assertion,
                   "pushurl": "http://example.com",
-                  "deviceid": uniqueId}
+                  "deviceid": deviceId}
         # no HAWK
         reply = send(trg, regObj, {})
     else:
-        pdb.set_trace()
         # Repeating here, because live tests use different values
         regObj = {"pushurl": "http://example.com",
-                  "deviceid": "deadbeef00000000decafbad00000000"}
+                  "deviceid": deviceId}
         # with HAWK
         reply = send(trg, regObj, cred)
     cred = reply.json()
     print "### Returned Credentials: "
     pprint(cred)
     #listener("deadbeef00000000decafbad00000000")
-    return sendCmd(config, cred, newLocation()), cred
+    return sendCmd(config, cred, newLocation()), cred, deviceId
 
 
 def send(urlStr, data, cred, method="POST"):
@@ -210,7 +210,7 @@ def send(urlStr, data, cred, method="POST"):
     """
     session = requests.Session()
     headers = {"content-type": "application/json",
-            "User-Agent": "Test/1.0 (Python) Script/0.1"}
+               "User-Agent": "Test/1.0 (Python) Script/0.1"}
     datas = json.dumps(data)
     if cred.get("secret") is not None:
         # generate HAWK auth header
@@ -308,6 +308,7 @@ def adjustAccuracy(accuracy):
 
 
 def main(argv):
+    iter = 0
     accuracy = 5000
     config = getConfig(argv)
     cmd = {}
@@ -322,14 +323,17 @@ def main(argv):
     # register a new device
     print "Registering client... \n"
     # Send a fake statement saying that the client has no passcode.
-    cmd, cred = registerNew(config, cred)
+    cmd, cred, deviceId = registerNew(config, cred)
     while True:
         # Burn through the command queue.
         print "Processing commands...\n"
         cmd = processCmd(config, cred, cmd)
         if cmd is None or cmd.json() == {}:
             accuracy = adjustAccuracy(accuracy)
-            cmd = sendCmd(config, cred, newLocation(accuracy))
+            if iter % 4 == 0:
+                cmd, cred, x  = registerNew(config, cred, deviceId)
+            else:
+                cmd = sendCmd(config, cred, newLocation(accuracy))
     print "done"
 
 
