@@ -448,7 +448,8 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 
 		if userid == "" {
 			self.logger.Error(self.logCat, "FxA verification did not include correct path to uid",
-				util.Fields{"errorAt": verr})
+				util.Fields{"errorAt": verr,
+					"assertion": assertion})
 			return "", "", ErrOAuth
 		}
 		err = nil
