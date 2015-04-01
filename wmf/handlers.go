@@ -433,7 +433,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 
 	if idp, ok := buff["idpClaims"]; ok {
 		// It's a validated Assertion, so get the userid and email.
-		verr = "no principle"
+		verr = "no principal"
 		if principal, ok := idp.(map[string]interface{})["principal"]; ok {
 			verr = "no email"
 			if uid, ok := principal.(map[string]interface{})["email"]; ok {
