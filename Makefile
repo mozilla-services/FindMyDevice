@@ -58,7 +58,7 @@ clean:
 	rm $(HERE)/npm-installed
 
 test:
-	$(GO) test github.com/mozilla-services/FindMyDevice/wmf -cover
+	$(GO) test -v github.com/mozilla-services/FindMyDevice/wmf -cover
 	#$(GO) test github.com/mozilla-services/FindMyDevice/wmf/storage -cover
 
 run:
