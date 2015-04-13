@@ -61,7 +61,7 @@ func fakeValidator(email, id string) *httptest.Server {
 		//resp.Header.Add("Content-Type", "application/json")
 		email := "test+test@example.com"
 		id := "0123456789abcdef"
-		fmt.Fprintln(resp, fmt.Sprintf("{\"code\":200,\"idpClaims\":{\"fxa-generation\":1404770592087,\"fxa-lastAuthAt\":1404834090,\"fxa-verifiedEmail\":\"%s\",\"public-key\":{\"algorithm\":\"DS\",\"y\":\"\",\"p\":\"\",\"q\":\"\",\"g\":\"\"},\"principal\":{\"email\":\"%s@api.accounts.firefox.com\"},\"iat\":1404834172418,\"exp\":1404855782418,\"iss\":\"api.accounts.firefox.com\"}}", email, id))
+		fmt.Fprintln(resp, fmt.Sprintf(`{"audience":"https://find.stage.mozaws.net","expires":2217367775002,"issuer":"api-accounts.stage.mozaws.net","email":"%s@api-accounts.stage.mozaws.net","idpClaims":{"fxa-generation":1428954416132,"fxa-lastAuthAt":1428967774,"fxa-verifiedEmail":"%s"},"status":"okay"}`, id, email))
 	}))
 }
 

@@ -329,7 +329,7 @@ func (self *Handler) extractAudience(assertion string) (audience string) {
 		if data, err := base64.StdEncoding.DecodeString(pad(bits[3])); err == nil {
 			dj := make(replyType)
 			if err = json.Unmarshal(data, &dj); err == nil {
-				if v, ok := dj["audience"]; ok {
+				if v, ok := dj["aud"]; ok {
 					// fxa
 					return v.(string)
 				}
@@ -364,7 +364,13 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 		self.logger.Info(self.logCat, "Extracted Audience",
 			util.Fields{"audience": args["audience"]})
 	}
+	if args["audience"] == "" {
+		args["audience"] = self.config.Get("fxa.audience",
+			"https://oauth.accounts.firefox.com/v1")
+	}
 	if self.config.GetFlag("auth.trim_audience") {
+		self.logger.Info(self.logCat, "Preparing...",
+			util.Fields{"audience": args["audience"]})
 		audUrl, err := url.Parse(args["audience"])
 		if err != nil {
 			self.logger.Warn(self.logCat, "Could not parse Audience",
@@ -373,10 +379,6 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 		} else {
 			args["audience"] = audUrl.Scheme + "://" + audUrl.Host + "/"
 		}
-	}
-	if args["audience"] == "" {
-		args["audience"] = self.config.Get("fxa.audience",
-			"https://oauth.accounts.firefox.com/v1")
 	}
 	// State is a nonce useful for validation callbacks.
 	// Since we're not calling back, it's not necessary to
@@ -429,33 +431,24 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	// the response has either been a redirect or a validated assertion.
 	// fun times, fun times...
 
-	verr := "no idpClaims"
+	if uid, ok := buff["email"]; ok {
+		userid = strings.Split(uid.(string), "@")[0]
+	}
 
 	if idp, ok := buff["idpClaims"]; ok {
 		// It's a validated Assertion, so get the userid and email.
-		verr = "no principal"
-		if principal, ok := idp.(map[string]interface{})["principal"]; ok {
-			verr = "no email"
-			if uid, ok := principal.(map[string]interface{})["email"]; ok {
-				verr = "bad email str"
-				userid = strings.Split(uid.(string), "@")[0]
-			}
-		}
-
 		if iemail, ok := idp.(map[string]interface{})["fxa-verifiedEmail"]; ok {
 			email = iemail.(string)
 		}
-
-		if userid == "" {
-			self.logger.Error(self.logCat, "FxA verification did not include correct path to uid",
-				util.Fields{"errorAt": verr,
-					"assertion": assertion})
-			return "", "", ErrOAuth
-		}
-		err = nil
-		return
-
 	}
+
+	if userid != "" && email != "" {
+		return
+	}
+
+	self.logger.Warn(self.logCat, "FxA Assertion did not contain valid "+
+		"uid or email, checking for redirect.", nil)
+
 	// get the "redirect" url. We're not going to redirect, just get the code.
 	redir, ok := buff["redirect"]
 	if !ok {
