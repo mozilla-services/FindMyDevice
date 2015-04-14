@@ -419,7 +419,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 			util.Fields{"code": strconv.FormatInt(int64(code.(float64)), 10),
 				"error": buff["error"].(string),
 				"body":  raw})
-		return "", "", err
+		return "", "", ErrOAuth
 	}
 	if status, ok := buff["status"]; ok {
 		if status == "failure" {
@@ -454,7 +454,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	if !ok {
 		self.logger.Error(self.logCat, "FxA verification did not return redirect",
 			nil)
-		return "", "", err
+		return "", "", ErrOAuth
 	}
 	vurl, err := url.Parse(redir.(string))
 	if err != nil {
