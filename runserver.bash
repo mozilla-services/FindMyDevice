@@ -1,3 +1,3 @@
 #!/bin/bash
 
-GOPATH="$(pwd)/.godeps:$(pwd)" go run main.go $@
+go run main.go $@
