@@ -431,8 +431,10 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	// the response has either been a redirect or a validated assertion.
 	// fun times, fun times...
 
+	fxa_issuer := self.config.Get("fxa.issuer",
+		"api.accounts.firefox.com")
 	issuer, ok := buff["issuer"]
-	if !ok || issuer != "api.accounts.firefox.com" {
+	if !ok || issuer != fxa_issuer {
 		self.logger.Error(self.logCat, "FxA verification failed",
 			util.Fields{"error": "invalid issuer"})
 		return "", "", ErrOAuth
@@ -440,6 +442,12 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 
 	if uid, ok := buff["email"]; ok {
 		bits := strings.Split(uid.(string), "@")
+		if len(bits) != 2 {
+			self.logger.Error(self.logCat, "FxA verification failed",
+				util.Fields{"error": "email is malformed",
+					"email": uid.(string)})
+			return "", "", ErrOAuth
+		}
 		userid = bits[0]
 		if issuer != bits[1] {
 			self.logger.Error(self.logCat, "FxA verification failed",
