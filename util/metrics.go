@@ -37,21 +37,21 @@ type Metric struct {
 	timer  timer            // timers
 	prefix string           // prefix for
 	logger Logger
-	statsd *statsd.Client
+	statsd statsd.Statter
 	born   time.Time
 }
 
 func NewMetrics(prefix string, logger Logger, config *MzConfig) *Metric {
 
-	var statsdc *statsd.Client
+	var statsds statsd.Statter
 	if server := config.Get("statsd.server", ""); server != "" {
 		name := strings.ToLower(config.Get("statsd.name", "undef"))
-		client, err := statsd.New(server, name)
+		statter, err := statsd.NewClient(server, name)
 		if err != nil {
 			logger.Error("metrics", "Could not init statsd connection",
 				Fields{"error": err.Error()})
 		} else {
-			statsdc = client
+			statsds = statter
 		}
 	}
 
@@ -60,7 +60,7 @@ func NewMetrics(prefix string, logger Logger, config *MzConfig) *Metric {
 		timer:  make(timer),
 		prefix: prefix,
 		logger: logger,
-		statsd: statsdc,
+		statsd: statsds,
 		born:   time.Now(),
 	}
 }

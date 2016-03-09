@@ -5,11 +5,11 @@ package wmf
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import (
-	"code.google.com/p/go.net/websocket"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/mozilla-services/FindMyDevice/util"
 	"github.com/mozilla-services/FindMyDevice/wmf/storage"
+	"golang.org/x/net/websocket"
 
 	"bytes"
 	"crypto/rand"
@@ -126,7 +126,7 @@ type ClientBox struct {
 
 // apply bin64 padd
 func pad(in string) string {
-	return in + "===="[:len(in)%4]
+	return in + "=="[:len(in)%2]
 }
 
 func NewClientBox() *ClientBox {
@@ -325,17 +325,12 @@ func (self *Handler) extractFromAssertion(assertion string) (userid, email strin
 // and a mis-match causes the assertion to fail.
 func (self *Handler) extractAudience(assertion string) (audience string) {
 	bits := strings.Split(assertion, ".")
-	// Classic? persona has 3 chunks, modified has 5.
 	if len(bits) == 5 {
 		if data, err := base64.StdEncoding.DecodeString(pad(bits[3])); err == nil {
 			dj := make(replyType)
 			if err = json.Unmarshal(data, &dj); err == nil {
-				if v, ok := dj["audience"]; ok {
-					// fxa
-					return v.(string)
-				}
 				if v, ok := dj["aud"]; ok {
-					// persona
+					// fxa
 					return v.(string)
 				}
 			}
@@ -344,115 +339,13 @@ func (self *Handler) extractAudience(assertion string) (audience string) {
 	return ""
 }
 
-// verify a Persona assertion using the config values
-// part of Handler for config & logging reasons
-// Persona support is deprecated and may eventually go away. It is
-// still provided for educational reasons and in case you want to use this
-// with a private Persona service.
-func (self *Handler) verifyPersonaAssertion(assertion string) (userid, email string, err error) {
-	var ok bool
-	var audience string
-
-	if assLen := len(assertion); assLen != len(strings.Map(assertionFilter, assertion)) {
-		self.logger.Error(self.logCat, "Assertion contains invalid characters.",
-			util.Fields{"assertion": assertion})
-		return "", "", ErrAuthorization
-	}
-
-	// ******** DO NOT ENABLE auth.disabled FLAG IN PRODUCTION!! ******
-	if self.config.GetFlag("auth.disabled") {
-		self.logger.Warn(self.logCat, "!!! Skipping persona validation...", nil)
-		if len(assertion) == 0 {
-			return "user1", "user@example.com", nil
-		}
-		// Time to UberFake! THIS IS VERY DANGEROUS!
-		self.logger.Warn(self.logCat,
-			"!!! Using Assertion Without Validation",
-			nil)
-		return self.extractFromAssertion(assertion)
-	}
-	// pull the audience out of the assertion, if it's present.
-	if self.config.GetFlag("auth.audience_from_assertion") {
-		audience = self.extractAudience(assertion)
-	}
-	if audience == "" {
-		audience = self.config.Get("persona.audience",
-			"http://localhost:8080")
-	}
-	// Better verify for realz
-	validatorURL := self.config.Get("persona.verifier",
-		"https://verifier.login.persona.org/v2")
-	body, err := json.Marshal(
-		util.Fields{"assertion": assertion,
-			"audience": audience})
-	if err != nil {
-		self.logger.Error(self.logCat,
-			"Could not marshal assertion",
-			util.Fields{"error": err.Error()})
-		return "", "", ErrAuthorization
-	}
-	if self.config.GetFlag("auth.show_assertion") {
-		self.logger.Debug(self.logCat,
-			"Assertion:",
-			util.Fields{"assertion": string(body)})
-	}
-	req, err := http.NewRequest("POST", validatorURL, bytes.NewReader(body))
-	if err != nil {
-		self.logger.Error(self.logCat, "Could not POST assertion",
-			util.Fields{"error": err.Error()})
-		return "", "", err
-	}
-	req.Header.Add("Content-Type", "application/json")
-	cli := http.Client{}
-	res, err := cli.Do(req)
-	if err != nil {
-		self.logger.Error(self.logCat, "Persona verification failed",
-			util.Fields{"error": err.Error()})
-		return "", "", ErrAuthorization
-	}
-
-	// Handle the verifier response
-	buffer, raw, err := parseBody(res.Body)
-	if isOk, ok := buffer["status"]; !ok || isOk != "okay" {
-		var errStr = "Unknown reason"
-		if err != nil {
-			errStr = err.Error()
-		} else if _, ok = buffer["reason"]; ok {
-			errStr = buffer["reason"].(string)
-		}
-		self.logger.Error(self.logCat, "Persona Auth Failed",
-			util.Fields{"error": errStr,
-				"body": raw})
-		return "", "", ErrAuthorization
-	}
-
-	// extract the email
-	if idp, ok := buffer["idpClaims"]; ok {
-		if fxe, ok := idp.(map[string]interface{})["fxa-verifiedEmail"]; ok {
-			email = fxe.(string)
-			userid = self.genHash(email)
-			return userid, email, nil
-		}
-	}
-
-	if email, ok = buffer["email"].(string); !ok {
-		self.logger.Error(self.logCat, "No email found in assertion",
-			util.Fields{"assertion": fmt.Sprintf("%+v", buffer)})
-		return "", "", ErrAuthorization
-	}
-	// and the userid, generating one if need be.
-	if _, ok = buffer["userid"].(string); !ok {
-		userid = self.genHash(email)
-	}
-	return userid, email, nil
-}
-
 func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string, err error) {
 	if len(assertion) != len(strings.Map(assertionFilter, assertion)) {
 		self.logger.Error(self.logCat, "Assertion contains invalid characters.",
 			util.Fields{"assertion": assertion})
 		return "", "", ErrAuthorization
 	}
+	var ok bool
 
 	// ******** DO NOT ENABLE auth.disabled FLAG IN PRODUCTION!! ******
 	if self.config.GetFlag("auth.disabled") {
@@ -471,7 +364,13 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 		self.logger.Info(self.logCat, "Extracted Audience",
 			util.Fields{"audience": args["audience"]})
 	}
+	if args["audience"] == "" {
+		args["audience"] = self.config.Get("fxa.audience",
+			"https://oauth.accounts.firefox.com/v1")
+	}
 	if self.config.GetFlag("auth.trim_audience") {
+		self.logger.Info(self.logCat, "Preparing...",
+			util.Fields{"audience": args["audience"]})
 		audUrl, err := url.Parse(args["audience"])
 		if err != nil {
 			self.logger.Warn(self.logCat, "Could not parse Audience",
@@ -480,10 +379,6 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 		} else {
 			args["audience"] = audUrl.Scheme + "://" + audUrl.Host + "/"
 		}
-	}
-	if args["audience"] == "" {
-		args["audience"] = self.config.Get("fxa.audience",
-			"https://oauth.accounts.firefox.com/v1")
 	}
 	// State is a nonce useful for validation callbacks.
 	// Since we're not calling back, it's not necessary to
@@ -524,7 +419,7 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 			util.Fields{"code": strconv.FormatInt(int64(code.(float64)), 10),
 				"error": buff["error"].(string),
 				"body":  raw})
-		return "", "", err
+		return "", "", ErrOAuth
 	}
 	if status, ok := buff["status"]; ok {
 		if status == "failure" {
@@ -536,25 +431,30 @@ func (self *Handler) verifyFxAAssertion(assertion string) (userid, email string,
 	// the response has either been a redirect or a validated assertion.
 	// fun times, fun times...
 
+	if uid, ok := buff["email"]; ok {
+		userid = strings.Split(uid.(string), "@")[0]
+	}
+
 	if idp, ok := buff["idpClaims"]; ok {
-		if principal, ok := idp.(map[string]interface{})["principal"]; ok {
-			if uid, ok := principal.(map[string]interface{})["email"]; ok {
-				userid = strings.Split(uid.(string), "@")[0]
-			}
-		}
-		if email, ok := idp.(map[string]interface{})["fxa-verifiedEmail"]; ok {
-			if userid == "" {
-				userid = self.genHash(email.(string))
-			}
-			return userid, email.(string), nil
+		// It's a validated Assertion, so get the userid and email.
+		if iemail, ok := idp.(map[string]interface{})["fxa-verifiedEmail"]; ok {
+			email = iemail.(string)
 		}
 	}
+
+	if userid != "" && email != "" {
+		return
+	}
+
+	self.logger.Warn(self.logCat, "FxA Assertion did not contain valid "+
+		"uid or email, checking for redirect.", nil)
+
 	// get the "redirect" url. We're not going to redirect, just get the code.
 	redir, ok := buff["redirect"]
 	if !ok {
 		self.logger.Error(self.logCat, "FxA verification did not return redirect",
 			nil)
-		return "", "", err
+		return "", "", ErrOAuth
 	}
 	vurl, err := url.Parse(redir.(string))
 	if err != nil {
@@ -1198,12 +1098,7 @@ func NewHandler(config *util.MzConfig, logger util.Logger, metrics util.Metrics)
 		serverLangTemplate: stmpl,
 	}
 
-	// oh, go...
-	if config.GetFlag("auth.persona") {
-		h.verify = h.verifyPersonaAssertion
-	} else {
-		h.verify = h.verifyFxAAssertion
-	}
+	h.verify = h.verifyFxAAssertion
 
 	return h
 }
@@ -2060,9 +1955,21 @@ func (self *Handler) SecureHeaders(resp http.ResponseWriter) {
 		resp.Header().Set("Frame-Options", "deny")
 		resp.Header().Set("X-XSS-Protection", "1; mode=block")
 		resp.Header().Set("X-Content-Type-Options", "nosniff")
-		resp.Header().Set("X-Content-Security-Policy", "default-src 'self'")
-		resp.Header().Set("Content-Security-Policy", "default-src 'self'")
-		resp.Header().Set("X-WebKit-CSP", "default-src 'self'")
+		/*
+			Content-Security-Policy would be lovely to have, but it's VERY touchy
+			about hosts and protocols (e.g. https is ok, wss is not)
+			For now, I'm going to have to leave this off.
+
+			csp_includes := "default-src 'self' " +
+				"*.tiles.mapbox.com " +
+				"find.firefox.com "
+			resp.Header().Set("X-Content-Security-Policy",
+				csp_includes)
+			resp.Header().Set("Content-Security-Policy",
+				csp_includes)
+			resp.Header().Set("X-WebKit-CSP",
+				csp_includes)
+		*/
 	}
 }
 
@@ -2524,9 +2431,6 @@ func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	prefix := "fxa"
-	if self.config.GetFlag("auth.persona") {
-		prefix = "persona"
-	}
 	action = "signin"
 	if strings.ToLower(req.FormValue("action")) == "signup" {
 		action = "signup"
