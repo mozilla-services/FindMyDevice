@@ -1,11 +1,7 @@
-HERE= $(shell pwd)
-DEPS= $(HERE)/.godeps
-BIN=$(DEPS)/bin
-GOPATH:=$(DEPS):$(HERE):$(GOPATH)
-EXEC=FindMyDevice
-GPM=GOPATH=$(GOPATH) $(HERE)/gpm
-GO=GOPATH=$(GOPATH) go
-
+HERE := $(shell pwd)
+DEPS := $(HERE)/.godeps
+BIN  := $(DEPS)/bin
+GOGETTER := GOPATH=$(shell pwd)/.tmpdeps go get -d
 .PHONY : all install build clean test
 
 all: build
@@ -20,9 +16,23 @@ config.ini:
 		echo "!! Be sure to check for new changes     !!\n";\
 	fi
 
-$(DEPS):
-	mkdir -p .godeps
-	$(GPM) install
+go_vendor_idependencies:
+	$(GOGETTER) golang.org/x/net/websocket
+	$(GOGETTER) github.com/cactus/go-statsd-client/statsd
+	$(GOGETTER) github.com/gogo/protobuf/proto
+	$(GOGETTER) github.com/gogo/protobuf/protoc-gen-gogo
+	$(GOGETTER) github.com/gogo/protobuf/gogoproto
+	$(GOGETTER) golang.org/x/tools/cmd/cover
+	$(GOGETTER) github.com/gorilla/context
+	$(GOGETTER) github.com/gorilla/securecookie
+	$(GOGETTER) github.com/gorilla/sessions
+	$(GOGETTER) github.com/jessevdk/go-flags
+	$(GOGETTER) github.com/lib/pq
+	$(GOGETTER) github.com/rafrombrc/gospec/src/gospec
+	echo 'removing .git from vendored pkg and moving them to vendor'
+	find .tmpdeps/src -type d -name ".git" ! -name ".gitignore" -exec rm -rf {} \; || exit 0
+	cp -ar .tmpdeps/src/* vendor/
+	rm -rf .tmpdeps
 
 install: config.ini $(DEPS)
 	@echo "installed"
@@ -40,7 +50,7 @@ npm-installed:
 	touch $(HERE)/npm-installed
 
 FindMyDevice:
-	$(GO) build -o $(EXEC) github.com/mozilla-services/FindMyDevice
+	go install github.com/mozilla-services/FindMyDevice
 
 build: npm-installed install util/pblog.pb.go FindMyDevice
 
@@ -58,8 +68,5 @@ clean:
 	rm $(HERE)/npm-installed
 
 test:
-	$(GO) test -v github.com/mozilla-services/FindMyDevice/wmf -cover
+	go test -v github.com/mozilla-services/FindMyDevice/wmf -cover
 	#$(GO) test github.com/mozilla-services/FindMyDevice/wmf/storage -cover
-
-run:
-	$(EXEC)
