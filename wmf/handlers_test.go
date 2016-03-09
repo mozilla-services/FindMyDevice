@@ -56,12 +56,21 @@ func Test_ClientBox_Del(t *testing.T) {
 	}
 }
 
-func fakeValidator(email, id string) *httptest.Server {
+func fakeBadValidator(email, id string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		//resp.Header.Add("Content-Type", "application/json")
 		email := "test+test@example.com"
 		id := "0123456789abcdef"
 		fmt.Fprintln(resp, fmt.Sprintf(`{"audience":"https://find.stage.mozaws.net","expires":2217367775002,"issuer":"api-accounts.stage.mozaws.net","email":"%s@api-accounts.stage.mozaws.net","idpClaims":{"fxa-generation":1428954416132,"fxa-lastAuthAt":1428967774,"fxa-verifiedEmail":"%s"},"status":"okay"}`, id, email))
+	}))
+}
+
+func fakeValidator(email, id string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		//resp.Header.Add("Content-Type", "application/json")
+		email := "test+test@example.com"
+		id := "0123456789abcdef"
+		fmt.Fprintln(resp, fmt.Sprintf(`{"audience":"https://find.stage.mozaws.net","expires":2217367775002,"issuer":"api.accounts.firefox.com","email":"%s@api.accounts.firefox.com","idpClaims":{"fxa-generation":1428954416132,"fxa-lastAuthAt":1428967774,"fxa-verifiedEmail":"%s"},"status":"okay"}`, id, email))
 	}))
 }
 
@@ -97,6 +106,26 @@ func Test_Handler_verifyFxAAssertion(t *testing.T) {
 		err != nil {
 		t.Logf("Returned userid: %s, email: %s", userid, email)
 		t.Errorf("Failed to validate mock assertion %s", err)
+	}
+}
+
+func Test_Bad_Issuer(t *testing.T) {
+
+	temail := "test+test@example.com"
+	tid := "0123456789abcdef"
+
+	ts := fakeBadValidator(temail, tid)
+	defer ts.Close()
+
+	config := util.NewMzConfig()
+	config.Override("fxa.verifier", ts.URL)
+	h, _ := testHandler(config, t)
+
+	userid, email, err := h.verifyFxAAssertion("FakeAssertion")
+
+	if err != ErrOAuth || "" != userid || "" != email {
+		t.Logf("Returned userid: %s, email: %s", userid, email)
+		t.Errorf("Failed to reject bad issuer")
 	}
 }
 
