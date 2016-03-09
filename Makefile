@@ -34,7 +34,7 @@ go_vendor_idependencies:
 	cp -ar .tmpdeps/src/* vendor/
 	rm -rf .tmpdeps
 
-install: config.ini $(DEPS)
+install: config.ini
 	@echo "installed"
 
 #Usually, not required, but if protobuf changes, moves, etc, this will rebuild.
@@ -59,7 +59,6 @@ build-prod: build
 
 clean:
 	rm -f $(EXEC)
-	rm -rf $(DEPS)
 	rm -rf $(HERE)/static/dist
 	rm -rf $(HERE)/static/node_modules
 	rm -rf $(HERE)/static/style
