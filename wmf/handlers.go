@@ -5,11 +5,11 @@ package wmf
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import (
-	"code.google.com/p/go.net/websocket"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/mozilla-services/FindMyDevice/util"
 	"github.com/mozilla-services/FindMyDevice/wmf/storage"
+	"golang.org/x/net/websocket"
 
 	"bytes"
 	"crypto/rand"
