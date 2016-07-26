@@ -28,6 +28,10 @@
     {{end}}
   </head>
   <body class="fmd">
+    <div class="Shutdown">
+    <p>Find My Device is no longer supported by Mozilla and will be shut down on {{.Shutdown_date}}</p>
+    <p>Please see <a href="{{.Shutdown_url}}">{{.Shutdown_url}}</a> for more information</p>
+    </div>
     {{if .UserId}}
       <div id="stage"></div>
       <div id="modal"></div>
