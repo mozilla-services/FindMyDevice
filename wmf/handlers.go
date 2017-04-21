@@ -2440,6 +2440,7 @@ func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 	var err error
 	var action string
 	store := self.store
+	var action string
 
 	self.SecureHeaders(resp)
 
@@ -2452,6 +2453,10 @@ func (self *Handler) Signin(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	prefix := "fxa"
+	action = "signin"
+	if strings.ToLower(req.FormValue("action")) == "signup" {
+		action = "signup"
+	}
 	action = "signin"
 	if strings.ToLower(req.FormValue("action")) == "signup" {
 		action = "signup"
